@@ -1,8 +1,9 @@
 (defproject jvm-certificate-authority "0.1.0-SNAPSHOT"
   :url "http://www.github.com/puppetlabs/jvm-certificate-authority"
-  :source-paths ["src/main"]
-  :test-paths ["src/test"]
   :dependencies [[org.clojure/clojure "1.5.1"]]
+  :source-paths ["src/main/clojure"]
+  :test-paths ["src/test/clojure"]
+  :java-source-paths ["src/main/java"]
   :profiles {:dev {:dependencies [[puppetlabs/trapperkeeper "0.1.0"]]
                    :main puppetlabs.trapperkeeper.main
                    :aliases {"server" ["trampoline" "run"
