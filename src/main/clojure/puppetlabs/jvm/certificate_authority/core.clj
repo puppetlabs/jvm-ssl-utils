@@ -1,5 +1,5 @@
-(ns puppetlabs.jvm.certificate-authority
-  (:import [com.puppetlabs.jvm.ssl PuppetMasterCertManager]))
+(ns puppetlabs.jvm.certificate-authority.core
+  (:import [puppetlabs.jvm.certificate_authority.ssl PuppetMasterCertManager]))
 
 (defn initialize!
   [confdir master-certname]

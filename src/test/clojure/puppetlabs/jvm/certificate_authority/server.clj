@@ -1,4 +1,4 @@
-(ns puppetlabs.jvm-ssl.server
+(ns puppetlabs.jvm.certificate-authority.server
   (:require [puppetlabs.trapperkeeper.core :refer [defservice]]))
 
 (defservice secure-test-server

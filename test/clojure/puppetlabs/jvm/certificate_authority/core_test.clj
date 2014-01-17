@@ -1,7 +1,7 @@
-(ns puppetlabs.jvm.ssl.cert-manager-test
+(ns puppetlabs.jvm.certificate-authority.core-test
   (:require [clojure.test :refer :all]
             [me.raynes.fs :as fs]
-            [puppetlabs.jvm.certificate-authority :as ca]))
+            [puppetlabs.jvm.certificate-authority.core :as ca]))
 
 (def confdir "./conf")
 
