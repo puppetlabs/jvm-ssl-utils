@@ -3,7 +3,7 @@
             [me.raynes.fs :as fs]
             [puppetlabs.jvm.certificate-authority.core :as ca]))
 
-(def confdir "./conf")
+(def confdir "test-resources/conf")
 
 (use-fixtures :each
   (fn [test]

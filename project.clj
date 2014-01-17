@@ -4,9 +4,8 @@
   :source-paths ["src/main/clojure"]
   :test-paths ["test/clojure"]
   :java-source-paths ["src/main/java"]
-  :profiles {:test {:dependencies [[me.raynes/fs "1.4.3"]]}
-             :dev {:dependencies [[puppetlabs/trapperkeeper "0.1.0"]]
-                   :main puppetlabs.trapperkeeper.main
+  :profiles {:dev {:dependencies [[puppetlabs/trapperkeeper "0.1.0"] [me.raynes/fs "1.4.3"]]
+                   :main puppetlabs.jvm.certificate-authority.server
                    :source-paths ["src/main/clojure" "src/test/clojure"]
                    :aliases {"server" ["trampoline" "run"
                                        "--config" "test-resources/config.ini"
