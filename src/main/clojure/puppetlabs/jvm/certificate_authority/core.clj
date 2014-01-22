@@ -21,6 +21,10 @@
   [manager certname request]
   (.signCertificateRequest manager certname request))
 
+(defn sign-certificate-request-stream!
+  [manager certname request-stream]
+  (.signCertificateRequestStream manager certname request-stream))
+
 (defn certificate-revocation-list-stream
   [manager]
   (.getCRLStream manager))

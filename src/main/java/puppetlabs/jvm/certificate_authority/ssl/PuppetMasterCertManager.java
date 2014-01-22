@@ -95,12 +95,16 @@ public class PuppetMasterCertManager {
         return null;
     }
 
-    public String signCertificateRequest(String certname, InputStream certRequest) throws IOException, OperatorCreationException, CertificateException {
-        PKCS10CertificationRequest certReq = CertificateUtils.readCertificateRequest(new InputStreamReader(certRequest));
-
+    public X509Certificate signCertificateRequest(String certname, PKCS10CertificationRequest certRequest) throws IOException, OperatorCreationException, CertificateException {
         // TODO: we are just autosigning here, never saving the CSR to disk.
-        X509Certificate cert = CertificateUtils.signCertificateRequest(certReq, caX500Name, nextSerial(), caPrivateKey);
+        X509Certificate cert = CertificateUtils.signCertificateRequest(certRequest, caX500Name, nextSerial(), caPrivateKey);
         CertificateUtils.saveToPEM(cert, getHostCertPath(certname));
+        return cert;
+    }
+
+    public String signCertificateRequestStream(String certname, InputStream certRequestStream) throws IOException, OperatorCreationException, CertificateException {
+        PKCS10CertificationRequest certReq = CertificateUtils.readCertificateRequest(new InputStreamReader(certRequestStream));
+        signCertificateRequest(certname, certReq);
 
         // Yuck.  Unfortunately this marshalled ruby object is what the agent
         //  expects to receive.
@@ -113,9 +117,6 @@ public class PuppetMasterCertManager {
     public InputStream getCRLStream() throws FileNotFoundException {
         return new FileInputStream(PathUtils.concat(sslDir, PATH_CA_CRL));
     }
-
-
-
 
     private void initializeCACert() throws NoSuchProviderException, NoSuchAlgorithmException, IOException, OperatorCreationException, CRLException, CertificateException {
 
