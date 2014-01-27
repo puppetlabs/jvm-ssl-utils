@@ -7,7 +7,7 @@ describe 'HTTPS request to localhost:8081/test-ssl/' do
     Puppet.initialize_settings ['--confdir', 'test-resources/client/conf',
                                 '--certname', 'local-client']
 
-    http = Puppet::Network::HttpPool.http_ssl_instance('localhost', 8081)
+    http = Puppet::Network::HttpPool.http_instance('localhost', 8081, true)
     response = http.get('/test-ssl/')
     response.code.should == '200'
     response.body.should == 'Access granted'
