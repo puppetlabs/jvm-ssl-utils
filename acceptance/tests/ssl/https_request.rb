@@ -3,10 +3,13 @@ test_name "simple secure request" do
 
   step "start certificate-authority test server" do
     on(vm, 'cd /tmp/jvm-certificate-authority && bash -c "LEIN_ROOT=true lein server > /dev/null &"')
-    sleep 15
+    sleep 30 # TODO properly wait for server to be up and running
   end
 
-  step "attempt HTTPS request against server" do
-    on(vm, 'cd /tmp/jvm-certificate-authority && rspec test/ruby')
+  step "attempt requests against server" do
+    on(vm, 'cd /tmp/jvm-certificate-authority && rspec test/ruby') do |result|
+      puts result.stderr
+      puts result.stdout
+    end
   end
 end

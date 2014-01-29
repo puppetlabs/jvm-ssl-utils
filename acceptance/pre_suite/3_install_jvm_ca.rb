@@ -10,6 +10,8 @@ step "Install jvm-certificate-authority" do
   scp_to(vm, public_key, root_sshdir)
   scp_to(vm, known_hosts, root_sshdir)
 
-  install_from_git(vm, '/tmp', {:path => 'git@github.com:puppetlabs/jvm-certificate-authority.git', :name => 'jvm-certificate-authority'})
+  repo_owner = ENV['REPO_OWNER'] || 'puppetlabs'
+  revision = ENV['REVISION'] || 'master'
+  install_from_git(vm, '/tmp', {:path => "git@github.com:#{repo_owner}/jvm-certificate-authority.git", :name => 'jvm-certificate-authority', :rev => revision})
   on(vm, 'cd /tmp/jvm-certificate-authority && LEIN_ROOT=true lein deps')
 end

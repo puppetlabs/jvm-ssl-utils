@@ -9,3 +9,5 @@ pom.xml.asc
 /.nrepl-port
 log
 .vagrant
+.bundle
+bundle
