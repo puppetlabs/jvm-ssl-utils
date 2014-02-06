@@ -12,8 +12,8 @@ compared to running them via beaker.
 
 Run the following:
 
-1. `lein server` to bring up the CA test server
-2. `rspec test/ruby` to run the spec tests
+1. `lein with-profile +acceptance server` to bring up the CA test server
+2. `rspec acceptance/spec` to run the spec tests
 
 ### Acceptance Tests
 

@@ -1,13 +1,13 @@
 (ns puppetlabs.jvm.certificate-authority.server
+  (:import [puppetlabs.jvm.certificate_authority.ssl PuppetMasterCertManager])
   (:require [puppetlabs.trapperkeeper.core :as tk]
-            [puppetlabs.jvm.certificate-authority.core :as server-ca]
             [puppetlabs.jvm.certificate-authority.ssl.puppet-agent-cert-manager :as client-ca]
             [me.raynes.fs :as fs]))
 
 (defn cleanup
   []
-  (fs/delete-dir "test-resources/server")
-  (fs/delete-dir "test-resources/client"))
+  (fs/delete-dir "acceptance/resources/server")
+  (fs/delete-dir "acceptance/resources/client"))
 
 (tk/defservice secure-test-server
   {:depends  [[:webserver-service add-ring-handler]]
@@ -18,6 +18,6 @@
 
 (defn -main
   [& args]
-  (-> (server-ca/initialize! "test-resources/server/conf" "localhost")
-      (client-ca/initialize! "test-resources/client/conf" "local-client"))
+  (-> (PuppetMasterCertManager. "acceptance/resources/server/conf" "localhost")
+      (client-ca/initialize! "acceptance/resources/client/conf" "local-client"))
   (apply tk/main args))

@@ -2,7 +2,7 @@ require 'rspec'
 require 'puppet'
 require 'puppet/network/http_pool'
 
-Puppet.initialize_settings ['--confdir', 'test-resources/client/conf',
+Puppet.initialize_settings ['--confdir', 'acceptance/resources/client/conf',
                             '--certname', 'local-client']
 
 describe 'Plaintext request localhost:8080/test/ssl/' do
