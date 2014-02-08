@@ -1,4 +1,4 @@
-package puppetlabs.jvm.certificate_authority.ssl;
+package puppetlabs.jvm.certificate_authority;
 
 import puppetlabs.jvm.PathUtils;
 import org.apache.commons.io.FileUtils;
