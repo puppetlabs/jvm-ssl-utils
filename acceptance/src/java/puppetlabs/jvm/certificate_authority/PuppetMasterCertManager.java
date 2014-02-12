@@ -5,6 +5,7 @@ import org.apache.commons.io.FileUtils;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
+import org.bouncycastle.openssl.PEMReader;
 import org.joda.time.DateTime;
 import org.joda.time.Period;
 
@@ -42,9 +43,6 @@ public class PuppetMasterCertManager {
     private final String masterPrivateKeyPath;
     private final String masterCertPath;
 
-    private final String keystorePassword;
-    private final KeyStore keystore;
-
     // TODO: the exception handling in this class is terrible; should be catching
     //  most of these and raising a more general PuppetCert exception
     //  or similar
@@ -67,24 +65,24 @@ public class PuppetMasterCertManager {
 
         initializeCACert();
 
-        this.caPrivateKey = CertificateUtils.readPrivateKey(new FileReader(this.caPrivateKeyPath));
+        this.caPrivateKey = readPrivateKey(new FileReader(this.caPrivateKeyPath));
 
         initializeMasterCert();
 
-        this.keystorePassword = "puppet";
-        this.keystore = CertificateUtils.pemsToJavaKeystore(
-                this.caCertPath,
-                this.masterCertPath,
-                this.masterPrivateKeyPath,
-                this.keystorePassword);
+        // Save pems to keystore
+        KeyStore ks = CertificateUtils.createKeyStore();
+        String keystorePassword = "puppet";
+        X509Certificate caCert = CertificateUtils.pemToCerts(new FileReader(this.caCertPath)).get(0);
+        X509Certificate hostCert = CertificateUtils.pemToCerts(new FileReader(this.masterCertPath)).get(0);
+        PrivateKey hostPrivateKey = CertificateUtils.pemToPrivateKeys(new FileReader(this.masterPrivateKeyPath)).get(0);
+        CertificateUtils.associateCert(ks, "ca-cert-alias", caCert);
+        CertificateUtils.associateCert(ks, "ca-cert-alias", hostCert);
+        CertificateUtils.associatePrivateKey(ks, "key-alias", hostPrivateKey, keystorePassword, hostCert);
     }
 
-    public KeyStore getKeystore() {
-        return keystore;
-    }
-
-    public String getKeystorePassword() {
-        return keystorePassword;
+    private static PrivateKey readPrivateKey(Reader keyReader) throws IOException {
+        PEMReader reader = new PEMReader(keyReader);
+        return ((KeyPair) reader.readObject()).getPrivate();
     }
 
     public InputStream getCertStream(String certname) throws FileNotFoundException {
@@ -98,12 +96,12 @@ public class PuppetMasterCertManager {
     public X509Certificate signCertificateRequest(String certname, PKCS10CertificationRequest certRequest) throws IOException, OperatorCreationException, CertificateException {
         // TODO: we are just autosigning here, never saving the CSR to disk.
         X509Certificate cert = CertificateUtils.signCertificateRequest(certRequest, caX500Name, nextSerial(), caPrivateKey);
-        CertificateUtils.saveToPEM(cert, getHostCertPath(certname));
+        CertificateUtils.writeToPEM(cert, new FileWriter(getHostCertPath(certname)));
         return cert;
     }
 
     public String signCertificateRequestStream(String certname, InputStream certRequestStream) throws IOException, OperatorCreationException, CertificateException {
-        PKCS10CertificationRequest certReq = CertificateUtils.readCertificateRequest(new InputStreamReader(certRequestStream));
+        PKCS10CertificationRequest certReq = readCertificateRequest(new InputStreamReader(certRequestStream));
         signCertificateRequest(certname, certReq);
 
         // Yuck.  Unfortunately this marshalled ruby object is what the agent
@@ -112,6 +110,11 @@ public class PuppetMasterCertManager {
                 certname + "\n    content: !ruby/object:OpenSSL::X509::Request {}\n    expiration: " +
                 // TODO: pull the *real* expiration date off of the cert req
                 DateTime.now().plus(Period.years(5)).toString();
+    }
+
+    private static PKCS10CertificationRequest readCertificateRequest(Reader certReqReader) throws IOException {
+        PEMReader reader = new PEMReader(certReqReader);
+        return new PKCS10CertificationRequest(((PKCS10CertificationRequest) reader.readObject()).getEncoded());
     }
 
     public InputStream getCRLStream() throws FileNotFoundException {
@@ -134,24 +137,21 @@ public class PuppetMasterCertManager {
         }
 
         KeyPair caKeyPair = CertificateUtils.generateKeyPair();
-        CertificateUtils.saveToPEM(caKeyPair.getPublic(), this.caPublicKeyPath);
-        CertificateUtils.saveToPEM(caKeyPair.getPrivate(), this.caPrivateKeyPath);
+        CertificateUtils.writeToPEM(caKeyPair.getPublic(), new FileWriter(this.caPublicKeyPath));
+        CertificateUtils.writeToPEM(caKeyPair.getPrivate(), new FileWriter(this.caPrivateKeyPath));
 
         PKCS10CertificationRequest caCertReq = CertificateUtils.generateCertReq(caKeyPair, this.caX500Name);
         X509Certificate caCert = CertificateUtils.signCertificateRequest(caCertReq, this.caX500Name, nextSerial(), caKeyPair.getPrivate());
-        CertificateUtils.saveToPEM(caCert, this.caCertPath);
+        CertificateUtils.writeToPEM(caCert, new FileWriter(this.caCertPath));
 
-        FileUtils.copyFile(new File(this.caCertPath),
-                new File(getHostCertPath("ca")));
+        FileUtils.copyFile(new File(this.caCertPath), new File(getHostCertPath("ca")));
 
         X509CRL caCrl = CertificateUtils.generateCRL(caCert.getIssuerX500Principal(), caKeyPair.getPrivate());
-        CertificateUtils.saveToPEM(caCrl, this.caCrlPath);
+        CertificateUtils.writeToPEM(caCrl, new FileWriter(this.caCrlPath));
     }
 
     private String getHostCertPath(String hostCertName) {
-        return PathUtils.concat(this.sslDir,
-                PATH_HOST_CERTS,
-                hostCertName + ".pem");
+        return PathUtils.concat(this.sslDir, PATH_HOST_CERTS, hostCertName + ".pem");
     }
 
     private void initializeMasterCert() throws IOException, NoSuchProviderException, NoSuchAlgorithmException, OperatorCreationException, CertificateException {
@@ -169,17 +169,15 @@ public class PuppetMasterCertManager {
         }
 
         KeyPair masterKeyPair = CertificateUtils.generateKeyPair();
-        CertificateUtils.saveToPEM(masterKeyPair.getPublic(), masterPublicKeyPath);
-        CertificateUtils.saveToPEM(masterKeyPair.getPrivate(), masterPrivateKeyPath);
+        CertificateUtils.writeToPEM(masterKeyPair.getPublic(), new FileWriter(masterPublicKeyPath));
+        CertificateUtils.writeToPEM(masterKeyPair.getPrivate(), new FileWriter(masterPrivateKeyPath));
 
         X500Name masterX500Name = CertificateUtils.generateX500Name(masterCertname);
 
         PKCS10CertificationRequest masterCertReq = CertificateUtils.generateCertReq(masterKeyPair, masterX500Name);
         X509Certificate caCert = CertificateUtils.signCertificateRequest(masterCertReq, this.caX500Name, nextSerial(), caPrivateKey);
-        CertificateUtils.saveToPEM(caCert, masterCertPath);
+        CertificateUtils.writeToPEM(caCert, new FileWriter(masterCertPath));
     }
-
-
 
     private static BigInteger nextSerial() {
         // TODO: this needs to be able to persist between runs.
