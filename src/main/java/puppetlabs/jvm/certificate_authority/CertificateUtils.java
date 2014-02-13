@@ -11,8 +11,6 @@ import org.bouncycastle.cert.X509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CRLConverter;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v2CRLBuilder;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.openssl.PEMReader;
 import org.bouncycastle.openssl.PEMWriter;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.PEMKeyPair;
@@ -43,18 +41,13 @@ import java.util.ListIterator;
 
 public class CertificateUtils {
 
-
-    static {
-        Security.addProvider(new BouncyCastleProvider());
-    }
-
     // TODO: the exception handling in this class is terrible; should be catching
     //  most of these and raising a more general PuppetCert exception
     //  or similar
 
-
     public static KeyPair generateKeyPair() throws NoSuchProviderException, NoSuchAlgorithmException {
-        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA", BouncyCastleProvider.PROVIDER_NAME);
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+        // TODO make length configurable
 //        keyGen.initialize(4096);
         keyGen.initialize(2048);
         return keyGen.generateKeyPair();
@@ -63,7 +56,6 @@ public class CertificateUtils {
     public static X500Name generateX500Name(String commonName) {
         X500NameBuilder x500NameBuilder = new X500NameBuilder(BCStyle.INSTANCE);
         x500NameBuilder.addRDN(BCStyle.CN, commonName);
-
         return x500NameBuilder.build();
     }
 
@@ -93,7 +85,6 @@ public class CertificateUtils {
 
         return requestBuilder.build(
                 new JcaContentSignerBuilder("SHA1withRSA").
-                        setProvider(BouncyCastleProvider.PROVIDER_NAME).
                         build(keyPair.getPrivate()));
     }
 
@@ -126,18 +117,16 @@ public class CertificateUtils {
 //
 
         JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder("SHA256WithRSA");
-        signerBuilder.setProvider(BouncyCastleProvider.PROVIDER_NAME);
         ContentSigner signer = signerBuilder.build(issuerPrivateKey);
 
         X509CertificateHolder holder = builder.build(signer);
         JcaX509CertificateConverter converter = new JcaX509CertificateConverter();
-        converter.setProvider(BouncyCastleProvider.PROVIDER_NAME);
         return converter.getCertificate(holder);
     }
 
-    public static X509CRL generateCRL(X500Principal issuer,
-                                       PrivateKey issuerPrivateKey)
-            throws CRLException, OperatorCreationException {
+    public static X509CRL generateCRL(X500Principal issuer, PrivateKey issuerPrivateKey)
+        throws CRLException, OperatorCreationException
+    {
 
         Date issueDate = DateTime.now().toDate();
         Date nextUpdate = DateTime.now().plusYears(100).toDate();
@@ -147,13 +136,20 @@ public class CertificateUtils {
         crlGen.setNextUpdate(nextUpdate);
 
         JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder("SHA256withRSA");
-        signerBuilder.setProvider(BouncyCastleProvider.PROVIDER_NAME);
         ContentSigner signer = signerBuilder.build(issuerPrivateKey);
 
         X509CRLHolder crlHolder = crlGen.build(signer);
         JcaX509CRLConverter converter = new JcaX509CRLConverter();
-        converter.setProvider(BouncyCastleProvider.PROVIDER_NAME);
         return converter.getCRL(crlHolder);
+    }
+
+    public static PKCS10CertificationRequest pemToCertificationRequest(Reader reader)
+        throws IOException
+    {
+        List<Object> pemObjects = pemToObjects(reader);
+        if (pemObjects.size() > 1)
+            throw new IllegalArgumentException("The PEM file " + reader + " contains more than one object");
+        return (PKCS10CertificationRequest) pemObjects.get(0);
     }
 
     // ---- PORTED KITCHENSINK FUNCIONS ----
@@ -217,6 +213,15 @@ public class CertificateUtils {
         return results;
     }
 
+    public static PrivateKey pemToPrivateKey(Reader reader)
+        throws IOException
+    {
+        List<PrivateKey> privateKeys = pemToPrivateKeys(reader);
+        if (privateKeys.size() != 1)
+            throw new IllegalArgumentException("The PEM file " + reader + " must contain exactly one private key");
+        return privateKeys.get(0);
+    }
+
     public static KeyStore associateCert(KeyStore keystore, String alias, X509Certificate cert)
         throws KeyStoreException
     {
@@ -250,10 +255,10 @@ public class CertificateUtils {
         List<X509Certificate> certs = pemToCerts(pemCert);
 
         if (keys.size() > 1)
-            throw new IllegalArgumentException("The PEM file %s contains more than one key".format(pemPrivateKey.toString()));
+            throw new IllegalArgumentException("The PEM file " + pemPrivateKey + " contains more than one key");
 
         if (certs.size() > 1)
-            throw new IllegalArgumentException("The PEM file %s contains more than one certificate".format(pemCert.toString()));
+            throw new IllegalArgumentException("The PEM file " + pemCert + " contains more than one certificate");
 
         PrivateKey firstKey = keys.get(0);
         X509Certificate firstCert = certs.get(0);

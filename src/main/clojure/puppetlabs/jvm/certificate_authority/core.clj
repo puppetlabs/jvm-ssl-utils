@@ -33,6 +33,11 @@
   [issuer issuer-private-key]
   (CertificateUtils/generateCRL issuer issuer-private-key))
 
+(defn pem->csr
+  [pem]
+  (with-open [r (reader pem)]
+    (CertificateUtils/pemToCertificationRequest r)))
+
 ;;;; SSL functions from Kitchensink below
 
 (defn keystore
@@ -88,6 +93,12 @@
   {:post [(every? (fn [x] (instance? PrivateKey x)) %)]}
   (with-open [r (reader pem)]
     (CertificateUtils/pemToPrivateKeys r)))
+
+(defn pem->private-key
+  [pem]
+  {:post [(instance? PrivateKey %)]}
+  (with-open [r (reader pem)]
+    (CertificateUtils/pemToPrivateKey r)))
 
 (defn key->pem!
   "Encodes a public or private key to PEM format, and writes it to a file (or other
