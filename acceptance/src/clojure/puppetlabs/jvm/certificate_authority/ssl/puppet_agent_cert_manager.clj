@@ -1,8 +1,8 @@
 (ns puppetlabs.jvm.certificate-authority.ssl.puppet-agent-cert-manager
-  (:require [clojure.java.io :as io]
-            [puppetlabs.jvm.certificate-authority.core :as ca])
+  (:require [clojure.java.io :as io])
   (:import (puppetlabs.jvm PathUtils)
            (org.apache.commons.io FileUtils)
+           (puppetlabs.jvm.certificate_authority.ssl PuppetMasterCertManager)
            (puppetlabs.jvm.certificate_authority.ssl CertificateUtils)))
 
 (defn- path-concat
@@ -38,13 +38,13 @@
   (let [agent-keypair     (CertificateUtils/generateKeyPair)
         agent-x500-name   (CertificateUtils/generateX500Name agent-certname)
         agent-cert-req    (CertificateUtils/generateCertReq agent-keypair agent-x500-name)
-        agent-cert        (ca/sign-certificate-request! master-ca agent-certname agent-cert-req)]
+        agent-cert        (.signCertificateRequest master-ca agent-certname agent-cert-req)]
     (CertificateUtils/saveToPEM (.getPublic agent-keypair) (nth agent-ssl-paths 0))
     (CertificateUtils/saveToPEM (.getPrivate agent-keypair) (nth agent-ssl-paths 1))
     (CertificateUtils/saveToPEM agent-cert (nth agent-ssl-paths 2))
     ;; HACK - assume the location of the ca.pem file and just directly copy it into place
-    (FileUtils/copyFile (io/file "test-resources/server/conf/ssl/certs/ca.pem")
-                        (io/file "test-resources/client/conf/ssl/certs/ca.pem"))))
+    (FileUtils/copyFile (io/file "acceptance/resources/server/conf/ssl/certs/ca.pem")
+                        (io/file "acceptance/resources/client/conf/ssl/certs/ca.pem"))))
 
 (defn initialize!
   [master-ca confdir agent-certname]
