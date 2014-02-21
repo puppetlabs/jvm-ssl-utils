@@ -2,6 +2,7 @@
   (:import java.util.Arrays
            (java.security KeyPair KeyStore PublicKey PrivateKey SignatureException)
            (javax.security.auth.x500 X500Principal)
+           (javax.net.ssl SSLContext)
            (java.security.cert X509Certificate X509CRL)
            (java.io ByteArrayOutputStream ByteArrayInputStream)
            (org.bouncycastle.asn1.x500 X500Name)
@@ -80,13 +81,12 @@
 
   (testing "sign CSR"
     (let [csr         (generate-certificate-request
-                        (generate-key-pair)
-                        (generate-x500-name "foo"))
-          certificate (sign-certificate-request
-                        csr
-                        (generate-x500-name "my ca")
-                        42
-                        (.getPrivate (generate-key-pair)))]
+                       (generate-key-pair)
+                       (generate-x500-name "foo"))
+          issuer      (generate-x500-name "my ca")
+          serial      42
+          issuer-key  (.getPrivate (generate-key-pair))
+          certificate (sign-certificate-request csr issuer serial issuer-key)]
       (is (instance? X509Certificate certificate))
       (is (= "CN=foo" (-> certificate .getSubjectX500Principal .getName)))
       (is (= "CN=my ca" (-> certificate .getIssuerX500Principal .getName)))
@@ -207,4 +207,24 @@
             cert     (open-ssl-file "certs/multiple.pem")
             keystore (keystore)]
         (is (thrown? IllegalArgumentException
-                     (assoc-private-key-reader! keystore "foo" key "foo" cert)))))))
+                     (assoc-private-key-reader! keystore "foo" key "foo" cert))))))
+
+  (testing "convert PEMs to keystore/truststore"
+    (let [result (pems->key-and-trust-stores
+                   (open-ssl-file "certs/localhost.pem")
+                   (open-ssl-file "private_keys/localhost.pem")
+                   (open-ssl-file "certs/ca.pem"))]
+      (is (map? result))
+      (is (= #{:keystore :keystore-pw :truststore} (-> result keys set)))
+      (is (instance? KeyStore (:keystore result)))
+      (is (instance? KeyStore (:truststore result)))
+      (is (string? (:keystore-pw result))))))
+
+
+(deftest ssl-context-test
+  (testing "convert PEMs to SSLContext"
+    (let [result (pems->ssl-context
+                   (open-ssl-file "certs/localhost.pem")
+                   (open-ssl-file "private_keys/localhost.pem")
+                   (open-ssl-file "certs/ca.pem"))]
+      (is (instance? SSLContext result)))))

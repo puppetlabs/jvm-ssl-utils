@@ -26,6 +26,9 @@ import org.joda.time.DateTime;
 import org.joda.time.Period;
 
 import javax.security.auth.x500.X500Principal;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.SSLContext;
 import java.io.*;
 import java.math.BigInteger;
 import java.security.*;
@@ -38,6 +41,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.ListIterator;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.UUID;
 
 public class CertificateUtils {
 
@@ -259,5 +265,53 @@ public class CertificateUtils {
 
         X509Certificate firstCert = certs.get(0);
         return associatePrivateKey(keystore, alias, privateKey, password, firstCert);
+    }
+
+    public static Map<String, Object> pemsToKeyAndTrustStores(Reader cert, Reader privateKey, Reader caCert)
+        throws KeyStoreException, CertificateException, IOException, NoSuchAlgorithmException
+    {
+        KeyStore truststore = createKeyStore();
+        associateCertsFromReader(truststore, "CA Certificate", caCert);
+
+        KeyStore keystore = createKeyStore();
+        String keystorePassword = UUID.randomUUID().toString();
+        associatePrivateKeyReader(keystore, "Private Key", privateKey, keystorePassword, cert);
+
+        Map<String, Object> result = new HashMap<String, Object>();
+        result.put("truststore", truststore);
+        result.put("keystore", keystore);
+        result.put("keystore-pw", keystorePassword);
+        return result;
+    }
+
+    public static KeyManagerFactory getKeyManagerFactory(KeyStore keystore, String password)
+        throws NoSuchAlgorithmException, KeyStoreException, UnrecoverableKeyException
+    {
+        KeyManagerFactory factory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        factory.init(keystore, password.toCharArray());
+        return factory;
+    }
+
+    public static TrustManagerFactory getTrustManagerFactory(KeyStore truststore)
+        throws NoSuchAlgorithmException, KeyStoreException
+    {
+        TrustManagerFactory factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        factory.init(truststore);
+        return factory;
+    }
+
+    public static SSLContext pemsToSSLContext(Reader cert, Reader privateKey, Reader caCert)
+        throws KeyStoreException, CertificateException, IOException,
+               NoSuchAlgorithmException, KeyManagementException, UnrecoverableKeyException
+    {
+        Map<String, Object> stores = pemsToKeyAndTrustStores(cert, privateKey, caCert);
+        KeyStore keystore = (KeyStore) stores.get("keystore");
+        String password = (String) stores.get("keystore-pw");
+        KeyStore truststore = (KeyStore) stores.get("truststore");
+        KeyManagerFactory kmf = getKeyManagerFactory(keystore, password);
+        TrustManagerFactory tmf = getTrustManagerFactory(truststore);
+        SSLContext context = SSLContext.getInstance("SSL");
+        context.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+        return context;
     }
 }
