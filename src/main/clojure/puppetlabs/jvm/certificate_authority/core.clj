@@ -17,6 +17,10 @@
   [common-name]
   (CertificateUtils/generateX500Name common-name))
 
+(defn x500-name->CN
+  [x500-name]
+  (CertificateUtils/getCommonNameFromX500Name x500-name))
+
 (defn generate-certificate-request
   [keypair subject-name]
   (CertificateUtils/generateCertReq keypair subject-name))
@@ -28,22 +32,6 @@
 (defn generate-crl
   [issuer issuer-private-key]
   (CertificateUtils/generateCRL issuer issuer-private-key))
-
-(defn pems->keystore
-  [ca-cert host-cert host-private-key password]
-  (CertificateUtils/pemsToJavaKeystore ca-cert host-cert host-private-key password))
-
-(defn save-to-pem!
-  [pem filepath]
-  (CertificateUtils/saveToPEM pem filepath))
-
-(defn read-private-key
-  [reader]
-  (CertificateUtils/readPrivateKey reader))
-
-(defn read-certificate-request
-  [reader]
-  (CertificateUtils/readCertificateRequest reader))
 
 ;;;; SSL functions from Kitchensink below
 
@@ -75,7 +63,7 @@
          or any other type that is supported by clojure's `writer`.)"
   [obj pem]
   (with-open [w (writer pem)]
-    (CertificateUtils/writeObjectToPEM obj w)))
+    (CertificateUtils/writeToPEM obj w)))
 
 (defn pem->certs
   "Given the path to a PEM file (or some other object supported by
@@ -111,7 +99,7 @@
   [key pem]
   {:pre  [(instance? Key key)]}
   (with-open [w (writer pem)]
-    (CertificateUtils/writeObjectToPEM key w)))
+    (CertificateUtils/writeToPEM key w)))
 
 (defn assoc-cert!
   "Add a certificate to a keystore.  Arguments:
@@ -126,7 +114,7 @@
    :post [(instance? KeyStore %)]}
   (CertificateUtils/associateCert keystore alias cert))
 
-(defn assoc-certs-from-file!
+(defn assoc-certs-from-reader!
   "Add all certificates from a PEM file to a keystore.  Arguments:
 
   `keystore`: the `KeyStore` to add certificates to
@@ -136,7 +124,11 @@
   `pem`:      the path to a PEM file containing the certificate"
   [keystore prefix pem]
   (with-open [r (reader pem)]
-    (CertificateUtils/associateCertsFromFile keystore prefix r)))
+    (CertificateUtils/associateCertsFromReader keystore prefix r)))
+
+(def assoc-certs-from-file!
+  "Alias for `assoc-certs-from-reader!` for backwards compatibility."
+  assoc-certs-from-reader!)
 
 (defn assoc-private-key!
   "Add a private key to a keystore.  Arguments:
@@ -156,7 +148,7 @@
    :post [(instance? KeyStore %)]}
   (CertificateUtils/associatePrivateKey keystore alias private-key pw cert))
 
-(defn assoc-private-key-file!
+(defn assoc-private-key-reader!
   "Add a private key to a keystore.  Arguments:
 
   `keystore`:        the `KeyStore` to add the private key to
@@ -170,4 +162,8 @@
   [keystore alias pem-private-key pw pem-cert]
   (with-open [r-key  (reader pem-private-key)
               r-cert (reader pem-cert)]
-    (CertificateUtils/associatePrivateKeyFile keystore alias r-key pw r-cert)))
+    (CertificateUtils/associatePrivateKeyReader keystore alias r-key pw r-cert)))
+
+(def assoc-private-key-file!
+  "Alias for `assoc-private-key-reader!` for backwards compatibility."
+  assoc-private-key-reader!)

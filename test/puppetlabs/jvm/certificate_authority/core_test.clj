@@ -30,13 +30,11 @@
             priv-key (obj->private-key obj)]
         (is (instance? PrivateKey priv-key))))))
 
-;; TODO fix this
-(comment
-  (deftest x500-name-test
-    (testing "can create x500 name"
-      (let [x500-name (generate-x500-name "foo")]
-        (is (instance? X500Name x500-name))
-        (is (= "foo" (x500-name->CN x500-name)))))))
+(deftest x500-name-test
+  (testing "can create x500 name"
+    (let [x500-name (generate-x500-name "foo")]
+      (is (instance? X500Name x500-name))
+      (is (= "foo" (x500-name->CN x500-name))))))
 
 (deftest csr-test
   (testing "can create a CSR"
@@ -69,11 +67,11 @@
   (str "puppetlabs/jvm/certificate_authority/examples/ssl/" sub-path))
 
 (deftest privkeys
-  (testing "assoc-private-key-file!"
+  (testing "assoc-private-key-reader!"
     (let [private-key-file (resource (ssl-dir "private_keys/localhost.pem"))
           cert-file        (resource (ssl-dir "certs/localhost.pem"))
           keystore         (keystore)
-          _                (assoc-private-key-file! keystore "mykey" private-key-file "bunkpassword" cert-file)
+          _                (assoc-private-key-reader! keystore "mykey" private-key-file "bunkpassword" cert-file)
           keystore-key     (.getKey keystore "mykey" (char-array "bunkpassword"))
           private-key      (first (pem->private-keys private-key-file))]
 
@@ -99,7 +97,7 @@
           cert (resource (ssl-dir "certs/multiple.pem"))
           ks   (keystore)]
       (is (thrown? IllegalArgumentException
-                   (assoc-private-key-file! ks "foo" key "foo" cert)))))
+                   (assoc-private-key-reader! ks "foo" key "foo" cert)))))
 
   (testing "loading a PEM file with multiple certs"
     (let [pem (resource (ssl-dir "certs/multiple.pem"))]
@@ -108,7 +106,7 @@
 
       (testing "should load all certs from the file into a keystore"
         (let [ks (keystore)]
-          (assoc-certs-from-file! ks "foobar" pem)
+          (assoc-certs-from-reader! ks "foobar" pem)
           (is (= 2 (.size ks)))
           (is (.containsAlias ks "foobar-0"))
           (is (.containsAlias ks "foobar-1")))))))

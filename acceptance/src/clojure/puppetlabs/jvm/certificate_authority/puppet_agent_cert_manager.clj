@@ -39,9 +39,9 @@
         agent-x500-name   (CertificateUtils/generateX500Name agent-certname)
         agent-cert-req    (CertificateUtils/generateCertReq agent-keypair agent-x500-name)
         agent-cert        (.signCertificateRequest master-ca agent-certname agent-cert-req)]
-    (CertificateUtils/saveToPEM (.getPublic agent-keypair) (nth agent-ssl-paths 0))
-    (CertificateUtils/saveToPEM (.getPrivate agent-keypair) (nth agent-ssl-paths 1))
-    (CertificateUtils/saveToPEM agent-cert (nth agent-ssl-paths 2))
+    (CertificateUtils/writeToPEM (.getPublic agent-keypair) (io/writer (nth agent-ssl-paths 0)))
+    (CertificateUtils/writeToPEM (.getPrivate agent-keypair) (io/writer (nth agent-ssl-paths 1)))
+    (CertificateUtils/writeToPEM agent-cert (io/writer (nth agent-ssl-paths 2)))
     ;; HACK - assume the location of the ca.pem file and just directly copy it into place
     (fs/copy (io/file "acceptance/resources/server/conf/ssl/certs/ca.pem")
              (io/file "acceptance/resources/client/conf/ssl/certs/ca.pem"))))
