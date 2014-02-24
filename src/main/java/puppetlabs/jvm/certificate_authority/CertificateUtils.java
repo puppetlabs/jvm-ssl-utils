@@ -1,5 +1,6 @@
-package puppetlabs.jvm.certificate_authority.ssl;
+package puppetlabs.jvm.certificate_authority;
 
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
@@ -13,6 +14,10 @@ import org.bouncycastle.cert.jcajce.JcaX509v2CRLBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.PEMReader;
 import org.bouncycastle.openssl.PEMWriter;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.PEMKeyPair;
+import org.bouncycastle.openssl.PEMException;
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
@@ -32,6 +37,9 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.Date;
+import java.util.Collection;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 public class CertificateUtils {
 
@@ -191,6 +199,107 @@ public class CertificateUtils {
             ((org.bouncycastle.jce.PKCS10CertificationRequest) reader.readObject()).getEncoded());
     }
 
+    // ---- PORTED KITCHENSINK FUNCIONS ----
 
+    public static KeyStore createKeyStore()
+        throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException
+    {
+        KeyStore ks = KeyStore.getInstance("JKS");
+        ks.load(null);
+        return ks;
+    }
 
+    public static Collection<Object> pemToObjects(Reader reader)
+        throws IOException
+    {
+        PEMParser parser = new PEMParser(reader);
+        Collection<Object> results = new ArrayList<Object>();
+        for (Object o = parser.readObject(); o != null; o = parser.readObject())
+            results.add(o);
+        return results;
+    }
+
+    public static void writeObjectToPEM(Object o, Writer writer)
+        throws IOException
+    {
+        PEMWriter pw = new PEMWriter(writer);
+        pw.writeObject(o);
+        pw.flush();
+    }
+
+    public static Collection<X509Certificate> pemToCerts(Reader reader)
+        throws CertificateException, IOException
+    {
+        JcaX509CertificateConverter converter = new JcaX509CertificateConverter();
+        Collection pemObjects = pemToObjects(reader);
+        Collection<X509Certificate> results = new ArrayList<X509Certificate>(pemObjects.size());
+        for (Object o : pemObjects)
+            results.add(converter.getCertificate((X509CertificateHolder) o));
+        return results;
+    }
+
+    public static PrivateKey objectToPrivateKey(Object obj)
+        throws PEMException
+    {
+        // Certain PEMs will hand back a keypair with a nil public key
+        if (obj instanceof PrivateKeyInfo)
+            return new JcaPEMKeyConverter().getPrivateKey((PrivateKeyInfo) obj);
+        else if (obj instanceof PEMKeyPair)
+            return new JcaPEMKeyConverter().getKeyPair((PEMKeyPair) obj).getPrivate();
+        else
+            throw new IllegalArgumentException("Expected a KeyPair or PrivateKey, got " + obj);
+    }
+
+    public static Collection<PrivateKey> pemToPrivateKeys(Reader reader)
+        throws IOException, PEMException
+    {
+        Collection<Object> objects = pemToObjects(reader);
+        Collection<PrivateKey> results = new ArrayList<PrivateKey>(objects.size());
+        for (Object o : objects)
+            results.add(objectToPrivateKey(o));
+        return results;
+    }
+
+    public static KeyStore associateCert(KeyStore keystore, String alias, X509Certificate cert)
+        throws KeyStoreException
+    {
+        keystore.setCertificateEntry(alias, cert);
+        return keystore;
+    }
+
+    public static KeyStore associateCertsFromFile(KeyStore keystore, String prefix, Reader pem)
+        throws CertificateException, KeyStoreException, IOException
+    {
+        Collection<X509Certificate> certs = pemToCerts(pem);
+        Iterator<X509Certificate> iter = certs.iterator();
+        for (int i = 0; iter.hasNext(); i++)
+            associateCert(keystore, prefix + "-" + i, iter.next());
+        return keystore;
+    }
+
+    public static KeyStore associatePrivateKey(KeyStore keystore, String alias, PrivateKey privateKey,
+                                               String password, X509Certificate cert)
+        throws KeyStoreException
+    {
+        keystore.setKeyEntry(alias, privateKey, password.toCharArray(), new X509Certificate[]{cert});
+        return keystore;
+    }
+
+    public static KeyStore associatePrivateKeyFile(KeyStore keystore, String alias, Reader pemPrivateKey,
+                                                   String password, Reader pemCert)
+        throws CertificateException, KeyStoreException, IOException
+    {
+        Collection<PrivateKey> keys = pemToPrivateKeys(pemPrivateKey);
+        Collection<X509Certificate> certs = pemToCerts(pemCert);
+
+        if (keys.size() > 1)
+            throw new IllegalArgumentException("The PEM file %s contains more than one key".format(pemPrivateKey.toString()));
+
+        if (certs.size() > 1)
+            throw new IllegalArgumentException("The PEM file %s contains more than one certificate".format(pemCert.toString()));
+
+        PrivateKey firstKey = keys.iterator().next();
+        X509Certificate firstCert = certs.iterator().next();
+        return associatePrivateKey(keystore, alias, firstKey, password, firstCert);
+    }
 }

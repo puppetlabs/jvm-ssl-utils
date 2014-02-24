@@ -1,20 +1,19 @@
 (ns puppetlabs.jvm.certificate-authority.server
-  (:import [puppetlabs.jvm.certificate_authority.ssl PuppetMasterCertManager])
+  (:import [puppetlabs.jvm.certificate_authority PuppetMasterCertManager])
   (:require [puppetlabs.trapperkeeper.core :as tk]
-            [puppetlabs.jvm.certificate-authority.ssl.puppet-agent-cert-manager :as client-ca]
+            [puppetlabs.jvm.certificate-authority.puppet-agent-cert-manager :as client-ca]
             [me.raynes.fs :as fs]))
 
-(defn cleanup
-  []
-  (fs/delete-dir "acceptance/resources/server")
-  (fs/delete-dir "acceptance/resources/client"))
-
 (tk/defservice secure-test-server
-  {:depends  [[:webserver-service add-ring-handler]]
-   :provides [shutdown]}
-  (-> (fn [req] {:status 200 :body "Access granted"})
-      (add-ring-handler "/test-ssl"))
-   {:shutdown cleanup})
+  [[:WebserverService add-ring-handler]]
+  (init [_ context]
+        (add-ring-handler (fn [req] {:status 200 :body "Access granted"})
+                          "/test-ssl")
+        context)
+  (stop [_ context]
+        (fs/delete-dir "acceptance/resources/server")
+        (fs/delete-dir "acceptance/resources/client")
+        context))
 
 (defn -main
   [& args]
