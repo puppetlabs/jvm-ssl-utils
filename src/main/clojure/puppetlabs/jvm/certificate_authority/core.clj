@@ -1,42 +1,91 @@
 (ns puppetlabs.jvm.certificate-authority.core
   (:import (java.security Key KeyPair PrivateKey PublicKey KeyStore Security)
-           (java.security.cert X509Certificate)
+           (java.security.cert X509Certificate X509CRL)
            (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
+           (javax.security.auth.x500 X500Principal)
            (org.bouncycastle.openssl PEMParser PEMKeyPair PEMWriter)
            (org.bouncycastle.asn1.pkcs PrivateKeyInfo)
+           (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.openssl.jcajce JcaPEMKeyConverter)
            (org.bouncycastle.cert.jcajce JcaX509CertificateConverter)
+           (org.bouncycastle.pkcs PKCS10CertificationRequest)
            (puppetlabs.jvm.certificate_authority CertificateUtils))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :refer [keywordize-keys]]
             [clojure.java.io :refer [reader writer]]))
 
 (defn generate-key-pair
+  "Create new public & private keys (with length 2048)."
   []
+  {:post [(instance? KeyPair %)]}
   (CertificateUtils/generateKeyPair))
 
 (defn generate-x500-name
+  "Given a common name, return an X500 name built from it."
   [common-name]
+  {:pre  [(string? common-name)]
+   :post [(instance? X500Name %)]}
   (CertificateUtils/generateX500Name common-name))
 
 (defn x500-name->CN
+  "Given an X500 name, return the common name from it."
   [x500-name]
+  {:pre  [(instance? X500Name x500-name)]
+   :post [(string? %)]}
   (CertificateUtils/getCommonNameFromX500Name x500-name))
 
 (defn generate-certificate-request
+  "Given the subject's keypair and name, create and return a certification signing request (CSR).
+  Arguments:
+
+  `keypair`:      subject's public & private keys
+  `subject-name`: subject's `X500Name`
+
+  See `sign-certificate-request`, `obj->pem!`, and `pem->csr` to sign & read/write CSRs."
   [keypair subject-name]
+  {:pre  [(instance? KeyPair keypair)
+          (instance? X500Name subject-name)]
+   :post [(instance? PKCS10CertificationRequest %)]}
   (CertificateUtils/generateCertReq keypair subject-name))
 
 (defn sign-certificate-request
+  "Given a certification signing request and certificate authority information, sign the request
+  and return the signed `X509Certificate`.  Arguments:
+
+  `request`:            the certification signing request
+  `issuer`:             the issuer's `X500Name`
+  `serial`:             an arbitrary serial number integer
+  `issuer-private-key`: the issuer's `PrivateKey`
+
+  See `generate-certification-request`, `obj->pem!`, and `pem->certs` to create & read/write certificates."
   [request issuer serial issuer-private-key]
+  {:pre  [(instance? PKCS10CertificationRequest request)
+          (instance? X500Name issuer)
+          (number? serial)
+          (instance? PrivateKey issuer-private-key)]
+   :post [(instance? X509Certificate %)]}
   (CertificateUtils/signCertificateRequest request issuer (biginteger serial) issuer-private-key))
 
 (defn generate-crl
+  "Given the certificate authority's principal identifier and private key, create and return
+  a `X509CRL` certificate revocation list (CRL).  Arguments:
+
+  `issuer`:             the issuer's `X500Principal`
+  `issuer-private-key`: the issuer's `PrivateKey`"
   [issuer issuer-private-key]
+  {:pre  [(instance? X500Principal issuer)
+          (instance? PrivateKey issuer-private-key)]
+   :post [(instance? X509CRL %)]}
   (CertificateUtils/generateCRL issuer issuer-private-key))
 
 (defn pem->csr
+  "Given the path to a PEM file (or some other object supported by clojure's `reader`),
+  decode the contents into a `PKCS10CertificationRequest`.
+
+  See `obj->pem!` to PEM-encode a certification signing request."
   [pem]
+  {:pre  [pem]
+   :post [(instance? PKCS10CertificationRequest %)]}
   (with-open [r (reader pem)]
     (CertificateUtils/pemToCertificationRequest r)))
 
@@ -45,14 +94,16 @@
 (defn keystore
   "Create an empty in-memory Java KeyStore object."
   []
+  {:post [(instance? KeyStore %)]}
   (CertificateUtils/createKeyStore))
 
 (defn pem->objs
   "Given a file path (or any other type supported by clojure's `reader`), reads
-  PEM-encoded objects and returns a collection of objects of the
-  corresponding type from `java.security`."
+  PEM-encoded objects and returns a collection of objects of the corresponding
+  type from `java.security`."
   [pem]
-  {:post [(coll? %)]}
+  {:pre  [pem]
+   :post [(coll? %)]}
   (with-open [r (reader pem)]
     (let [objs (seq (CertificateUtils/pemToObjects r))]
       (doseq [o objs]
@@ -66,39 +117,47 @@
          to PEM; usually this is limited to certain types from the `java.security`
          packages.
 
-  `pem`:   the file path to write the PEM output to.  (Alternately, you may pass a `Writer`
-         or any other type that is supported by clojure's `writer`.)"
+  `pem`: the file path to write the PEM output to (or any other type supported by clojure's `writer`)"
   [obj pem]
+  {:pre  [obj
+          pem]
+   :post [(nil? %)]}
   (with-open [w (writer pem)]
     (CertificateUtils/writeToPEM obj w)))
 
 (defn pem->certs
-  "Given the path to a PEM file (or some other object supported by
-  clojure's `reader`), decodes the contents into an collection of
-  `X509Certificate` instances."
+  "Given the path to a PEM file (or some other object supported by clojure's `reader`),
+  decodes the contents into a collection of `X509Certificate` instances."
   [pem]
-  {:post [(every? (fn [x] (instance? X509Certificate x)) %)]}
+  {:pre  [pem]
+   :post [(every? (fn [x] (instance? X509Certificate x)) %)]}
   (with-open [r (reader pem)]
     (CertificateUtils/pemToCerts r)))
 
 (defn obj->private-key
-  "Decodes the given object (read from a .PEM file via `pem->objs`)
-  into an instance of `PrivateKey`"
+  "Decodes the given object (read from a .PEM file via `pem->objs`) into an instance of `PrivateKey`."
   [obj]
-  {:post [(instance? PrivateKey %)]}
+  {:pre  [obj]
+   :post [(instance? PrivateKey %)]}
   (CertificateUtils/objectToPrivateKey obj))
 
 (defn pem->private-keys
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decodes the contents into a collection of `PrivateKey` instances."
   [pem]
-  {:post [(every? (fn [x] (instance? PrivateKey x)) %)]}
+  {:pre  [pem]
+   :post [(every? (fn [x] (instance? PrivateKey x)) %)]}
   (with-open [r (reader pem)]
     (CertificateUtils/pemToPrivateKeys r)))
 
 (defn pem->private-key
+  "Given the path to a PEM file (or some other object supported by clojure's `reader`),
+  decode the contents into a `PrivateKey` instance. Throws an exception if multiple keys
+  are found in the PEM.
+  See `key->pem!` and `pem->private-keys` to write/read keys."
   [pem]
-  {:post [(instance? PrivateKey %)]}
+  {:pre  [pem]
+   :post [(instance? PrivateKey %)]}
   (with-open [r (reader pem)]
     (CertificateUtils/pemToPrivateKey r)))
 
@@ -106,11 +165,12 @@
   "Encodes a public or private key to PEM format, and writes it to a file (or other
   stream).  Arguments:
 
-  `key`: the key to encode and write.  Usually an instance of `PrivateKey` or `PublicKey`.
-  `f`:   the file path to write the PEM output to.  (Alternately, you may pass a `Writer`
-         or any other type that is supported by clojure's `writer`.)"
+  `key`: the key to encode and write; usually an instance of `PrivateKey` or `PublicKey`
+  `pem`: the file path to write the PEM output to (or some other object supported by clojure's `writer`)"
   [key pem]
-  {:pre  [(instance? Key key)]}
+  {:pre  [(instance? Key key)
+          pem]
+   :post [(nil? %)]}
   (with-open [w (writer pem)]
     (CertificateUtils/writeToPEM key w)))
 
@@ -136,6 +196,10 @@
               its alias (starting with '-0'
   `pem`:      the path to a PEM file containing the certificate"
   [keystore prefix pem]
+  {:pre  [(instance? KeyStore keystore)
+          (string? prefix)
+          pem]
+   :post [(instance? KeyStore %)]}
   (with-open [r (reader pem)]
     (CertificateUtils/associateCertsFromReader keystore prefix r)))
 
@@ -156,6 +220,7 @@
   {:pre  [(instance? KeyStore keystore)
           (string? alias)
           (instance? PrivateKey private-key)
+          (string? pw)
           (or (nil? cert)
               (instance? X509Certificate cert))]
    :post [(instance? KeyStore %)]}
@@ -173,6 +238,11 @@
                      private key; a private key cannot be added to a keystore
                      without a signed certificate."
   [keystore alias pem-private-key pw pem-cert]
+  {:pre  [(instance? KeyStore keystore)
+          (string? alias)
+          pem-private-key
+          (string? pw)]
+   :post [(instance? KeyStore %)]}
   (with-open [key-reader  (reader pem-private-key)
               cert-reader (reader pem-cert)]
     (CertificateUtils/associatePrivateKeyReader keystore alias key-reader pw cert-reader)))
@@ -191,9 +261,9 @@
 
   Returns a map containing the following keys:
 
-  * `:keystore` - an instance of KeyStore initialized with the cert and private key
-  * `:keystore-pw` - a string containing a dynamically generated password for the KeyStore
-  * `:truststore` - an instance of KeyStore containing the CA cert."
+  `:keystore`    - an instance of KeyStore initialized with the cert and private key
+  `:keystore-pw` - a string containing a dynamically generated password for the KeyStore
+  `:truststore`  - an instance of KeyStore containing the CA cert."
   [cert private-key ca-cert]
   {:pre  [cert
           private-key
