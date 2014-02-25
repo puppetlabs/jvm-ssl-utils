@@ -251,17 +251,13 @@ public class CertificateUtils {
                                                      String password, Reader pemCert)
         throws CertificateException, KeyStoreException, IOException
     {
-        List<PrivateKey> keys = pemToPrivateKeys(pemPrivateKey);
+        PrivateKey privateKey = pemToPrivateKey(pemPrivateKey);
         List<X509Certificate> certs = pemToCerts(pemCert);
-
-        if (keys.size() > 1)
-            throw new IllegalArgumentException("The PEM file " + pemPrivateKey + " contains more than one key");
 
         if (certs.size() > 1)
             throw new IllegalArgumentException("The PEM file " + pemCert + " contains more than one certificate");
 
-        PrivateKey firstKey = keys.get(0);
         X509Certificate firstCert = certs.get(0);
-        return associatePrivateKey(keystore, alias, firstKey, password, firstCert);
+        return associatePrivateKey(keystore, alias, privateKey, password, firstCert);
     }
 }
