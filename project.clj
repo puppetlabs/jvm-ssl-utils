@@ -7,7 +7,6 @@
   :java-source-paths ["src/main/java"]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.5.1"]]
                    :resource-paths ["test-resources"]}
-             :test {:resource-paths ["test-resources"]}
              :acceptance {:dependencies [[puppetlabs/trapperkeeper "0.3.2"]
                                          [puppetlabs/trapperkeeper-webserver-jetty7 "0.3.2"]
                                          [me.raynes/fs "1.4.3"]]
