@@ -2,7 +2,7 @@
   :url "http://www.github.com/puppetlabs/jvm-certificate-authority"
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojure/tools.logging "0.2.6"]
-                 [org.bouncycastle/bcpkix-jdk15on "1.49"]
+                 [org.bouncycastle/bcpkix-jdk15on "1.50"]
                  [clj-time "0.5.1"]]
   :source-paths ["src/main/clojure"]
   :java-source-paths ["src/main/java"]

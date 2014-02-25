@@ -43,7 +43,14 @@
           csr (generate-certificate-request kp n)]
       (is (instance? PKCS10CertificationRequest csr))
       (let [obj (to-pem-and-back csr)]
-        (is (instance? PKCS10CertificationRequest obj))))))
+        (is (instance? PKCS10CertificationRequest obj)))))
+
+  (testing "can read a CSR from a pem"
+    (let [n   (generate-x500-name "foo")
+          kp  (generate-key-pair)
+          csr (generate-certificate-request kp n)
+          ps  (to-pem-stream csr)]
+      (is (instance? PKCS10CertificationRequest (pem->csr ps))))))
 
 (deftest cert-test
   (testing "can sign a cert"
@@ -55,7 +62,7 @@
           serial         42
           cert           (sign-certificate-request csr ca-name serial ca-private-key)]
       (is (instance? X509Certificate cert))
-      (let [ps (to-pem-stream cert)
+      (let [ps    (to-pem-stream cert)
             certs (pem->certs ps)]
         (is (= 1 (count certs)))
         (is (instance? X509Certificate (first certs)))))))
@@ -114,4 +121,4 @@
 (deftest rsakeyonly
   (testing "reading PEM files with only the RSA-key should work"
     (let [privkey (resource (ssl-dir "private_keys/keyonly.pem"))]
-            (is (every? #(instance? PrivateKey %) (pem->private-keys privkey))))))
+      (is (every? #(instance? PrivateKey %) (pem->private-keys privkey))))))
