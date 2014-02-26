@@ -4,11 +4,6 @@
             [puppetlabs.jvm.test.certificate-authority.puppet-agent-cert-manager :as client-ca]
             [me.raynes.fs :as fs]))
 
-(defn cleanup
-  []
-  (fs/delete-dir "acceptance/resources/server")
-  (fs/delete-dir "acceptance/resources/client"))
-
 (tk/defservice secure-test-server
   [[:WebserverService add-ring-handler]]
   (init [_ context]
@@ -16,15 +11,12 @@
                           "/test-ssl")
         context)
   (stop [_ context]
-        (cleanup)
+        (fs/delete-dir "acceptance/resources/server")
+        (fs/delete-dir "acceptance/resources/client")
         context))
 
 (defn -main
   [& args]
-  (try
-    (-> (PuppetMasterCertManager. "acceptance/resources/server/conf" "localhost")
-        (client-ca/initialize! "acceptance/resources/client/conf" "local-client"))
-    (apply tk/main args)
-    (catch Exception e
-      (cleanup)
-      (throw e))))
+  (-> (PuppetMasterCertManager. "acceptance/resources/server/conf" "localhost")
+      (client-ca/initialize! "acceptance/resources/client/conf" "local-client"))
+  (apply tk/main args))
