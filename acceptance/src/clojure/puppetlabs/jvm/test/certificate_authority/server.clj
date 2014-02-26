@@ -1,7 +1,7 @@
-(ns puppetlabs.jvm.certificate-authority.server
-  (:import [puppetlabs.jvm.certificate_authority PuppetMasterCertManager])
+(ns puppetlabs.jvm.test.certificate-authority.server
+  (:import [puppetlabs.jvm.test.certificate_authority PuppetMasterCertManager])
   (:require [puppetlabs.trapperkeeper.core :as tk]
-            [puppetlabs.jvm.certificate-authority.puppet-agent-cert-manager :as client-ca]
+            [puppetlabs.jvm.test.certificate-authority.puppet-agent-cert-manager :as client-ca]
             [me.raynes.fs :as fs]))
 
 (defn cleanup

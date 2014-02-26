@@ -1,6 +1,7 @@
-package puppetlabs.jvm.certificate_authority;
+package puppetlabs.jvm.test.certificate_authority;
 
-import puppetlabs.jvm.PathUtils;
+import puppetlabs.jvm.certificate_authority.CertificateUtils;
+import puppetlabs.jvm.test.PathUtils;
 import org.apache.commons.io.FileUtils;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.operator.OperatorCreationException;
