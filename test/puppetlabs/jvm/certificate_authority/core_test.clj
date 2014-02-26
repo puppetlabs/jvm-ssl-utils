@@ -41,7 +41,7 @@
     (testing "throws exception if multiple keys found"
       (let [pem (open-ssl-file "private_keys/multiple_pks.pem")]
         (is (thrown-with-msg? IllegalArgumentException
-                              #"The PEM file .* must contain exactly one private key"
+                              #"The PEM stream must contain exactly one private key"
                               (pem->private-key pem))))))
 
   (testing "read multiple private keys from PEM stream"
@@ -81,8 +81,8 @@
 
   (testing "sign CSR"
     (let [csr         (generate-certificate-request
-                       (generate-key-pair)
-                       (generate-x500-name "foo"))
+                        (generate-key-pair)
+                        (generate-x500-name "foo"))
           issuer      (generate-x500-name "my ca")
           serial      42
           issuer-key  (.getPrivate (generate-key-pair))
@@ -101,7 +101,7 @@
 
     (testing "throws exception if multiples found"
       (is (thrown-with-msg? IllegalArgumentException
-                            #"The PEM file .* contains more than one object"
+                            #"The PEM stream contains more than one object"
                             (-> "certs/multiple.pem" open-ssl-file pem->csr)))))
 
   (testing "write CSR to PEM stream"
@@ -204,10 +204,19 @@
 
     (testing "should fail when loading compound keys"
       (let [key      (open-ssl-file "private_keys/multiple_pks.pem")
+            cert     (open-ssl-file "certs/localhost.pem")
+            keystore (keystore)]
+        (is (thrown-with-msg? IllegalArgumentException
+                              #"The PEM stream must contain exactly one private key"
+                              (assoc-private-key-reader! keystore "foo" key "foo" cert)))))
+
+    (testing "should fail when multiple certs found"
+      (let [key      (open-ssl-file "private_keys/localhost.pem")
             cert     (open-ssl-file "certs/multiple.pem")
             keystore (keystore)]
-        (is (thrown? IllegalArgumentException
-                     (assoc-private-key-reader! keystore "foo" key "foo" cert))))))
+        (is (thrown-with-msg? IllegalArgumentException
+                              #"The PEM stream contains more than one certificate"
+                              (assoc-private-key-reader! keystore "foo" key "foo" cert))))))
 
   (testing "convert PEMs to keystore/truststore"
     (let [result (pems->key-and-trust-stores

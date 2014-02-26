@@ -218,7 +218,7 @@ public class CertificateUtils {
     {
         List<Object> pemObjects = pemToObjects(reader);
         if (pemObjects.size() > 1)
-            throw new IllegalArgumentException("The PEM file " + reader + " contains more than one object");
+            throw new IllegalArgumentException("The PEM stream contains more than one object");
         return (PKCS10CertificationRequest) pemObjects.get(0);
     }
 
@@ -358,7 +358,7 @@ public class CertificateUtils {
     {
         List<PrivateKey> privateKeys = pemToPrivateKeys(reader);
         if (privateKeys.size() != 1)
-            throw new IllegalArgumentException("The PEM file " + reader + " must contain exactly one private key");
+            throw new IllegalArgumentException("The PEM stream must contain exactly one private key");
         return privateKeys.get(0);
     }
 
@@ -446,7 +446,7 @@ public class CertificateUtils {
         List<X509Certificate> certs = pemToCerts(pemCert);
 
         if (certs.size() > 1)
-            throw new IllegalArgumentException("The PEM file " + pemCert + " contains more than one certificate");
+            throw new IllegalArgumentException("The PEM stream contains more than one certificate");
 
         X509Certificate firstCert = certs.get(0);
         return associatePrivateKey(keystore, alias, privateKey, password, firstCert);
