@@ -51,24 +51,57 @@ public class CertificateUtils {
     //  most of these and raising a more general PuppetCert exception
     //  or similar
 
+    /**
+     * Create new public & private keys (with length 2048).
+     *
+     * @return A new pair of public & private keys
+     * @throws NoSuchProviderException
+     * @throws NoSuchAlgorithmException
+     */
     public static KeyPair generateKeyPair() throws NoSuchProviderException, NoSuchAlgorithmException {
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
         // TODO make length configurable
-//        keyGen.initialize(4096);
+        //keyGen.initialize(4096);
         keyGen.initialize(2048);
         return keyGen.generateKeyPair();
     }
 
+    /**
+     * Given a common, return an X500 name built from it.
+     *
+     * @param commonName The common name to use
+     * @return A new X500Name built from the common name
+     * @see #getCommonNameFromX500Name
+     */
     public static X500Name generateX500Name(String commonName) {
         X500NameBuilder x500NameBuilder = new X500NameBuilder(BCStyle.INSTANCE);
         x500NameBuilder.addRDN(BCStyle.CN, commonName);
         return x500NameBuilder.build();
     }
 
+    /**
+     * Given an X500Name, return the common name from it.
+     *
+     * @param x500Name The X500Name to extract from
+     * @return The common name from the X500Name
+     * @see #generateX500Name
+     */
     public static String getCommonNameFromX500Name(X500Name x500Name) {
         return x500Name.getRDNs(BCStyle.CN)[0].getFirst().getValue().toString();
     }
 
+    /**
+     * Given the subject's keypair and name, create and return a certification signing request (CSR).
+     *
+     * @param keyPair The subject's public and private keys
+     * @param subjectName The subject's name
+     * @return A request to certify the provided subject
+     * @throws IOException
+     * @throws OperatorCreationException
+     * @see #generateKeyPair
+     * @see #generateX500Name
+     * @see #signCertificateRequest
+     */
     public static PKCS10CertificationRequest generateCertReq(KeyPair keyPair, X500Name subjectName)
             throws IOException, OperatorCreationException {
         // TODO: the puppet code sets a property "version=0" on the request object
@@ -94,10 +127,23 @@ public class CertificateUtils {
                         build(keyPair.getPrivate()));
     }
 
+    /**
+     * Given a certification signing request and certificate authority information, sign the request
+     * and return the signed certificate.
+     *
+     * @param certReq The signing request
+     * @param issuer The certificate authority's name
+     * @param serialNum An arbitrary serial number
+     * @param issuerPrivateKey The certificate authority's private key
+     * @return A signed certificate for the subject
+     * @throws OperatorCreationException
+     * @throws CertificateException
+     * @see #generateCertReq
+     */
     public static X509Certificate signCertificateRequest(PKCS10CertificationRequest certReq,
-                                                          X500Name issuer,
-                                                          BigInteger serialNum,
-                                                          PrivateKey issuerPrivateKey)
+                                                         X500Name issuer,
+                                                         BigInteger serialNum,
+                                                         PrivateKey issuerPrivateKey)
             throws OperatorCreationException, CertificateException {
 
 //        # Make the certificate valid as of yesterday, because so many people's
@@ -130,6 +176,16 @@ public class CertificateUtils {
         return converter.getCertificate(holder);
     }
 
+    /**
+     * Given the certificate authority's principal identifier and private key,
+     * create a new certificate revocation list (CRL).
+     *
+     * @param issuer The certificate authority's identifier
+     * @param issuerPrivateKey The certificate authority's private key
+     * @return A new certificate revocation list
+     * @throws CRLException
+     * @throws OperatorCreationException
+     */
     public static X509CRL generateCRL(X500Principal issuer, PrivateKey issuerPrivateKey)
         throws CRLException, OperatorCreationException
     {
@@ -149,6 +205,14 @@ public class CertificateUtils {
         return converter.getCRL(crlHolder);
     }
 
+    /**
+     * Given a PEM reader, decode the contents into a certification request.
+     *
+     * @param reader Reader for a PEM-encoded stream
+     * @return The decoded certification request from the stream
+     * @throws IOException
+     * @see #writeToPEM
+     */
     public static PKCS10CertificationRequest pemToCertificationRequest(Reader reader)
         throws IOException
     {
@@ -160,6 +224,15 @@ public class CertificateUtils {
 
     // ---- PORTED KITCHENSINK FUNCIONS ----
 
+    /**
+     * Create an empty in-memory key store.
+     *
+     * @return New key store
+     * @throws KeyStoreException
+     * @throws IOException
+     * @throws NoSuchAlgorithmException
+     * @throws CertificateException
+     */
     public static KeyStore createKeyStore()
         throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException
     {
@@ -168,6 +241,15 @@ public class CertificateUtils {
         return ks;
     }
 
+    /**
+     * Given a PEM reader, decode the contents into a collection of objects of the corresponding
+     * type from the java.security package.
+     *
+     * @param reader Reader for a PEM-encoded stream
+     * @return The list of decoded objects from the stream
+     * @throws IOException
+     * @see #writeToPEM
+     */
     public static List<Object> pemToObjects(Reader reader)
         throws IOException
     {
@@ -178,14 +260,36 @@ public class CertificateUtils {
         return results;
     }
 
-    public static void writeToPEM(Object o, Writer writer)
+    /**
+     * Encodes an object in PEM format and writes it to the stream.
+     *
+     * @param obj The object to encode and write. Must be of a type that can be encoded to PEM.
+     *            Usually this is limited to certain types from the java.security package
+     * @param writer The stream to write the encoded object to
+     * @throws IOException
+     * @see #pemToObjects
+     * @see #pemToCerts
+     * @see #pemToPrivateKeys
+     * @see #pemToPrivateKey
+     * @see #pemToCertificationRequest
+     */
+    public static void writeToPEM(Object obj, Writer writer)
         throws IOException
     {
         PEMWriter pw = new PEMWriter(writer);
-        pw.writeObject(o);
+        pw.writeObject(obj);
         pw.flush();
     }
 
+    /**
+     * Given a PEM reader, decode the contents into a list of certificates.
+     *
+     * @param reader Reader for a PEM-encoded stream
+     * @return The list of decoded certificates from the stream
+     * @throws CertificateException
+     * @throws IOException
+     * @see #writeToPEM
+     */
     public static List<X509Certificate> pemToCerts(Reader reader)
         throws CertificateException, IOException
     {
@@ -197,6 +301,15 @@ public class CertificateUtils {
         return results;
     }
 
+    /**
+     * Decodes the provided object (read from a PEM stream via {@link #pemToObjects}) into a private key.
+     *
+     * @param obj The object to decode into a PrivateKey
+     * @return The PrivateKey decoded from the object
+     * @throws PEMException
+     * @see #pemToPrivateKey
+     * @see #pemToPrivateKeys
+     */
     public static PrivateKey objectToPrivateKey(Object obj)
         throws PEMException
     {
@@ -209,6 +322,16 @@ public class CertificateUtils {
             throw new IllegalArgumentException("Expected a KeyPair or PrivateKey, got " + obj);
     }
 
+    /**
+     * Given a PEM reader, decode the contents into a list of private keys.
+     *
+     * @param reader Reader for a PEM-encoded stream
+     * @return The list of decoded private keys from the stream
+     * @throws IOException
+     * @throws PEMException
+     * @see #pemToPrivateKey
+     * @see #writeToPEM
+     */
     public static List<PrivateKey> pemToPrivateKeys(Reader reader)
         throws IOException, PEMException
     {
@@ -219,6 +342,17 @@ public class CertificateUtils {
         return results;
     }
 
+    /**
+     * Given a PEM reader, decode the contents into a private key.
+     * Throws an exception if multiple keys are found.
+     *
+     * @param reader Reader for a PEM-encoded stream
+     * @return The decoded private key from the stream
+     * @throws IOException
+     * @throws IllegalArgumentException
+     * @see #pemToPrivateKeys
+     * @see #writeToPEM
+     */
     public static PrivateKey pemToPrivateKey(Reader reader)
         throws IOException
     {
@@ -228,6 +362,16 @@ public class CertificateUtils {
         return privateKeys.get(0);
     }
 
+    /**
+     * Add a certificate to a keystore.
+     *
+     * @param keystore The keystore to add the certificate to
+     * @param alias An alias to associate with the certificate
+     * @param cert The certificate to add to the keystore
+     * @return The provided keystore
+     * @throws KeyStoreException
+     * @see #associateCertsFromReader
+     */
     public static KeyStore associateCert(KeyStore keystore, String alias, X509Certificate cert)
         throws KeyStoreException
     {
@@ -235,6 +379,19 @@ public class CertificateUtils {
         return keystore;
     }
 
+    /**
+     * Add all certificates from a PEM reader to the keystore.
+     *
+     * @param keystore The keystore to add all the certificates to
+     * @param prefix An alias to associate with the certificates. Each certificate will
+     *               have a numeric index appended to the prefix (starting with '-0')
+     * @param pem Reader for a PEM-encoded stream of certificates
+     * @return The provided keystore
+     * @throws CertificateException
+     * @throws KeyStoreException
+     * @throws IOException
+     * @see #associateCert
+     */
     public static KeyStore associateCertsFromReader(KeyStore keystore, String prefix, Reader pem)
         throws CertificateException, KeyStoreException, IOException
     {
@@ -245,6 +402,19 @@ public class CertificateUtils {
         return keystore;
     }
 
+    /**
+     * Add a private key to a keystore.
+     *
+     * @param keystore The keystore to add the private key to
+     * @param alias An alias to associate with the private key
+     * @param privateKey The private key to add to the keystore
+     * @param password To protect the key in the keystore
+     * @param cert The certificate for the private key; a private key cannot
+     *             be added to a keystore without a signed certificate
+     * @return The provided keystore
+     * @throws KeyStoreException
+     * @see #associatePrivateKeyReader
+     */
     public static KeyStore associatePrivateKey(KeyStore keystore, String alias, PrivateKey privateKey,
                                                String password, X509Certificate cert)
         throws KeyStoreException
@@ -253,6 +423,21 @@ public class CertificateUtils {
         return keystore;
     }
 
+    /**
+     * Add the private key from a PEM reader to the keystore.
+     *
+     * @param keystore The keystore to add the private key to
+     * @param alias An alias to associate with the private key
+     * @param pemPrivateKey Reader for a PEM-encoded stream with the private key
+     * @param password To protect the key in the keystore
+     * @param pemCert Reader for a PEM-encoded stream with the certificate; a private
+     *                key cannot be added to a keystore without a signed certificate
+     * @return The provided keystore
+     * @throws CertificateException
+     * @throws KeyStoreException
+     * @throws IOException
+     * @see #associatePrivateKey
+     */
     public static KeyStore associatePrivateKeyReader(KeyStore keystore, String alias, Reader pemPrivateKey,
                                                      String password, Reader pemCert)
         throws CertificateException, KeyStoreException, IOException
@@ -267,6 +452,26 @@ public class CertificateUtils {
         return associatePrivateKey(keystore, alias, privateKey, password, firstCert);
     }
 
+    /**
+     * Given PEM readers for a certificate, private key, and CA certificate,
+     * create an in-memory keystore and truststore.
+     *
+     * Returns a map containing the following:
+     * <ul>
+     *  <li>"keystore" - a keystore initialized with the cert and private key</li>
+     *  <li>"keystore-pw" - a string containing a dynamically generated password for the keystore</li>
+     *  <li>"truststore" - a keystore containing the CA cert</li>
+     * <ul>
+     *
+     * @param cert Reader for a PEM-encoded stream with the certificate
+     * @param privateKey Reader for a PEM-encoded stream with the correspnding private key
+     * @param caCert Reader for a PEM-encoded stream with the CA certificate
+     * @return Map containing the keystore, keystore password, and truststore
+     * @throws KeyStoreException
+     * @throws CertificateException
+     * @throws IOException
+     * @throws NoSuchAlgorithmException
+     */
     public static Map<String, Object> pemsToKeyAndTrustStores(Reader cert, Reader privateKey, Reader caCert)
         throws KeyStoreException, CertificateException, IOException, NoSuchAlgorithmException
     {
@@ -284,6 +489,17 @@ public class CertificateUtils {
         return result;
     }
 
+    /**
+     * Given a keystore and keystore password (as generated by {@link #pemsToKeyAndTrustStores}),
+     * return a key manager factory that contains the keystore.
+     *
+     * @param keystore The keystore to get a key manager for
+     * @param password The password for the keystore
+     * @return A key manager factory for the provided keystore
+     * @throws NoSuchAlgorithmException
+     * @throws KeyStoreException
+     * @throws UnrecoverableKeyException
+     */
     public static KeyManagerFactory getKeyManagerFactory(KeyStore keystore, String password)
         throws NoSuchAlgorithmException, KeyStoreException, UnrecoverableKeyException
     {
@@ -292,6 +508,15 @@ public class CertificateUtils {
         return factory;
     }
 
+    /**
+     * Given a truststore (as generated by {@link #pemsToKeyAndTrustStores}),
+     * return a trust manager factory that contains the truststore.
+     *
+     * @param truststore The truststore to get a trust manager for
+     * @return A trust manager factory for the provided truststore
+     * @throws NoSuchAlgorithmException
+     * @throws KeyStoreException
+     */
     public static TrustManagerFactory getTrustManagerFactory(KeyStore truststore)
         throws NoSuchAlgorithmException, KeyStoreException
     {
@@ -300,6 +525,22 @@ public class CertificateUtils {
         return factory;
     }
 
+    /**
+     * Given PEM readers for a certificate, private key, and CA certificate, create an
+     * in-memory SSL context initialized with a keystore/truststore generated from the
+     * provided certificates and key.
+     *
+     * @param cert Reader for PEM-encoded stream with the certificate
+     * @param privateKey Reader for PEM-encoded stream with the corresponding private key
+     * @param caCert Reader for PEM-encoded stream with the CA certificate
+     * @return The configured SSLContext
+     * @throws KeyStoreException
+     * @throws CertificateException
+     * @throws IOException
+     * @throws NoSuchAlgorithmException
+     * @throws KeyManagementException
+     * @throws UnrecoverableKeyException
+     */
     public static SSLContext pemsToSSLContext(Reader cert, Reader privateKey, Reader caCert)
         throws KeyStoreException, CertificateException, IOException,
                NoSuchAlgorithmException, KeyManagementException, UnrecoverableKeyException
