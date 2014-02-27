@@ -84,7 +84,7 @@
 
   See `obj->pem!` to PEM-encode a certification signing request."
   [pem]
-  {:pre  [pem]
+  {:pre  [(not (nil? pem))]
    :post [(instance? PKCS10CertificationRequest %)]}
   (with-open [r (reader pem)]
     (CertificateUtils/pemToCertificationRequest r)))
@@ -102,7 +102,7 @@
   PEM-encoded objects and returns a collection of objects of the corresponding
   type from `java.security`."
   [pem]
-  {:pre  [pem]
+  {:pre  [(not (nil? pem))]
    :post [(coll? %)]}
   (with-open [r (reader pem)]
     (let [objs (seq (CertificateUtils/pemToObjects r))]
@@ -119,8 +119,8 @@
 
   `pem`: the file path to write the PEM output to (or any other type supported by clojure's `writer`)"
   [obj pem]
-  {:pre  [obj
-          pem]
+  {:pre  [(not (nil? obj))
+          (not (nil? pem))]
    :post [(nil? %)]}
   (with-open [w (writer pem)]
     (CertificateUtils/writeToPEM obj w)))
@@ -129,7 +129,7 @@
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decodes the contents into a collection of `X509Certificate` instances."
   [pem]
-  {:pre  [pem]
+  {:pre  [(not (nil? pem))]
    :post [(every? (fn [x] (instance? X509Certificate x)) %)]}
   (with-open [r (reader pem)]
     (CertificateUtils/pemToCerts r)))
@@ -137,7 +137,7 @@
 (defn obj->private-key
   "Decodes the given object (read from a .PEM file via `pem->objs`) into an instance of `PrivateKey`."
   [obj]
-  {:pre  [obj]
+  {:pre  [(not (nil? obj))]
    :post [(instance? PrivateKey %)]}
   (CertificateUtils/objectToPrivateKey obj))
 
@@ -145,7 +145,7 @@
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decodes the contents into a collection of `PrivateKey` instances."
   [pem]
-  {:pre  [pem]
+  {:pre  [(not (nil? pem))]
    :post [(every? (fn [x] (instance? PrivateKey x)) %)]}
   (with-open [r (reader pem)]
     (CertificateUtils/pemToPrivateKeys r)))
@@ -156,7 +156,7 @@
   are found in the PEM.
   See `key->pem!` and `pem->private-keys` to write/read keys."
   [pem]
-  {:pre  [pem]
+  {:pre  [(not (nil? pem))]
    :post [(instance? PrivateKey %)]}
   (with-open [r (reader pem)]
     (CertificateUtils/pemToPrivateKey r)))
@@ -169,7 +169,7 @@
   `pem`: the file path to write the PEM output to (or some other object supported by clojure's `writer`)"
   [key pem]
   {:pre  [(instance? Key key)
-          pem]
+          (not (nil? pem))]
    :post [(nil? %)]}
   (with-open [w (writer pem)]
     (CertificateUtils/writeToPEM key w)))
@@ -198,7 +198,7 @@
   [keystore prefix pem]
   {:pre  [(instance? KeyStore keystore)
           (string? prefix)
-          pem]
+          (not (nil? pem))]
    :post [(instance? KeyStore %)]}
   (with-open [r (reader pem)]
     (CertificateUtils/associateCertsFromReader keystore prefix r)))
@@ -240,7 +240,7 @@
   [keystore alias pem-private-key pw pem-cert]
   {:pre  [(instance? KeyStore keystore)
           (string? alias)
-          pem-private-key
+          (not (nil? pem-private-key))
           (string? pw)]
    :post [(instance? KeyStore %)]}
   (with-open [key-reader  (reader pem-private-key)
@@ -265,9 +265,9 @@
   `:keystore-pw` - a string containing a dynamically generated password for the KeyStore
   `:truststore`  - an instance of KeyStore containing the CA cert."
   [cert private-key ca-cert]
-  {:pre  [cert
-          private-key
-          ca-cert]
+  {:pre  [(not (nil? cert))
+          (not (nil? private-key))
+          (not (nil? ca-cert))]
    :post [(map? %)
           (= #{:keystore :truststore :keystore-pw} (-> % keys set))
           (instance? KeyStore (:keystore %))
@@ -310,9 +310,9 @@
 
   Returns the SSLContext instance."
   [cert private-key ca-cert]
-  {:pre  [cert
-          private-key
-          ca-cert]
+  {:pre  [(not (nil? cert))
+          (not (nil? private-key))
+          (not (nil? ca-cert))]
    :post [(instance? SSLContext %)]}
   (with-open [cert-reader    (reader cert)
               key-reader     (reader private-key)
