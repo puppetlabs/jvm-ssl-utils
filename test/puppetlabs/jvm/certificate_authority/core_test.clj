@@ -188,7 +188,7 @@
     (let [private-key-file (open-ssl-file "private_keys/localhost.pem")
           cert-file        (open-ssl-file "certs/localhost.pem")
           keystore         (keystore)
-          _                (assoc-private-key-reader! keystore "mykey" private-key-file "bunkpassword" cert-file)
+          _                (assoc-private-key-from-reader! keystore "mykey" private-key-file "bunkpassword" cert-file)
           keystore-key     (.getKey keystore "mykey" (char-array "bunkpassword"))]
 
       (testing "key read from keystore should match key read from PEM"
@@ -208,7 +208,7 @@
             keystore (keystore)]
         (is (thrown-with-msg? IllegalArgumentException
                               #"The PEM stream must contain exactly one private key"
-                              (assoc-private-key-reader! keystore "foo" key "foo" cert)))))
+                              (assoc-private-key-from-reader! keystore "foo" key "foo" cert)))))
 
     (testing "should fail when multiple certs found"
       (let [key      (open-ssl-file "private_keys/localhost.pem")
@@ -216,7 +216,7 @@
             keystore (keystore)]
         (is (thrown-with-msg? IllegalArgumentException
                               #"The PEM stream contains more than one certificate"
-                              (assoc-private-key-reader! keystore "foo" key "foo" cert))))))
+                              (assoc-private-key-from-reader! keystore "foo" key "foo" cert))))))
 
   (testing "convert PEMs to keystore/truststore"
     (let [result (pems->key-and-trust-stores

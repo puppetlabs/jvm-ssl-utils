@@ -113,7 +113,7 @@ public class PuppetMasterCertManager {
         CertificateUtils.writeToPEM(caKeyPair.getPublic(), new FileWriter(this.caPublicKeyPath));
         CertificateUtils.writeToPEM(caKeyPair.getPrivate(), new FileWriter(this.caPrivateKeyPath));
 
-        PKCS10CertificationRequest caCertReq = CertificateUtils.generateCertReq(caKeyPair, this.caX500Name);
+        PKCS10CertificationRequest caCertReq = CertificateUtils.generateCertificateRequest(caKeyPair, this.caX500Name);
         X509Certificate caCert = CertificateUtils.signCertificateRequest(caCertReq, this.caX500Name, nextSerial(), caKeyPair.getPrivate());
         CertificateUtils.writeToPEM(caCert, new FileWriter(this.caCertPath));
 
@@ -149,7 +149,7 @@ public class PuppetMasterCertManager {
 
         X500Name masterX500Name = CertificateUtils.generateX500Name(masterCertname);
 
-        PKCS10CertificationRequest masterCertReq = CertificateUtils.generateCertReq(masterKeyPair, masterX500Name);
+        PKCS10CertificationRequest masterCertReq = CertificateUtils.generateCertificateRequest(masterKeyPair, masterX500Name);
         X509Certificate caCert = CertificateUtils.signCertificateRequest(masterCertReq, this.caX500Name, nextSerial(), caPrivateKey);
         CertificateUtils.writeToPEM(caCert, new FileWriter(masterCertPath));
     }

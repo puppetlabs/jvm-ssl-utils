@@ -35,7 +35,7 @@
   (CertificateUtils/getCommonNameFromX500Name x500-name))
 
 (defn generate-certificate-request
-  "Given the subject's keypair and name, create and return a certification signing request (CSR).
+  "Given the subject's keypair and name, create and return a certificate signing request (CSR).
   Arguments:
 
   `keypair`:      subject's public & private keys
@@ -46,18 +46,18 @@
   {:pre  [(instance? KeyPair keypair)
           (instance? X500Name subject-name)]
    :post [(instance? PKCS10CertificationRequest %)]}
-  (CertificateUtils/generateCertReq keypair subject-name))
+  (CertificateUtils/generateCertificateRequest keypair subject-name))
 
 (defn sign-certificate-request
-  "Given a certification signing request and certificate authority information, sign the request
+  "Given a certificate signing request and certificate authority information, sign the request
   and return the signed `X509Certificate`.  Arguments:
 
-  `request`:            the certification signing request
+  `request`:            the certificate signing request
   `issuer`:             the issuer's `X500Name`
   `serial`:             an arbitrary serial number integer
   `issuer-private-key`: the issuer's `PrivateKey`
 
-  See `generate-certification-request`, `obj->pem!`, and `pem->certs` to create & read/write certificates."
+  See `generate-certificate-request`, `obj->pem!`, and `pem->certs` to create & read/write certificates."
   [request issuer serial issuer-private-key]
   {:pre  [(instance? PKCS10CertificationRequest request)
           (instance? X500Name issuer)
@@ -82,12 +82,12 @@
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decode the contents into a `PKCS10CertificationRequest`.
 
-  See `obj->pem!` to PEM-encode a certification signing request."
+  See `obj->pem!` to PEM-encode a certificate signing request."
   [pem]
   {:pre  [(not (nil? pem))]
    :post [(instance? PKCS10CertificationRequest %)]}
   (with-open [r (reader pem)]
-    (CertificateUtils/pemToCertificationRequest r)))
+    (CertificateUtils/pemToCertificateRequest r)))
 
 ;;;; SSL functions from Kitchensink below
 
@@ -227,7 +227,7 @@
    :post [(instance? KeyStore %)]}
   (CertificateUtils/associatePrivateKey keystore alias private-key pw cert))
 
-(defn assoc-private-key-reader!
+(defn assoc-private-key-from-reader!
   "Add a private key to a keystore.  Arguments:
 
   `keystore`:        the `KeyStore` to add the private key to
@@ -246,11 +246,11 @@
    :post [(instance? KeyStore %)]}
   (with-open [key-reader  (reader pem-private-key)
               cert-reader (reader pem-cert)]
-    (CertificateUtils/associatePrivateKeyReader keystore alias key-reader pw cert-reader)))
+    (CertificateUtils/associatePrivateKeyFromReader keystore alias key-reader pw cert-reader)))
 
 (def assoc-private-key-file!
-  "Alias for `assoc-private-key-reader!` for backwards compatibility."
-  assoc-private-key-reader!)
+  "Alias for `assoc-private-key-from-reader!` for backwards compatibility."
+  assoc-private-key-from-reader!)
 
 (defn pems->key-and-trust-stores
   "Given pems for a certificate, private key, and CA certificate, creates an
