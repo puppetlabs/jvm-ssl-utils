@@ -98,7 +98,7 @@
   (CertificateUtils/createKeyStore))
 
 (defn pem->objs
-  "Given a file path (or any other type supported by clojure's `reader`), reads
+  "Given a file path (or some other object supported by clojure's `reader`), reads
   PEM-encoded objects and returns a collection of objects of the corresponding
   type from `java.security`."
   [pem]
@@ -117,7 +117,7 @@
          to PEM; usually this is limited to certain types from the `java.security`
          packages.
 
-  `pem`: the file path to write the PEM output to (or any other type supported by clojure's `writer`)"
+  `pem`: the file path to write the PEM output to (or some other object supported by clojure's `writer`)"
   [obj pem]
   {:pre  [(not (nil? obj))
           (not (nil? pem))]
@@ -135,7 +135,7 @@
     (CertificateUtils/pemToCerts r)))
 
 (defn obj->private-key
-  "Decodes the given object (read from a .PEM file via `pem->objs`) into an instance of `PrivateKey`."
+  "Decodes the given object (read from a .pem via `pem->objs`) into an instance of `PrivateKey`."
   [obj]
   {:pre  [(not (nil? obj))]
    :post [(instance? PrivateKey %)]}
@@ -193,8 +193,9 @@
   `keystore`: the `KeyStore` to add certificates to
   `prefix`:   an alias to associate with the certificates. each
               certificate will have a numeric index appended to
-              its alias (starting with '-0'
-  `pem`:      the path to a PEM file containing the certificate"
+              its alias, starting with '-0'
+  `pem`:      the path to a PEM file containing the certificate
+              (or some other object supported by clojure's `reader`)"
   [keystore prefix pem]
   {:pre  [(instance? KeyStore keystore)
           (string? prefix)
@@ -232,11 +233,11 @@
   `keystore`:        the `KeyStore` to add the private key to
   `alias`:           a String alias to associate with the private key
   `pem-private-key`: the path to a PEM file containing the private key to add to
-                     the keystore
+                     the keystore (or some other object supported by clojure's `reader`)
   `pw`:              a password to use to protect the key in the keystore
-  `pem-cert`:        the path to a PEM file containing the certificate for the
-                     private key; a private key cannot be added to a keystore
-                     without a signed certificate."
+  `pem-cert`:        the path to a PEM file (or some other object supported by clojure's `reader`)
+                     containing the certificate for the private key; a private key cannot be added
+                     to a keystore without a signed certificate."
   [keystore alias pem-private-key pw pem-cert]
   {:pre  [(instance? KeyStore keystore)
           (string? alias)
