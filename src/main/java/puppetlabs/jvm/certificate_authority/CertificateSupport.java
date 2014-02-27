@@ -45,7 +45,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.UUID;
 
-public class CertificateUtils {
+public class CertificateSupport {
 
     // TODO: the exception handling in this class is terrible; should be catching
     //  most of these and raising a more general PuppetCert exception

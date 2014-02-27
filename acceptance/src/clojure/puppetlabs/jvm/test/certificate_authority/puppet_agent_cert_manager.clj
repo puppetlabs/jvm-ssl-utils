@@ -3,7 +3,7 @@
             [me.raynes.fs :as fs])
   (:import (puppetlabs.jvm.test PathUtils)
            (puppetlabs.jvm.test.certificate_authority PuppetMasterCertManager)
-           (puppetlabs.jvm.certificate_authority CertificateUtils)))
+           (puppetlabs.jvm.certificate_authority CertificateSupport)))
 
 (defn- path-concat
   [& elements]
@@ -35,13 +35,13 @@
 (defn- initialize-agent-cert!
   [agent-ssl-paths agent-certname master-ca]
   (create-directories! agent-ssl-paths)
-  (let [agent-keypair     (CertificateUtils/generateKeyPair)
-        agent-x500-name   (CertificateUtils/generateX500Name agent-certname)
-        agent-cert-req    (CertificateUtils/generateCertificateRequest agent-keypair agent-x500-name)
+  (let [agent-keypair     (CertificateSupport/generateKeyPair)
+        agent-x500-name   (CertificateSupport/generateX500Name agent-certname)
+        agent-cert-req    (CertificateSupport/generateCertificateRequest agent-keypair agent-x500-name)
         agent-cert        (.signCertificateRequest master-ca agent-certname agent-cert-req)]
-    (CertificateUtils/writeToPEM (.getPublic agent-keypair) (io/writer (nth agent-ssl-paths 0)))
-    (CertificateUtils/writeToPEM (.getPrivate agent-keypair) (io/writer (nth agent-ssl-paths 1)))
-    (CertificateUtils/writeToPEM agent-cert (io/writer (nth agent-ssl-paths 2)))
+    (CertificateSupport/writeToPEM (.getPublic agent-keypair) (io/writer (nth agent-ssl-paths 0)))
+    (CertificateSupport/writeToPEM (.getPrivate agent-keypair) (io/writer (nth agent-ssl-paths 1)))
+    (CertificateSupport/writeToPEM agent-cert (io/writer (nth agent-ssl-paths 2)))
     ;; HACK - assume the location of the ca.pem file and just directly copy it into place
     (fs/copy (io/file "acceptance/resources/server/conf/ssl/certs/ca.pem")
              (io/file "acceptance/resources/client/conf/ssl/certs/ca.pem"))))
