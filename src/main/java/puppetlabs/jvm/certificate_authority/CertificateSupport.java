@@ -45,24 +45,40 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.UUID;
 
-public class CertificateUtils {
-
-    // TODO: the exception handling in this class is terrible; should be catching
-    //  most of these and raising a more general PuppetCert exception
-    //  or similar
+public class CertificateSupport {
 
     /**
-     * Create new public & private keys (with length 2048).
+     * The default key length to use when generating a keypair.
+     */
+    public static final int DEFAULT_KEY_LENGTH = 4096;
+
+    /**
+     * Create new public & private keys with length 4096.
      *
      * @return A new pair of public & private keys
      * @throws NoSuchProviderException
      * @throws NoSuchAlgorithmException
+     * @see #generateKeyPair(int)
      */
-    public static KeyPair generateKeyPair() throws NoSuchProviderException, NoSuchAlgorithmException {
+    public static KeyPair generateKeyPair()
+        throws NoSuchProviderException, NoSuchAlgorithmException
+    {
+        return generateKeyPair(DEFAULT_KEY_LENGTH);
+    }
+
+    /**
+     * Create new public & private keys of the provided length.
+     *
+     * @return A new pair of public & private keys
+     * @throws NoSuchProviderException
+     * @throws NoSuchAlgorithmException
+     * @see #generateKeyPair()
+     */
+    public static KeyPair generateKeyPair(int keyLength)
+        throws NoSuchProviderException, NoSuchAlgorithmException
+    {
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
-        // TODO make length configurable
-        //keyGen.initialize(4096);
-        keyGen.initialize(2048);
+        keyGen.initialize(keyLength);
         return keyGen.generateKeyPair();
     }
 
@@ -91,7 +107,7 @@ public class CertificateUtils {
     }
 
     /**
-     * Given the subject's keypair and name, create and return a certification signing request (CSR).
+     * Given the subject's keypair and name, create and return a certificate signing request (CSR).
      *
      * @param keyPair The subject's public and private keys
      * @param subjectName The subject's name
@@ -102,25 +118,26 @@ public class CertificateUtils {
      * @see #generateX500Name
      * @see #signCertificateRequest
      */
-    public static PKCS10CertificationRequest generateCertReq(KeyPair keyPair, X500Name subjectName)
-            throws IOException, OperatorCreationException {
+    public static PKCS10CertificationRequest generateCertificateRequest(KeyPair keyPair, X500Name subjectName)
+        throws IOException, OperatorCreationException
+    {
         // TODO: the puppet code sets a property "version=0" on the request object
-        //  here; can't figure out how to do that at the moment.  Not sure if it's needed.
+        // here; can't figure out how to do that at the moment.  Not sure if it's needed.
         PKCS10CertificationRequestBuilder requestBuilder =
                 new JcaPKCS10CertificationRequestBuilder(subjectName, keyPair.getPublic());
 
         // TODO: support DNS ALT names; probably looks something like this:
-//        Extensions extensions = new Extensions(new Extension[] {
-//                new Extension(X509Extension.subjectAlternativeName, false,
-//                        new DEROctetString(
-//                                new GeneralNames(new GeneralName[] {
-//                                        new GeneralName(GeneralName.dNSName, "foo.bar.com"),
-//                                        new GeneralName(GeneralName.dNSName, "bar.baz.com"),
-//                                        })))
-//        });
-//
-//        requestBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest,
-//                new DERSet(extensions));
+        //  Extensions extensions = new Extensions(new Extension[] {
+        //          new Extension(X509Extension.subjectAlternativeName, false,
+        //                  new DEROctetString(
+        //                          new GeneralNames(new GeneralName[] {
+        //                                  new GeneralName(GeneralName.dNSName, "foo.bar.com"),
+        //                                  new GeneralName(GeneralName.dNSName, "bar.baz.com"),
+        //                                  })))
+        //  });
+        //
+        //  requestBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest,
+        //          new DERSet(extensions));
 
         return requestBuilder.build(
                 new JcaContentSignerBuilder("SHA1withRSA").
@@ -128,7 +145,7 @@ public class CertificateUtils {
     }
 
     /**
-     * Given a certification signing request and certificate authority information, sign the request
+     * Given a certificate signing request and certificate authority information, sign the request
      * and return the signed certificate.
      *
      * @param certReq The signing request
@@ -138,19 +155,19 @@ public class CertificateUtils {
      * @return A signed certificate for the subject
      * @throws OperatorCreationException
      * @throws CertificateException
-     * @see #generateCertReq
+     * @see #generateCertificateRequest
      */
     public static X509Certificate signCertificateRequest(PKCS10CertificationRequest certReq,
                                                          X500Name issuer,
                                                          BigInteger serialNum,
                                                          PrivateKey issuerPrivateKey)
-            throws OperatorCreationException, CertificateException {
-
-//        # Make the certificate valid as of yesterday, because so many people's
-//        # clocks are out of sync.  This gives one more day of validity than people
-//        # might expect, but is better than making every person who has a messed up
-//        # clock fail, and better than having every cert we generate expire a day
-//        # before the user expected it to when they asked for "one year".
+        throws OperatorCreationException, CertificateException
+    {
+        // Make the certificate valid as of yesterday, because so many people's
+        // clocks are out of sync.  This gives one more day of validity than people
+        // might expect, but is better than making every person who has a messed up
+        // clock fail, and better than having every cert we generate expire a day
+        // before the user expected it to when they asked for "one year".
         DateTime notBefore = DateTime.now().minus(Period.days(1));
         DateTime notAfter = DateTime.now().plus(Period.years(5));
 
@@ -163,10 +180,8 @@ public class CertificateUtils {
                 certReq.getSubjectPublicKeyInfo());
 
         // TODO: add extensions to cert (maps to build_ca_extensions,
-        //  build_server_extensions in certificate_factory.rb.
-//
-//        add_extensions_to(cert, csr, issuer, send(build_extensions))
-//
+        // build_server_extensions in certificate_factory.rb.
+        // add_extensions_to(cert, csr, issuer, send(build_extensions))
 
         JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder("SHA256WithRSA");
         ContentSigner signer = signerBuilder.build(issuerPrivateKey);
@@ -189,7 +204,6 @@ public class CertificateUtils {
     public static X509CRL generateCRL(X500Principal issuer, PrivateKey issuerPrivateKey)
         throws CRLException, OperatorCreationException
     {
-
         Date issueDate = DateTime.now().toDate();
         Date nextUpdate = DateTime.now().plusYears(100).toDate();
 
@@ -206,19 +220,19 @@ public class CertificateUtils {
     }
 
     /**
-     * Given a PEM reader, decode the contents into a certification request.
+     * Given a PEM reader, decode the contents into a certificate signing request.
      *
      * @param reader Reader for a PEM-encoded stream
      * @return The decoded certification request from the stream
      * @throws IOException
      * @see #writeToPEM
      */
-    public static PKCS10CertificationRequest pemToCertificationRequest(Reader reader)
+    public static PKCS10CertificationRequest pemToCertificateRequest(Reader reader)
         throws IOException
     {
         List<Object> pemObjects = pemToObjects(reader);
         if (pemObjects.size() > 1)
-            throw new IllegalArgumentException("The PEM file " + reader + " contains more than one object");
+            throw new IllegalArgumentException("The PEM stream contains more than one object");
         return (PKCS10CertificationRequest) pemObjects.get(0);
     }
 
@@ -271,7 +285,7 @@ public class CertificateUtils {
      * @see #pemToCerts
      * @see #pemToPrivateKeys
      * @see #pemToPrivateKey
-     * @see #pemToCertificationRequest
+     * @see #pemToCertificateRequest
      */
     public static void writeToPEM(Object obj, Writer writer)
         throws IOException
@@ -358,7 +372,7 @@ public class CertificateUtils {
     {
         List<PrivateKey> privateKeys = pemToPrivateKeys(reader);
         if (privateKeys.size() != 1)
-            throw new IllegalArgumentException("The PEM file " + reader + " must contain exactly one private key");
+            throw new IllegalArgumentException("The PEM stream must contain exactly one private key");
         return privateKeys.get(0);
     }
 
@@ -413,7 +427,7 @@ public class CertificateUtils {
      *             be added to a keystore without a signed certificate
      * @return The provided keystore
      * @throws KeyStoreException
-     * @see #associatePrivateKeyReader
+     * @see #associatePrivateKeyFromReader
      */
     public static KeyStore associatePrivateKey(KeyStore keystore, String alias, PrivateKey privateKey,
                                                String password, X509Certificate cert)
@@ -438,15 +452,15 @@ public class CertificateUtils {
      * @throws IOException
      * @see #associatePrivateKey
      */
-    public static KeyStore associatePrivateKeyReader(KeyStore keystore, String alias, Reader pemPrivateKey,
-                                                     String password, Reader pemCert)
+    public static KeyStore associatePrivateKeyFromReader(KeyStore keystore, String alias, Reader pemPrivateKey,
+                                                         String password, Reader pemCert)
         throws CertificateException, KeyStoreException, IOException
     {
         PrivateKey privateKey = pemToPrivateKey(pemPrivateKey);
         List<X509Certificate> certs = pemToCerts(pemCert);
 
         if (certs.size() > 1)
-            throw new IllegalArgumentException("The PEM file " + pemCert + " contains more than one certificate");
+            throw new IllegalArgumentException("The PEM stream contains more than one certificate");
 
         X509Certificate firstCert = certs.get(0);
         return associatePrivateKey(keystore, alias, privateKey, password, firstCert);
@@ -480,7 +494,7 @@ public class CertificateUtils {
 
         KeyStore keystore = createKeyStore();
         String keystorePassword = UUID.randomUUID().toString();
-        associatePrivateKeyReader(keystore, "Private Key", privateKey, keystorePassword, cert);
+        associatePrivateKeyFromReader(keystore, "Private Key", privateKey, keystorePassword, cert);
 
         Map<String, Object> result = new HashMap<String, Object>();
         result.put("truststore", truststore);
