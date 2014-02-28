@@ -47,22 +47,38 @@ import java.util.UUID;
 
 public class CertificateSupport {
 
-    // TODO: the exception handling in this class is terrible; should be catching
-    //  most of these and raising a more general PuppetCert exception
-    //  or similar
+    /**
+     * The default key length to use when generating a keypair.
+     */
+    public static final int DEFAULT_KEY_LENGTH = 4096;
 
     /**
-     * Create new public & private keys (with length 2048).
+     * Create new public & private keys with length 4096.
      *
      * @return A new pair of public & private keys
      * @throws NoSuchProviderException
      * @throws NoSuchAlgorithmException
+     * @see #generateKeyPair(int)
      */
-    public static KeyPair generateKeyPair() throws NoSuchProviderException, NoSuchAlgorithmException {
+    public static KeyPair generateKeyPair()
+        throws NoSuchProviderException, NoSuchAlgorithmException
+    {
+        return generateKeyPair(DEFAULT_KEY_LENGTH);
+    }
+
+    /**
+     * Create new public & private keys of the provided length.
+     *
+     * @return A new pair of public & private keys
+     * @throws NoSuchProviderException
+     * @throws NoSuchAlgorithmException
+     * @see #generateKeyPair()
+     */
+    public static KeyPair generateKeyPair(int keyLength)
+        throws NoSuchProviderException, NoSuchAlgorithmException
+    {
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
-        // TODO make length configurable
-        //keyGen.initialize(4096);
-        keyGen.initialize(2048);
+        keyGen.initialize(keyLength);
         return keyGen.generateKeyPair();
     }
 

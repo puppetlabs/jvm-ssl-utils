@@ -14,11 +14,19 @@
             [clojure.walk :refer [keywordize-keys]]
             [clojure.java.io :refer [reader writer]]))
 
+(def default-key-length
+  "The default key length to use when generating a keypair."
+  CertificateSupport/DEFAULT_KEY_LENGTH)
+
 (defn generate-key-pair
-  "Create new public & private keys (with length 2048)."
-  []
-  {:post [(instance? KeyPair %)]}
-  (CertificateSupport/generateKeyPair))
+  "Given a key length (defaults to 4096), generate a new public & private key pair."
+  ([]
+     {:post [(instance? KeyPair %)]}
+     (CertificateSupport/generateKeyPair))
+  ([key-length]
+     {:pre  [(integer? key-length)]
+      :post [(instance? KeyPair %)]}
+     (CertificateSupport/generateKeyPair key-length)))
 
 (defn generate-x500-name
   "Given a common name, return an X500 name built from it."

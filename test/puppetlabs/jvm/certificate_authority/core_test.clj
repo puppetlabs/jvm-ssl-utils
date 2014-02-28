@@ -33,6 +33,16 @@
       (is (instance? PublicKey public))
       (is (instance? PrivateKey private))))
 
+  (testing "keylength"
+    (doseq [[test-str keypair expected-length]
+            [["defaults to 4096" (generate-key-pair)      4096]
+             ["is configurable"  (generate-key-pair 1024) 1024]]]
+      (testing test-str
+        (let [public-length  (-> keypair .getPublic .getModulus .bitLength)
+              private-length (-> keypair .getPrivate .getModulus .bitLength)]
+          (is (= expected-length public-length))
+          (is (= expected-length private-length))))))
+
   (testing "read single private key from PEM stream"
     (let [pem         (open-ssl-file "private_keys/localhost.pem")
           private-key (pem->private-key pem)]
