@@ -1,17 +1,8 @@
-test_name "simple secure request" do
+test_name "simple plaintext & secure requests against server" do
   vm = hosts.first
 
-  step "start certificate-authority test server" do
-    command = 'cd /tmp/jvm-certificate-authority && ' +
-              'bash -c "LEIN_ROOT=true lein with-profile +acceptance server > /dev/null &"'
-    on(vm, command)
-    sleep 30 # TODO properly wait for server to be up and running
-  end
-
-  step "attempt requests against server" do
-    on(vm, 'cd /tmp/jvm-certificate-authority && rspec acceptance/spec') do |result|
-      puts result.stderr
-      puts result.stdout
-    end
+  on(vm, 'cd /tmp/jvm-certificate-authority && rspec acceptance/spec') do |result|
+    puts result.stderr
+    puts result.stdout
   end
 end
