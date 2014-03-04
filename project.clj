@@ -3,8 +3,8 @@
   :dependencies [[org.clojure/tools.logging "0.2.6"]
                  [org.bouncycastle/bcpkix-jdk15on "1.50"]
                  [clj-time "0.5.1"]]
-  :source-paths ["src/main/clojure"]
-  :java-source-paths ["src/main/java"]
+  :source-paths ["src/clojure"]
+  :java-source-paths ["src/java"]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.5.1"]]
                    :resource-paths ["test-resources"]}
              :acceptance {:dependencies [[puppetlabs/trapperkeeper "0.3.2"]
