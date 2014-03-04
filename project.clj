@@ -1,4 +1,4 @@
-(defproject jvm-certificate-authority "0.1.0-SNAPSHOT"
+(defproject certificate-authority "0.1.0-SNAPSHOT"
   :url "http://www.github.com/puppetlabs/jvm-certificate-authority"
   :dependencies [[org.clojure/tools.logging "0.2.6"]
                  [org.bouncycastle/bcpkix-jdk15on "1.50"]

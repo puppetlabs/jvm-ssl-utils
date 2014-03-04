@@ -1,4 +1,4 @@
-(ns puppetlabs.jvm.certificate-authority.core-test
+(ns puppetlabs.certificate-authority.core-test
   (:import java.util.Arrays
            (java.security KeyPair KeyStore PublicKey PrivateKey SignatureException)
            (javax.security.auth.x500 X500Principal)
@@ -9,11 +9,11 @@
            (org.bouncycastle.pkcs PKCS10CertificationRequest))
   (:require [clojure.test :refer :all]
             [clojure.java.io :refer [resource reader]]
-            [puppetlabs.jvm.certificate-authority.core :refer :all]))
+            [puppetlabs.certificate-authority.core :refer :all]))
 
 (defn open-ssl-file
   [filepath]
-  (resource (str "puppetlabs/jvm/certificate_authority/examples/ssl/" filepath)))
+  (resource (str "puppetlabs/certificate_authority/examples/ssl/" filepath)))
 
 (defn write-to-pem-stream
   [object]

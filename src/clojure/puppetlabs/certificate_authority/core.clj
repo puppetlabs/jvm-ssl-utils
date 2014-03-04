@@ -1,4 +1,4 @@
-(ns puppetlabs.jvm.certificate-authority.core
+(ns puppetlabs.certificate-authority.core
   (:import (java.security Key KeyPair PrivateKey PublicKey KeyStore Security)
            (java.security.cert X509Certificate X509CRL)
            (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
@@ -9,7 +9,7 @@
            (org.bouncycastle.openssl.jcajce JcaPEMKeyConverter)
            (org.bouncycastle.cert.jcajce JcaX509CertificateConverter)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
-           (puppetlabs.jvm.certificate_authority CertificateAuthority))
+           (puppetlabs.certificate_authority CertificateAuthority))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :refer [keywordize-keys]]
             [clojure.java.io :refer [reader writer]]))
