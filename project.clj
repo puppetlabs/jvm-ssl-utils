@@ -17,6 +17,6 @@
                                               "--config" "acceptance/resources/config.ini"
                                               "--bootstrap-config" "acceptance/resources/bootstrap.cfg"]
 
-                                    "generate" ["run" "-m" "puppetlabs.jvm.test.certificate-authority.cert-gen" "generate"]
+                                    "generate" ["run" "-m" "puppetlabs.certificate-authority.test.cert-gen" "generate"]
 
-                                    "clean" ["run" "-m" "puppetlabs.jvm.test.certificate-authority.cert-gen" "clean"]}}})
+                                    "clean" ["run" "-m" "puppetlabs.certificate-authority.test.cert-gen" "clean"]}}})

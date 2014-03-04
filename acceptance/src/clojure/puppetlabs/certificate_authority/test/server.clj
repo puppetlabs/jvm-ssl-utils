@@ -1,4 +1,4 @@
-(ns puppetlabs.jvm.test.certificate-authority.server
+(ns puppetlabs.certificate-authority.test.server
   (:require [puppetlabs.trapperkeeper.core :as tk]))
 
 (tk/defservice secure-test-server

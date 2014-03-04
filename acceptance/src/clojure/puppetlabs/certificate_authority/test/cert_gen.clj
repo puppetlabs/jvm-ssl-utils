@@ -1,6 +1,6 @@
-(ns puppetlabs.jvm.test.certificate-authority.cert-gen
-  (:import  [puppetlabs.jvm.test.certificate_authority PuppetMasterCertManager])
-  (:require [puppetlabs.jvm.test.certificate-authority.puppet-agent-cert-manager :as client-ca]
+(ns puppetlabs.certificate-authority.test.cert-gen
+  (:import  [puppetlabs.certificate_authority.test PuppetMasterCertManager])
+  (:require [puppetlabs.certificate-authority.test.puppet-agent-cert-manager :as client-ca]
             [me.raynes.fs :as fs]))
 
 (defn generate
