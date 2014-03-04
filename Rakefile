@@ -7,8 +7,9 @@ task :test do
   config = ENV['BEAKER_CONFIG'] || 'vbox-el6-64'
   hosts = File.join ROOT, 'config', config + '.cfg'
   pre_suite = File.join ROOT, 'pre_suite'
+  post_suite = File.join ROOT, 'post_suite'
   tests = File.join ROOT, 'tests'
-  command = "beaker --hosts '#{hosts}' --pre-suite '#{pre_suite}' --tests '#{tests}' "
+  command = "beaker --hosts '#{hosts}' --pre-suite '#{pre_suite}' --post-suite '#{post_suite}' --tests '#{tests}' "
   command += options
   sh command
 end

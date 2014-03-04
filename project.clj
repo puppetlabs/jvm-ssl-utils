@@ -10,9 +10,13 @@
              :acceptance {:dependencies [[puppetlabs/trapperkeeper "0.3.2"]
                                          [puppetlabs/trapperkeeper-webserver-jetty7 "0.3.2"]
                                          [me.raynes/fs "1.4.3"]]
-                          :main puppetlabs.jvm.test.certificate-authority.server
+                          :main puppetlabs.trapperkeeper.main
                           :source-paths ["acceptance/src/clojure"]
                           :java-source-paths ["acceptance/src/java"]
                           :aliases {"server" ["trampoline" "run"
                                               "--config" "acceptance/resources/config.ini"
-                                              "--bootstrap-config" "acceptance/resources/bootstrap.cfg"]}}})
+                                              "--bootstrap-config" "acceptance/resources/bootstrap.cfg"]
+
+                                    "generate" ["run" "-m" "puppetlabs.jvm.test.certificate-authority.cert-gen" "generate"]
+
+                                    "clean" ["run" "-m" "puppetlabs.jvm.test.certificate-authority.cert-gen" "clean"]}}})
