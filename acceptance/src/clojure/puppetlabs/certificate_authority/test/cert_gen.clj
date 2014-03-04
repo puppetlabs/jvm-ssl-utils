@@ -1,5 +1,5 @@
 (ns puppetlabs.certificate-authority.test.cert-gen
-  (:import  [puppetlabs.certificate_authority.test PuppetMasterCertManager])
+  (:import  [com.puppetlabs.certificate_authority.test PuppetMasterCertManager])
   (:require [puppetlabs.certificate-authority.test.puppet-agent-cert-manager :as client-ca]
             [me.raynes.fs :as fs]))
 

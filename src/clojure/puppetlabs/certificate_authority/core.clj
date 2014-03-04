@@ -9,7 +9,7 @@
            (org.bouncycastle.openssl.jcajce JcaPEMKeyConverter)
            (org.bouncycastle.cert.jcajce JcaX509CertificateConverter)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
-           (puppetlabs.certificate_authority CertificateAuthority))
+           (com.puppetlabs.certificate_authority CertificateAuthority))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :refer [keywordize-keys]]
             [clojure.java.io :refer [reader writer]]))
