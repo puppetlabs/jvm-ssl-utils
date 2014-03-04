@@ -45,7 +45,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.UUID;
 
-public class CertificateSupport {
+public class CertificateAuthority {
 
     /**
      * The default key length to use when generating a keypair.
