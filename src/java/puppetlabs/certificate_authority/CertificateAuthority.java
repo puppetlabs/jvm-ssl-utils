@@ -1,4 +1,4 @@
-package puppetlabs.jvm.certificate_authority;
+package puppetlabs.certificate_authority;
 
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;

@@ -1,10 +1,10 @@
-(defproject jvm-certificate-authority "0.1.0-SNAPSHOT"
+(defproject certificate-authority "0.1.0-SNAPSHOT"
   :url "http://www.github.com/puppetlabs/jvm-certificate-authority"
   :dependencies [[org.clojure/tools.logging "0.2.6"]
                  [org.bouncycastle/bcpkix-jdk15on "1.50"]
                  [clj-time "0.5.1"]]
-  :source-paths ["src/main/clojure"]
-  :java-source-paths ["src/main/java"]
+  :source-paths ["src/clojure"]
+  :java-source-paths ["src/java"]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.5.1"]]
                    :resource-paths ["test-resources"]}
              :acceptance {:dependencies [[puppetlabs/trapperkeeper "0.3.2"]
@@ -17,6 +17,6 @@
                                               "--config" "acceptance/resources/config.ini"
                                               "--bootstrap-config" "acceptance/resources/bootstrap.cfg"]
 
-                                    "generate" ["run" "-m" "puppetlabs.jvm.test.certificate-authority.cert-gen" "generate"]
+                                    "generate" ["run" "-m" "puppetlabs.certificate-authority.test.cert-gen" "generate"]
 
-                                    "clean" ["run" "-m" "puppetlabs.jvm.test.certificate-authority.cert-gen" "clean"]}}})
+                                    "clean" ["run" "-m" "puppetlabs.certificate-authority.test.cert-gen" "clean"]}}})
