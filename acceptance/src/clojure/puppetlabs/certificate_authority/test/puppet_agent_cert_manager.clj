@@ -43,8 +43,8 @@
     (CertificateAuthority/writeToPEM (.getPrivate agent-keypair) (io/writer (nth agent-ssl-paths 1)))
     (CertificateAuthority/writeToPEM agent-cert (io/writer (nth agent-ssl-paths 2)))
     ;; HACK - assume the location of the ca.pem file and just directly copy it into place
-    (fs/copy (io/file "acceptance/resources/server/conf/ssl/certs/ca.pem")
-             (io/file "acceptance/resources/client/conf/ssl/certs/ca.pem"))))
+    (fs/copy (io/file "./acceptance/resources/server/ssl/certs/ca.pem")
+             (io/file "./acceptance/resources/client/ssl/certs/ca.pem"))))
 
 (defn initialize!
   [master-ca confdir agent-certname]

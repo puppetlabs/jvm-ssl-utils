@@ -1,17 +1,20 @@
 (ns puppetlabs.certificate-authority.test.cert-gen
   (:import  [puppetlabs.certificate_authority.test PuppetMasterCertManager])
   (:require [puppetlabs.certificate-authority.test.puppet-agent-cert-manager :as client-ca]
-            [me.raynes.fs :as fs]))
+            [me.raynes.fs :as fs]
+            [clojure.tools.logging :as log]))
 
 (defn generate
-  []
-  (-> (PuppetMasterCertManager. "acceptance/resources/server/conf" "localhost")
-      (client-ca/initialize! "acceptance/resources/client/conf" "local-client")))
+  [{:keys [server-ssl-dir client-ssl-dir server-subject-name client-subject-name]}]
+  (log/info (format "Generating server certificates at '%s' for '%s'" server-ssl-dir server-subject-name))
+  (log/info (format "Generating client certificates at '%s' for '%s'" client-ssl-dir client-subject-name))
+  (-> (PuppetMasterCertManager. server-ssl-dir server-subject-name)
+      (client-ca/initialize! client-ssl-dir client-subject-name)))
 
 (defn clean
-  []
-  (fs/delete-dir "acceptance/resources/server")
-  (fs/delete-dir "acceptance/resources/client"))
+  [{:keys [server-ssl-dir client-ssl-dir]}]
+  (fs/delete-dir server-ssl-dir)
+  (fs/delete-dir client-ssl-dir))
 
 (defn -main
   "Create and destroy SSL certificates necessary for testing.
@@ -22,6 +25,10 @@
 
     `clean`     Remove everything created by `generate`"
   [& args]
-  (condp = (first args)
-    "generate" (generate)
-    "clean"    (clean)))
+  (let [client-server-ssl-info {:server-ssl-dir      "./acceptance/resources/server"
+                                :client-ssl-dir      "./acceptance/resources/client"
+                                :server-subject-name "localhost"
+                                :client-subject-name "local-client"}]
+    (condp = (first args)
+      "generate" (generate client-server-ssl-info)
+      "clean"    (clean client-server-ssl-info))))
