@@ -1,6 +1,7 @@
-package puppetlabs.certificate_authority.test;
+package com.puppetlabs.certificate_authority.test;
 
-import puppetlabs.certificate_authority.CertificateAuthority;
+import com.puppetlabs.certificate_authority.CertificateAuthority;
+
 import org.apache.commons.io.FileUtils;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.operator.OperatorCreationException;
