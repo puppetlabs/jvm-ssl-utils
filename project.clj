@@ -19,4 +19,11 @@
 
                                     "generate" ["run" "-m" "puppetlabs.certificate-authority.test.cert-gen" "generate"]
 
-                                    "clean" ["run" "-m" "puppetlabs.certificate-authority.test.cert-gen" "clean"]}}})
+                                    "clean" ["run" "-m" "puppetlabs.certificate-authority.test.cert-gen" "clean"]}}}
+  :plugins [[lein-release "1.0.5"]]
+  :lein-release {:scm         :git
+                 :deploy-via  :lein-deploy}
+  :deploy-repositories [["releases" "http://nexus.delivery.puppetlabs.net/content/repositories/releases/"]
+                        ["snapshots" "http://nexus.delivery.puppetlabs.net/content/repositories/snapshots/"]]
+
+  )
