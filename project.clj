@@ -5,7 +5,7 @@
     :password :env/nexus_jenkins_password
     :sign-releases false })
 
-(defproject certificate-authority "0.1.0"
+(defproject certificate-authority "0.1.1-SNAPSHOT"
   :url "http://www.github.com/puppetlabs/jvm-certificate-authority"
   :dependencies [[org.clojure/tools.logging "0.2.6"]
                  [org.bouncycastle/bcpkix-jdk15on "1.50"]
