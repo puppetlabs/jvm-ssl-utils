@@ -1,3 +1,10 @@
+(defn deploy-info
+  [url]
+  { :url url
+    :username :env/nexus_jenkins_username
+    :password :env/nexus_jenkins_password
+    :sign-releases false })
+
 (defproject certificate-authority "0.1.0-SNAPSHOT"
   :url "http://www.github.com/puppetlabs/jvm-certificate-authority"
   :dependencies [[org.clojure/tools.logging "0.2.6"]
@@ -23,7 +30,7 @@
   :plugins [[lein-release "1.0.5"]]
   :lein-release {:scm         :git
                  :deploy-via  :lein-deploy}
-  :deploy-repositories [["releases" "http://nexus.delivery.puppetlabs.net/content/repositories/releases/"]
-                        ["snapshots" "http://nexus.delivery.puppetlabs.net/content/repositories/snapshots/"]]
+  :deploy-repositories [["releases" (deploy-info "http://nexus.delivery.puppetlabs.net/content/repositories/releases/")]
+                        ["snapshots" (deploy-info "http://nexus.delivery.puppetlabs.net/content/repositories/snapshots/")]]
 
   )
