@@ -14,6 +14,105 @@
             [clojure.walk :refer [keywordize-keys]]
             [clojure.java.io :refer [reader writer]]))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Predicates
+
+(defn keypair?
+  "Returns true if x is a keypair (see `generate-key-pair`)."
+  [x]
+  (instance? KeyPair x))
+
+(defn public-key?
+  "Returns true if x is a public key (see `generate-key-pair`)."
+  [x]
+  (instance? PublicKey x))
+
+(defn private-key?
+  "Returns true if x is a private key (see `generate-key-pair`)."
+  [x]
+  (instance? PrivateKey x))
+
+(defn x500-name?
+  "Returns true if x is an instance of `X500Name` (see `generate-x500-name`)."
+  [x]
+  (instance? X500Name x))
+
+(defn certificate-request?
+  "Returns true if x is an instance of `PKCS10CertificationRequest` (see `generate-certificate-request`)."
+  [x]
+  (instance? PKCS10CertificationRequest x))
+
+(defn certificate?
+  "Returns true if x is an instance of `X509Certificate` (see `sign-certificate-request`)."
+  [x]
+  (instance? X509Certificate x))
+
+(defn certificate-revocation-list?
+  "Returns true if x is an instance of `X509CRL` (see `generate-crl`)."
+  [x]
+  (instance? X509CRL x))
+
+(defn has-serial?
+  "Returns true if the serial number matches the one on the certificate."
+  [cert serial]
+  {:pre [(certificate? cert)
+         (integer? serial)]}
+  (= serial (.getSerialNumber cert)))
+
+(defn has-version?
+  "Returns true if the version matches the one on the certificate."
+  [cert version]
+  {:pre [(certificate? cert)
+         (integer? version)]}
+  (= version (.getVersion cert)))
+
+(defmulti has-subject?
+  "Returns true if x has the subject identified by the x500-name string or `X500Name`.
+  Default implementations are provided for `X509Certificate` and `PKCS10CertificationRequest`."
+  (fn [x x500-name]
+    [(class x) (class x500-name)]))
+
+(defmethod has-subject? [X509Certificate String]
+  [cert x500-name]
+  (= x500-name (-> cert .getSubjectX500Principal .getName)))
+
+(defmethod has-subject? [X509Certificate X500Name]
+  [cert x500-name]
+  (has-subject? cert (str x500-name)))
+
+(defmethod has-subject? [PKCS10CertificationRequest String]
+  [csr x500-name]
+  (= x500-name (-> csr .getSubject str)))
+
+(defmethod has-subject? [PKCS10CertificationRequest X500Name]
+  [csr x500-name]
+  (= x500-name (.getSubject csr)))
+
+(defmulti issued-by?
+  "Returns true if x was issued by the x500-name string or `X500Name`.
+  Default implementations are provided for `X509Certificate`, `PKCS10CertificationRequest`, and `X509CRL`."
+  (fn [_ x500-name]
+    (class x500-name)))
+
+(defmethod issued-by? String
+  [x x500-name]
+  (= x500-name (-> x .getIssuerX500Principal .getName)))
+
+(defmethod issued-by? X500Name
+  [x x500-name]
+  (issued-by? x (str x500-name)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Core
+
+(defn keylength
+  "Given a key, return the length key length that was used when generating it."
+  [key]
+  {:pre  [(or (public-key? key)
+              (private-key? key))]
+   :post [(integer? %)]}
+  (-> key .getModulus .bitLength))
+
 (def default-key-length
   "The default key length to use when generating a keypair."
   CertificateAuthority/DEFAULT_KEY_LENGTH)
@@ -21,24 +120,24 @@
 (defn generate-key-pair
   "Given a key length (defaults to 4096), generate a new public & private key pair."
   ([]
-     {:post [(instance? KeyPair %)]}
+     {:post [(keypair? %)]}
      (CertificateAuthority/generateKeyPair))
   ([key-length]
      {:pre  [(integer? key-length)]
-      :post [(instance? KeyPair %)]}
+      :post [(keypair? %)]}
      (CertificateAuthority/generateKeyPair key-length)))
 
 (defn generate-x500-name
   "Given a common name, return an X500 name built from it."
   [common-name]
   {:pre  [(string? common-name)]
-   :post [(instance? X500Name %)]}
+   :post [(x500-name? %)]}
   (CertificateAuthority/generateX500Name common-name))
 
 (defn x500-name->CN
   "Given an X500 name, return the common name from it."
   [x500-name]
-  {:pre  [(instance? X500Name x500-name)]
+  {:pre  [(x500-name? x500-name)]
    :post [(string? %)]}
   (CertificateAuthority/getCommonNameFromX500Name x500-name))
 
@@ -51,9 +150,9 @@
 
   See `sign-certificate-request`, `obj->pem!`, and `pem->csr` to sign & read/write CSRs."
   [keypair subject-name]
-  {:pre  [(instance? KeyPair keypair)
-          (instance? X500Name subject-name)]
-   :post [(instance? PKCS10CertificationRequest %)]}
+  {:pre  [(keypair? keypair)
+          (x500-name? subject-name)]
+   :post [(certificate-request? %)]}
   (CertificateAuthority/generateCertificateRequest keypair subject-name))
 
 (defn sign-certificate-request
@@ -67,11 +166,11 @@
 
   See `generate-certificate-request`, `obj->pem!`, and `pem->certs` to create & read/write certificates."
   [request issuer serial issuer-private-key]
-  {:pre  [(instance? PKCS10CertificationRequest request)
-          (instance? X500Name issuer)
+  {:pre  [(certificate-request? request)
+          (x500-name? issuer)
           (number? serial)
-          (instance? PrivateKey issuer-private-key)]
-   :post [(instance? X509Certificate %)]}
+          (private-key? issuer-private-key)]
+   :post [(certificate? %)]}
   (CertificateAuthority/signCertificateRequest request issuer (biginteger serial) issuer-private-key))
 
 (defn generate-crl
@@ -82,8 +181,8 @@
   `issuer-private-key`: the issuer's `PrivateKey`"
   [issuer issuer-private-key]
   {:pre  [(instance? X500Principal issuer)
-          (instance? PrivateKey issuer-private-key)]
-   :post [(instance? X509CRL %)]}
+          (private-key? issuer-private-key)]
+   :post [(certificate-revocation-list? %)]}
   (CertificateAuthority/generateCRL issuer issuer-private-key))
 
 (defn pem->csr
@@ -93,11 +192,9 @@
   See `obj->pem!` to PEM-encode a certificate signing request."
   [pem]
   {:pre  [(not (nil? pem))]
-   :post [(instance? PKCS10CertificationRequest %)]}
+   :post [(certificate-request? %)]}
   (with-open [r (reader pem)]
     (CertificateAuthority/pemToCertificateRequest r)))
-
-;;;; SSL functions from Kitchensink below
 
 (defn keystore
   "Create an empty in-memory Java KeyStore object."
@@ -138,7 +235,7 @@
   decodes the contents into a collection of `X509Certificate` instances."
   [pem]
   {:pre  [(not (nil? pem))]
-   :post [(every? (fn [x] (instance? X509Certificate x)) %)]}
+   :post [(every? certificate? %)]}
   (with-open [r (reader pem)]
     (CertificateAuthority/pemToCerts r)))
 
@@ -146,7 +243,7 @@
   "Decodes the given object (read from a .pem via `pem->objs`) into an instance of `PrivateKey`."
   [obj]
   {:pre  [(not (nil? obj))]
-   :post [(instance? PrivateKey %)]}
+   :post [(private-key? %)]}
   (CertificateAuthority/objectToPrivateKey obj))
 
 (defn pem->private-keys
@@ -154,7 +251,7 @@
   decodes the contents into a collection of `PrivateKey` instances."
   [pem]
   {:pre  [(not (nil? pem))]
-   :post [(every? (fn [x] (instance? PrivateKey x)) %)]}
+   :post [(every? private-key? %)]}
   (with-open [r (reader pem)]
     (CertificateAuthority/pemToPrivateKeys r)))
 
@@ -165,7 +262,7 @@
   See `key->pem!` and `pem->private-keys` to write/read keys."
   [pem]
   {:pre  [(not (nil? pem))]
-   :post [(instance? PrivateKey %)]}
+   :post [(private-key? %)]}
   (with-open [r (reader pem)]
     (CertificateAuthority/pemToPrivateKey r)))
 
@@ -191,7 +288,7 @@
   [keystore alias cert]
   {:pre  [(instance? KeyStore keystore)
           (string? alias)
-          (instance? X509Certificate cert)]
+          (certificate? cert)]
    :post [(instance? KeyStore %)]}
   (CertificateAuthority/associateCert keystore alias cert))
 
@@ -228,10 +325,10 @@
   [keystore alias private-key pw cert]
   {:pre  [(instance? KeyStore keystore)
           (string? alias)
-          (instance? PrivateKey private-key)
+          (private-key? private-key)
           (string? pw)
           (or (nil? cert)
-              (instance? X509Certificate cert))]
+              (certificate? cert))]
    :post [(instance? KeyStore %)]}
   (CertificateAuthority/associatePrivateKey keystore alias private-key pw cert))
 
