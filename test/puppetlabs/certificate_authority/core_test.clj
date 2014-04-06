@@ -246,4 +246,10 @@
                    (open-ssl-file "certs/localhost.pem")
                    (open-ssl-file "private_keys/localhost.pem")
                    (open-ssl-file "certs/ca.pem"))]
+      (is (instance? SSLContext result))))
+  (testing "convert CA cert PEM to SSLContext"
+    (let [result (ca-cert-pem->ssl-context
+                   (open-ssl-file "certs/ca.pem"))]
       (is (instance? SSLContext result)))))
+
+

@@ -569,4 +569,32 @@ public class CertificateAuthority {
         context.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
         return context;
     }
+
+    /**
+     * Given a PEM reader for a CA certificate, create an in-memory SSL context
+     * initialized with a truststore generated from the CA certificate.  This
+     * SSLContext can be used for SSL clients that are connecting to a server
+     * with a custom CA, but which do not need to present a client cert to the
+     * server.
+     *
+     * @param caCert Reader for PEM-encoded stream with the CA certificate
+     * @return The configured SSLContext
+     * @throws KeyStoreException
+     * @throws CertificateException
+     * @throws IOException
+     * @throws NoSuchAlgorithmException
+     * @throws KeyManagementException
+     */
+    public static SSLContext caCertPemToSSLContext(Reader caCert)
+            throws CertificateException, NoSuchAlgorithmException, KeyStoreException,
+                    IOException, KeyManagementException {
+        KeyStore truststore = createKeyStore();
+        associateCertsFromReader(truststore, "CA Certificate", caCert);
+
+        TrustManagerFactory tmf = getTrustManagerFactory(truststore);
+        SSLContext context = SSLContext.getInstance("SSL");
+        context.init(null, tmf.getTrustManagers(), null);
+        return context;
+    }
+
 }

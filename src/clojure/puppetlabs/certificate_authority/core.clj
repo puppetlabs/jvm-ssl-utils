@@ -313,8 +313,7 @@
   in-memory SSLContext initialized with a KeyStore/TrustStore generated from
   the input certs/key.
 
-  Argument should be a map containing the keys `:cert`, `:key`, and `:ca-cert`.
-  Each value must be an object suitable for use with clojure's `reader`, and
+  Each argument must be an object suitable for use with clojure's `reader`, and
   reference a PEM that contains the appropriate cert/key.
 
   Returns the SSLContext instance."
@@ -327,3 +326,18 @@
               key-reader     (reader private-key)
               ca-cert-reader (reader ca-cert)]
     (CertificateAuthority/pemsToSSLContext cert-reader key-reader ca-cert-reader)))
+
+(defn ca-cert-pem->ssl-context
+  "Given a pem for a CA certificate, creates an in-memory SSLContext initialized
+  with a TrustStore generated from the input CA cert.
+
+  `ca-cert` must be an object suitable for use with clojure's `reader`, and
+  reference a PEM that contains the CA cert.
+
+  Returns the SSLContext instance."
+  [ca-cert]
+  {:pre  [ca-cert]
+   :post [(instance? SSLContext %)]}
+  (with-open [ca-cert-reader (reader ca-cert)]
+    (CertificateAuthority/caCertPemToSSLContext ca-cert-reader)))
+
