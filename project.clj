@@ -5,7 +5,7 @@
     :password :env/clojars_jenkins_password
     :sign-releases false })
 
-(defproject puppetlabs/certificate-authority "0.1.4-SNAPSHOT"
+(defproject puppetlabs/certificate-authority "0.1.4"
   :url "http://www.github.com/puppetlabs/jvm-certificate-authority"
   :dependencies [[org.clojure/tools.logging "0.2.6"]
                  [org.bouncycastle/bcpkix-jdk15on "1.50"]
