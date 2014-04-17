@@ -52,20 +52,6 @@
   [x]
   (instance? X509CRL x))
 
-(defn has-serial?
-  "Returns true if the serial number matches the one on the certificate."
-  [cert serial]
-  {:pre [(certificate? cert)
-         (integer? serial)]}
-  (= serial (.getSerialNumber cert)))
-
-(defn has-version?
-  "Returns true if the version matches the one on the certificate."
-  [cert version]
-  {:pre [(certificate? cert)
-         (integer? version)]}
-  (= version (.getVersion cert)))
-
 (defmulti has-subject?
   "Returns true if x has the subject identified by the x500-name string or `X500Name`.
   Default implementations are provided for `X509Certificate` and `PKCS10CertificationRequest`."
@@ -90,7 +76,7 @@
 
 (defmulti issued-by?
   "Returns true if x was issued by the x500-name string or `X500Name`.
-  Default implementations are provided for `X509Certificate`, `PKCS10CertificationRequest`, and `X509CRL`."
+  Default implementations are provided for `X509Certificate` and `X509CRL`."
   (fn [_ x500-name]
     (class x500-name)))
 
@@ -437,4 +423,3 @@
    :post [(instance? SSLContext %)]}
   (with-open [ca-cert-reader (reader ca-cert)]
     (CertificateAuthority/caCertPemToSSLContext ca-cert-reader)))
-

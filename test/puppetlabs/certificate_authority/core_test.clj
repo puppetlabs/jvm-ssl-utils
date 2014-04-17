@@ -93,7 +93,7 @@
       (is (certificate? certificate))
       (is (has-subject? certificate subject))
       (is (issued-by? certificate issuer))
-      (is (has-serial? certificate 42))))
+      (is (= (.getSerialNumber certificate) 42))))
 
   (testing "read CSR from PEM stream"
     (let [pem (open-ssl-file "certification_requests/ca_test_client.pem")
@@ -134,8 +134,8 @@
         (is (certificate? actual))
         (is (has-subject? actual (expected :subject-name)))
         (is (issued-by? actual (expected :issuer-name)))
-        (is (has-serial? actual (expected :serial)))
-        (is (has-version? actual (expected :version))))))
+        (is (= (.getSerialNumber actual) (expected :serial)))
+        (is (= (.getVersion actual) (expected :version))))))
 
   (testing "write certificate to PEM stream"
     (let [subject     (generate-x500-name "foo")
@@ -147,7 +147,7 @@
       (is (certificate? parsed-cert))
       (is (has-subject? parsed-cert subject))
       (is (issued-by? parsed-cert issuer))
-      (is (has-serial? parsed-cert 42))
+      (is (= (.getSerialNumber parsed-cert) 42))
       (is (= orig-cert parsed-cert)))))
 
 
@@ -238,4 +238,89 @@
                    (open-ssl-file "certs/ca.pem"))]
       (is (instance? SSLContext result)))))
 
+(let [keypair (generate-key-pair 512)
+      public (.getPublic keypair)
+      private (.getPrivate keypair)]
 
+  (deftest keypair?-test
+    (is (true? (keypair? keypair)))
+    (is (false? (keypair? (str keypair))))
+    (is (false? (keypair? public)))
+    (is (false? (keypair? private)))
+    (is (false? (keypair? "foo")))
+    (is (false? (keypair? nil))))
+
+  (deftest public-key?-test
+    (is (true? (public-key? public)))
+    (is (false? (public-key? (str public))))
+    (is (false? (public-key? private)))
+    (is (false? (public-key? "foo")))
+    (is (false? (public-key? nil))))
+
+  (deftest private-key?-test
+    (is (true? (private-key? private)))
+    (is (false? (private-key? (str private))))
+    (is (false? (private-key? public)))
+    (is (false? (private-key? "foo")))
+    (is (false? (private-key? nil)))))
+
+(let [subject (generate-x500-name "subject")
+      issuer  (generate-x500-name "issuer")
+      csr     (generate-certificate-request (generate-key-pair 512) subject)
+      cert    (sign-certificate-request csr issuer 42 (.getPrivate (generate-key-pair 512)))
+      crl     (generate-crl (X500Principal. (str issuer)) (.getPrivate (generate-key-pair 512)))]
+
+  (deftest x500-name?-test
+    (is (true? (x500-name? subject)))
+    (is (false? (x500-name? (str subject))))
+    (is (false? (x500-name? "subject")))
+    (is (false? (x500-name? nil))))
+
+  (deftest certificate-request?-test
+    (is (true? (certificate-request? csr)))
+    (is (false? (certificate-request? (str csr))))
+    (is (false? (certificate-request? "foo")))
+    (is (false? (certificate-request? nil))))
+
+  (deftest certificate?-test
+    (is (true? (certificate? cert)))
+    (is (false? (certificate? (str cert))))
+    (is (false? (certificate? csr)))
+    (is (false? (certificate? "foo")))
+    (is (false? (certificate? nil))))
+
+  (deftest certificate-revocation-list?-test
+    (is (true? (certificate-revocation-list? crl)))
+    (is (false? (certificate-revocation-list? (str crl))))
+    (is (false? (certificate-revocation-list? "foo")))
+    (is (false? (certificate-revocation-list? nil))))
+
+  (deftest has-subject?-test
+    (testing "certificate signing request"
+      (is (true? (has-subject? csr subject)))
+      (is (true? (has-subject? csr (str subject))))
+      (is (true? (has-subject? csr "CN=subject")))
+      (is (true? (has-subject? csr (generate-x500-name "subject"))))
+      (is (false? (has-subject? csr "subject"))))
+
+    (testing "certificate"
+      (is (true? (has-subject? cert subject)))
+      (is (true? (has-subject? cert (str subject))))
+      (is (true? (has-subject? cert "CN=subject")))
+      (is (true? (has-subject? cert (generate-x500-name "subject"))))
+      (is (false? (has-subject? cert "subject")))))
+
+  (deftest issued-by?-test
+    (testing "certificate"
+      (is (true? (issued-by? cert issuer)))
+      (is (true? (issued-by? cert (str issuer))))
+      (is (true? (issued-by? cert "CN=issuer")))
+      (is (true? (issued-by? cert (generate-x500-name "issuer"))))
+      (is (false? (issued-by? cert "issuer"))))
+
+    (testing "certificate revocation list"
+      (is (true? (issued-by? crl issuer)))
+      (is (true? (issued-by? crl (str issuer))))
+      (is (true? (issued-by? crl "CN=issuer")))
+      (is (true? (issued-by? crl (generate-x500-name "issuer"))))
+      (is (false? (issued-by? crl "issuer"))))))
