@@ -19,6 +19,7 @@
 
   :source-paths ["src/clojure"]
   :java-source-paths ["src/java"]
+  :jar-exclusions [#".*\.java$"]
 
   ;; By declaring a classifier here and a corresponding profile below we'll get an additional jar
   ;; during `lein jar` that has all the source code (including the java source). Downstream projects can then
