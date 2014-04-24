@@ -19,6 +19,7 @@
 
   :source-paths ["src/clojure"]
   :java-source-paths ["src/java"]
+  :jar-exclusions [#".*\.java$"]
 
   ;; By declaring a classifier here and a corresponding profile below we'll get an additional jar
   ;; during `lein jar` that has all the source code (including the java source). Downstream projects can then
@@ -29,6 +30,7 @@
                    :resource-paths ["test-resources"]}
 
              :sources-jar {:java-source-paths ^:replace []
+                           :jar-exclusions ^:replace []
                            :source-paths ^:replace ["src/clojure" "src/java"]}
 
              :acceptance {:dependencies [[puppetlabs/trapperkeeper "0.3.2"]
