@@ -7,6 +7,7 @@
            (org.bouncycastle.asn1.pkcs PrivateKeyInfo)
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.openssl.jcajce JcaPEMKeyConverter)
+           (org.bouncycastle.cert X509CRLHolder)
            (org.bouncycastle.cert.jcajce JcaX509CertificateConverter)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
            (com.puppetlabs.certificate_authority CertificateAuthority))
@@ -76,17 +77,34 @@
 
 (defmulti issued-by?
   "Returns true if x was issued by the x500-name string or `X500Name`.
-  Default implementations are provided for `X509Certificate` and `X509CRL`."
-  (fn [_ x500-name]
-    (class x500-name)))
+  Default implementations are provided for `X509Certificate`, `X509CRL`
+  and `X509CRLHolder`."
+  (fn [x x500-name]
+    [(class x) (class x500-name)]))
 
-(defmethod issued-by? String
-  [x x500-name]
-  (= x500-name (-> x .getIssuerX500Principal .getName)))
+(defmethod issued-by? [X509Certificate String]
+  [cert x500-name]
+  (= x500-name (-> cert .getIssuerX500Principal .getName)))
 
-(defmethod issued-by? X500Name
-  [x x500-name]
-  (issued-by? x (str x500-name)))
+(defmethod issued-by? [X509Certificate X500Name]
+  [cert x500-name]
+  (issued-by? cert (str x500-name)))
+
+(defmethod issued-by? [X509CRL String]
+  [crl x500-name]
+  (= x500-name (-> crl .getIssuerX500Principal .getName)))
+
+(defmethod issued-by? [X509CRL X500Name]
+  [crl x500-name]
+  (issued-by? crl (str x500-name)))
+
+(defmethod issued-by? [X509CRLHolder String]
+  [crlholder x500-name]
+  (= x500-name (-> crlholder .getIssuer str)))
+
+(defmethod issued-by? [X509CRLHolder X500Name]
+  [crlholder x500-name]
+  (= x500-name (.getIssuer crlholder)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Core
@@ -106,12 +124,12 @@
 (defn generate-key-pair
   "Given a key length (defaults to 4096), generate a new public & private key pair."
   ([]
-     {:post [(keypair? %)]}
-     (CertificateAuthority/generateKeyPair))
+   {:post [(keypair? %)]}
+   (CertificateAuthority/generateKeyPair))
   ([key-length]
-     {:pre  [(integer? key-length)]
-      :post [(keypair? %)]}
-     (CertificateAuthority/generateKeyPair key-length)))
+   {:pre  [(integer? key-length)]
+    :post [(keypair? %)]}
+   (CertificateAuthority/generateKeyPair key-length)))
 
 (defn generate-x500-name
   "Given a common name, return an X500 name built from it."
