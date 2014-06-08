@@ -264,11 +264,14 @@
     (is (false? (private-key? "foo")))
     (is (false? (private-key? nil)))))
 
-(let [subject (generate-x500-name "subject")
-      issuer  (generate-x500-name "issuer")
-      csr     (generate-certificate-request (generate-key-pair 512) subject)
-      cert    (sign-certificate-request csr issuer 42 (.getPrivate (generate-key-pair 512)))
-      crl     (generate-crl (X500Principal. (str issuer)) (.getPrivate (generate-key-pair 512)))]
+(let [subject   (generate-x500-name "subject")
+      issuer    (generate-x500-name "issuer")
+      csr       (generate-certificate-request (generate-key-pair 512) subject)
+      cert      (sign-certificate-request csr issuer 42
+                                          (.getPrivate (generate-key-pair 512)))
+      crl       (generate-crl (X500Principal. (str issuer))
+                              (.getPrivate (generate-key-pair 512)))
+      crlholder (-> crl write-to-pem-stream pem->objs first)]
 
   (deftest x500-name?-test
     (is (true? (x500-name? subject)))
@@ -319,8 +322,9 @@
       (is (false? (issued-by? cert "issuer"))))
 
     (testing "certificate revocation list"
-      (is (true? (issued-by? crl issuer)))
-      (is (true? (issued-by? crl (str issuer))))
-      (is (true? (issued-by? crl "CN=issuer")))
-      (is (true? (issued-by? crl (generate-x500-name "issuer"))))
-      (is (false? (issued-by? crl "issuer"))))))
+      (doseq [impl [crl crlholder]]
+        (is (true? (issued-by? impl issuer)))
+        (is (true? (issued-by? impl (str issuer))))
+        (is (true? (issued-by? impl "CN=issuer")))
+        (is (true? (issued-by? impl (generate-x500-name "issuer"))))
+        (is (false? (issued-by? impl "issuer")))))))
