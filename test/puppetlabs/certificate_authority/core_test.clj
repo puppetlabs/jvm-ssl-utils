@@ -13,12 +13,13 @@
   (resource (str "puppetlabs/certificate_authority/examples/ssl/" filepath)))
 
 (defn write-to-pem-stream
-  [object]
-  (let [pem-stream (ByteArrayOutputStream.)]
-    (obj->pem! object pem-stream)
-    (-> pem-stream
-        (.toByteArray)
-        (ByteArrayInputStream.))))
+  ([object] (write-to-pem-stream object obj->pem!))
+  ([object write-function]
+     (let [pem-stream (ByteArrayOutputStream.)]
+       (write-function object pem-stream)
+       (-> pem-stream
+           (.toByteArray)
+           (ByteArrayInputStream.)))))
 
 
 (deftest key-test
@@ -152,17 +153,29 @@
 
 
 (deftest certificate-revocation-list
-  (testing "create CRL"
-    (let [key-pair    (generate-key-pair)
-          public-key  (.getPublic key-pair)
-          private-key (.getPrivate key-pair)
-          issuer-name "CN=my ca"
-          crl         (generate-crl (X500Principal. issuer-name) private-key)]
+  (let [key-pair    (generate-key-pair)
+        public-key  (.getPublic key-pair)
+        private-key (.getPrivate key-pair)
+        issuer-name "CN=my ca"
+        crl         (generate-crl (X500Principal. issuer-name) private-key)]
+
+    (testing "create CRL"
       (is (certificate-revocation-list? crl))
       (is (issued-by? crl issuer-name))
       (is (nil? (.verify crl public-key)))
       (is (thrown? SignatureException
-                   (.verify crl (.getPublic (generate-key-pair))))))))
+                   (.verify crl (.getPublic (generate-key-pair))))))
+
+    (testing "read CRL from PEM stream"
+      (let [parsed-crl (-> "ca_crl.pem" open-ssl-file pem->crl)]
+        (is (certificate-revocation-list? parsed-crl))
+        (is (issued-by? parsed-crl "CN=Puppet CA: localhost"))))
+
+    (testing "write CRL to PEM stream"
+      (let [parsed-crl (-> crl (write-to-pem-stream crl->pem!) pem->crl)]
+        (is (certificate-revocation-list? parsed-crl))
+        (is (issued-by? parsed-crl issuer-name))
+        (is (= crl parsed-crl))))))
 
 
 (deftest keystore-test

@@ -171,6 +171,31 @@
    :post [(certificate-revocation-list? %)]}
   (CertificateAuthority/generateCRL issuer issuer-private-key))
 
+(defn crl->pem!
+  "Encodes a CRL to PEM format, and writes it to a file (or other stream).
+   Arguments:
+
+   `crl`: the `X509CRL` to encode
+   `pem`: the file path to write the PEM output to
+          (or some other object supported by clojure's `writer`)"
+  [crl pem]
+  {:pre  [(certificate-revocation-list? crl)
+          (not (nil? pem))]
+   :post [(nil? %)]}
+  (with-open [w (writer pem)]
+    (CertificateAuthority/writeToPEM crl w)))
+
+(defn pem->crl
+  "Given the path to a PEM file (or some other object supported by clojure's `reader`),
+   decode the contents into a `X509CRL`.
+
+   See `crl->pem!` to PEM-encode a certificate revocation list."
+  [pem]
+  {:pre  [(not (nil? pem))]
+   :post [(certificate-revocation-list? %)]}
+  (with-open [r (reader pem)]
+    (CertificateAuthority/pemToCRL r)))
+
 (defn pem->csr
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decode the contents into a `PKCS10CertificationRequest`.

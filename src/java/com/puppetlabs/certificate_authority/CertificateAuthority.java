@@ -220,6 +220,24 @@ public class CertificateAuthority {
     }
 
     /**
+     * Given a PEM reader, decode the contents into a certificate revocation list.
+     *
+     * @param reader Reader for a PEM-encoded stream
+     * @return The decoded certificate revocation list from the stream
+     * @throws IOException
+     * @see #generateCRL
+     */
+    public static X509CRL pemToCRL(Reader reader)
+        throws IOException, CRLException
+    {
+        List<Object> pemObjects = pemToObjects(reader);
+        if (pemObjects.size() > 1)
+            throw new IllegalArgumentException("The PEM stream contains more than one object");
+        JcaX509CRLConverter converter = new JcaX509CRLConverter();
+        return converter.getCRL((X509CRLHolder) pemObjects.get(0));
+    }
+
+    /**
      * Given a PEM reader, decode the contents into a certificate signing request.
      *
      * @param reader Reader for a PEM-encoded stream
