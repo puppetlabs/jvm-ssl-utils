@@ -334,6 +334,25 @@ public class CertificateAuthority {
     }
 
     /**
+     * Given a PEM reader, decode the contents into a certificate.
+     * Throws an exception if multiple certificates are found.
+     *
+     * @param reader Reader for a PEM-encoded stream
+     * @return The certificate decoded from the stream
+     * @throws CertificateException
+     * @throws IOException
+     * @see #writeToPEM
+     */
+    public static X509Certificate pemToCert(Reader reader)
+        throws CertificateException, IOException
+    {
+        List<X509Certificate> certs = pemToCerts(reader);
+        if (certs.size() != 1)
+            throw new IllegalArgumentException("The PEM stream must contain exactly 1 certificate");
+        return certs.get(0);
+    }
+
+    /**
      * Decodes the provided object (read from a PEM stream via {@link #pemToObjects}) into a private key.
      *
      * @param obj The object to decode into a PrivateKey

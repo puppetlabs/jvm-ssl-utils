@@ -250,6 +250,29 @@
   (with-open [r (reader pem)]
     (CertificateAuthority/pemToCerts r)))
 
+(defn pem->cert
+  "Given the path to a PEM file (or some other object supported by clojure's `reader`),
+  decodes the contents into an `X509Certificate`."
+  [pem]
+  {:pre  [(not (nil? pem))]
+   :post [(certificate? %)]}
+  (with-open [r (reader pem)]
+    (CertificateAuthority/pemToCert r)))
+
+(defn cert->pem!
+  "Encodes a certificate to PEM format, and writes it to a file (or other stream).
+   Arguments:
+
+   `cert`: the `X509Certificate` to encode and write
+   `pem`: the file path to write the PEM output to
+          (or some other object supported by clojure's `writer`)"
+  [cert pem]
+  {:pre  [(certificate? cert)
+          (not (nil? pem))]
+   :post [(nil? %)]}
+  (with-open [w (writer pem)]
+    (CertificateAuthority/writeToPEM cert w)))
+
 (defn obj->private-key
   "Decodes the given object (read from a .pem via `pem->objs`) into an instance of `PrivateKey`."
   [obj]

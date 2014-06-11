@@ -143,8 +143,8 @@
           csr         (generate-certificate-request (generate-key-pair) subject)
           issuer      (generate-x500-name "my ca")
           orig-cert   (sign-certificate-request csr issuer 42 (.getPrivate (generate-key-pair)))
-          pem         (write-to-pem-stream orig-cert)
-          parsed-cert (first (pem->certs pem))]
+          pem         (write-to-pem-stream orig-cert cert->pem!)
+          parsed-cert (pem->cert pem)]
       (is (certificate? parsed-cert))
       (is (has-subject? parsed-cert subject))
       (is (issued-by? parsed-cert issuer))
