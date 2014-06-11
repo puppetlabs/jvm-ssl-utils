@@ -1,13 +1,9 @@
 (ns puppetlabs.certificate-authority.core
-  (:import (java.security Key KeyPair PrivateKey PublicKey KeyStore Security)
+  (:import (java.security Key KeyPair PrivateKey PublicKey KeyStore)
            (java.security.cert X509Certificate X509CRL)
            (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
            (javax.security.auth.x500 X500Principal)
-           (org.bouncycastle.openssl PEMParser PEMKeyPair PEMWriter)
-           (org.bouncycastle.asn1.pkcs PrivateKeyInfo)
            (org.bouncycastle.asn1.x500 X500Name)
-           (org.bouncycastle.openssl.jcajce JcaPEMKeyConverter)
-           (org.bouncycastle.cert.jcajce JcaX509CertificateConverter)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
            (com.puppetlabs.certificate_authority CertificateAuthority))
   (:require [clojure.tools.logging :as log]
@@ -51,42 +47,6 @@
   "Returns true if x is an instance of `X509CRL` (see `generate-crl`)."
   [x]
   (instance? X509CRL x))
-
-(defmulti has-subject?
-  "Returns true if x has the subject identified by the x500-name string or `X500Name`.
-  Default implementations are provided for `X509Certificate` and `PKCS10CertificationRequest`."
-  (fn [x x500-name]
-    [(class x) (class x500-name)]))
-
-(defmethod has-subject? [X509Certificate String]
-  [cert x500-name]
-  (= x500-name (-> cert .getSubjectX500Principal .getName)))
-
-(defmethod has-subject? [X509Certificate X500Name]
-  [cert x500-name]
-  (has-subject? cert (str x500-name)))
-
-(defmethod has-subject? [PKCS10CertificationRequest String]
-  [csr x500-name]
-  (= x500-name (-> csr .getSubject str)))
-
-(defmethod has-subject? [PKCS10CertificationRequest X500Name]
-  [csr x500-name]
-  (= x500-name (.getSubject csr)))
-
-(defmulti issued-by?
-  "Returns true if x was issued by the x500-name string or `X500Name`.
-  Default implementations are provided for `X509Certificate` and `X509CRL`."
-  (fn [_ x500-name]
-    (class x500-name)))
-
-(defmethod issued-by? String
-  [x x500-name]
-  (= x500-name (-> x .getIssuerX500Principal .getName)))
-
-(defmethod issued-by? X500Name
-  [x x500-name]
-  (issued-by? x (str x500-name)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Core
@@ -171,6 +131,31 @@
    :post [(certificate-revocation-list? %)]}
   (CertificateAuthority/generateCRL issuer issuer-private-key))
 
+(defn crl->pem!
+  "Encodes a CRL to PEM format, and writes it to a file (or other stream).
+   Arguments:
+
+   `crl`: the `X509CRL` to encode
+   `pem`: the file path to write the PEM output to
+          (or some other object supported by clojure's `writer`)"
+  [crl pem]
+  {:pre  [(certificate-revocation-list? crl)
+          (not (nil? pem))]
+   :post [(nil? %)]}
+  (with-open [w (writer pem)]
+    (CertificateAuthority/writeToPEM crl w)))
+
+(defn pem->crl
+  "Given the path to a PEM file (or some other object supported by clojure's `reader`),
+   decode the contents into a `X509CRL`.
+
+   See `crl->pem!` to PEM-encode a certificate revocation list."
+  [pem]
+  {:pre  [(not (nil? pem))]
+   :post [(certificate-revocation-list? %)]}
+  (with-open [r (reader pem)]
+    (CertificateAuthority/pemToCRL r)))
+
 (defn pem->csr
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decode the contents into a `PKCS10CertificationRequest`.
@@ -224,6 +209,29 @@
    :post [(every? certificate? %)]}
   (with-open [r (reader pem)]
     (CertificateAuthority/pemToCerts r)))
+
+(defn pem->cert
+  "Given the path to a PEM file (or some other object supported by clojure's `reader`),
+  decodes the contents into an `X509Certificate`."
+  [pem]
+  {:pre  [(not (nil? pem))]
+   :post [(certificate? %)]}
+  (with-open [r (reader pem)]
+    (CertificateAuthority/pemToCert r)))
+
+(defn cert->pem!
+  "Encodes a certificate to PEM format, and writes it to a file (or other stream).
+   Arguments:
+
+   `cert`: the `X509Certificate` to encode and write
+   `pem`: the file path to write the PEM output to
+          (or some other object supported by clojure's `writer`)"
+  [cert pem]
+  {:pre  [(certificate? cert)
+          (not (nil? pem))]
+   :post [(nil? %)]}
+  (with-open [w (writer pem)]
+    (CertificateAuthority/writeToPEM cert w)))
 
 (defn obj->private-key
   "Decodes the given object (read from a .pem via `pem->objs`) into an instance of `PrivateKey`."

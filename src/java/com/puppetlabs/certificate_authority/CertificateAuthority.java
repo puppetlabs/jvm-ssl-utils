@@ -220,6 +220,25 @@ public class CertificateAuthority {
     }
 
     /**
+     * Given a PEM reader, decode the contents into a certificate revocation list.
+     *
+     * @param reader Reader for a PEM-encoded stream
+     * @return The decoded certificate revocation list from the stream
+     * @throws IOException
+     * @throws CRLException
+     * @see #generateCRL
+     */
+    public static X509CRL pemToCRL(Reader reader)
+        throws IOException, CRLException
+    {
+        List<Object> pemObjects = pemToObjects(reader);
+        if (pemObjects.size() > 1)
+            throw new IllegalArgumentException("The PEM stream contains more than one object");
+        JcaX509CRLConverter converter = new JcaX509CRLConverter();
+        return converter.getCRL((X509CRLHolder) pemObjects.get(0));
+    }
+
+    /**
      * Given a PEM reader, decode the contents into a certificate signing request.
      *
      * @param reader Reader for a PEM-encoded stream
@@ -313,6 +332,25 @@ public class CertificateAuthority {
         for (Object o : pemObjects)
             results.add(converter.getCertificate((X509CertificateHolder) o));
         return results;
+    }
+
+    /**
+     * Given a PEM reader, decode the contents into a certificate.
+     * Throws an exception if multiple certificates are found.
+     *
+     * @param reader Reader for a PEM-encoded stream
+     * @return The certificate decoded from the stream
+     * @throws CertificateException
+     * @throws IOException
+     * @see #writeToPEM
+     */
+    public static X509Certificate pemToCert(Reader reader)
+        throws CertificateException, IOException
+    {
+        List<X509Certificate> certs = pemToCerts(reader);
+        if (certs.size() != 1)
+            throw new IllegalArgumentException("The PEM stream must contain exactly 1 certificate");
+        return certs.get(0);
     }
 
     /**

@@ -1,25 +1,70 @@
 (ns puppetlabs.certificate-authority.core-test
   (:import java.util.Arrays
+           (java.io ByteArrayOutputStream ByteArrayInputStream)
+           (java.security.cert X509Certificate)
            (java.security KeyStore SignatureException)
            (javax.security.auth.x500 X500Principal)
            (javax.net.ssl SSLContext)
-           (java.io ByteArrayOutputStream ByteArrayInputStream))
+           (org.bouncycastle.asn1.x500 X500Name)
+           (org.bouncycastle.pkcs PKCS10CertificationRequest))
   (:require [clojure.test :refer :all]
             [clojure.java.io :refer [resource reader]]
             [puppetlabs.certificate-authority.core :refer :all]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Utilities
 
 (defn open-ssl-file
   [filepath]
   (resource (str "puppetlabs/certificate_authority/examples/ssl/" filepath)))
 
 (defn write-to-pem-stream
-  [object]
-  (let [pem-stream (ByteArrayOutputStream.)]
-    (obj->pem! object pem-stream)
-    (-> pem-stream
-        (.toByteArray)
-        (ByteArrayInputStream.))))
+  ([object] (write-to-pem-stream object obj->pem!))
+  ([object write-function]
+     (let [pem-stream (ByteArrayOutputStream.)]
+       (write-function object pem-stream)
+       (-> pem-stream
+           (.toByteArray)
+           (ByteArrayInputStream.)))))
 
+(defmulti has-subject?
+  "Returns true if x has the subject identified by the x500-name string or `X500Name`.
+  Default implementations are provided for `X509Certificate` and `PKCS10CertificationRequest`."
+  (fn [x x500-name]
+    [(class x) (class x500-name)]))
+
+(defmethod has-subject? [X509Certificate String]
+  [cert x500-name]
+  (= x500-name (-> cert .getSubjectX500Principal .getName)))
+
+(defmethod has-subject? [X509Certificate X500Name]
+  [cert x500-name]
+  (has-subject? cert (str x500-name)))
+
+(defmethod has-subject? [PKCS10CertificationRequest String]
+  [csr x500-name]
+  (= x500-name (-> csr .getSubject str)))
+
+(defmethod has-subject? [PKCS10CertificationRequest X500Name]
+  [csr x500-name]
+  (= x500-name (.getSubject csr)))
+
+(defmulti issued-by?
+  "Returns true if x was issued by the x500-name string or `X500Name`.
+  Default implementations are provided for `X509Certificate` and `X509CRL`."
+  (fn [_ x500-name]
+    (class x500-name)))
+
+(defmethod issued-by? String
+  [x x500-name]
+  (= x500-name (-> x .getIssuerX500Principal .getName)))
+
+(defmethod issued-by? X500Name
+  [x x500-name]
+  (issued-by? x (str x500-name)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Tests
 
 (deftest key-test
   (testing "generate public & private keys"
@@ -142,8 +187,8 @@
           csr         (generate-certificate-request (generate-key-pair) subject)
           issuer      (generate-x500-name "my ca")
           orig-cert   (sign-certificate-request csr issuer 42 (.getPrivate (generate-key-pair)))
-          pem         (write-to-pem-stream orig-cert)
-          parsed-cert (first (pem->certs pem))]
+          pem         (write-to-pem-stream orig-cert cert->pem!)
+          parsed-cert (pem->cert pem)]
       (is (certificate? parsed-cert))
       (is (has-subject? parsed-cert subject))
       (is (issued-by? parsed-cert issuer))
@@ -152,17 +197,29 @@
 
 
 (deftest certificate-revocation-list
-  (testing "create CRL"
-    (let [key-pair    (generate-key-pair)
-          public-key  (.getPublic key-pair)
-          private-key (.getPrivate key-pair)
-          issuer-name "CN=my ca"
-          crl         (generate-crl (X500Principal. issuer-name) private-key)]
+  (let [key-pair    (generate-key-pair)
+        public-key  (.getPublic key-pair)
+        private-key (.getPrivate key-pair)
+        issuer-name "CN=my ca"
+        crl         (generate-crl (X500Principal. issuer-name) private-key)]
+
+    (testing "create CRL"
       (is (certificate-revocation-list? crl))
       (is (issued-by? crl issuer-name))
       (is (nil? (.verify crl public-key)))
       (is (thrown? SignatureException
-                   (.verify crl (.getPublic (generate-key-pair))))))))
+                   (.verify crl (.getPublic (generate-key-pair))))))
+
+    (testing "read CRL from PEM stream"
+      (let [parsed-crl (-> "ca_crl.pem" open-ssl-file pem->crl)]
+        (is (certificate-revocation-list? parsed-crl))
+        (is (issued-by? parsed-crl "CN=Puppet CA: localhost"))))
+
+    (testing "write CRL to PEM stream"
+      (let [parsed-crl (-> crl (write-to-pem-stream crl->pem!) pem->crl)]
+        (is (certificate-revocation-list? parsed-crl))
+        (is (issued-by? parsed-crl issuer-name))
+        (is (= crl parsed-crl))))))
 
 
 (deftest keystore-test
