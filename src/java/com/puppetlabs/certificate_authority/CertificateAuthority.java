@@ -225,6 +225,7 @@ public class CertificateAuthority {
      * @param reader Reader for a PEM-encoded stream
      * @return The decoded certificate revocation list from the stream
      * @throws IOException
+     * @throws CRLException
      * @see #generateCRL
      */
     public static X509CRL pemToCRL(Reader reader)
