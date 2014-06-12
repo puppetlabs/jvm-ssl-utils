@@ -1,3 +1,6 @@
+## 0.2.1
+ * New pem->public-key function
+
 ## 0.2.0
  * New pem->crl and crl->pem! functions for working with CRLs
  * New pem->cert and cert->pem! functions for working with a certificate
