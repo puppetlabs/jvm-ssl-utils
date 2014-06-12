@@ -85,9 +85,24 @@
           (is (= expected-length public-length))
           (is (= expected-length private-length))))))
 
+  (testing "read public key from PEM stream"
+    (let [public-key (-> "public_keys/localhost.pem"
+                         open-ssl-file
+                         pem->public-key)]
+      (is (public-key? public-key))))
+
+  (testing "write public key to PEM stream"
+    (let [original-key (.getPublic (generate-key-pair 512))
+          parsed-key   (-> original-key
+                           (write-to-pem-stream key->pem!)
+                           pem->public-key)]
+      (is (public-key? parsed-key))
+      (is (= original-key parsed-key))))
+
   (testing "read single private key from PEM stream"
-    (let [pem         (open-ssl-file "private_keys/localhost.pem")
-          private-key (pem->private-key pem)]
+    (let [private-key (-> "private_keys/localhost.pem"
+                          open-ssl-file
+                          pem->private-key)]
       (is (private-key? private-key)))
 
     (testing "throws exception if multiple keys found"
@@ -103,9 +118,10 @@
       (is (every? private-key? private-keys))))
 
   (testing "write private key to PEM stream"
-    (let [original-key (.getPrivate (generate-key-pair))
-          pem-stream   (write-to-pem-stream original-key)
-          parsed-key   (pem->private-key pem-stream)]
+    (let [original-key (.getPrivate (generate-key-pair 512))
+          parsed-key   (-> original-key
+                           (write-to-pem-stream key->pem!)
+                           pem->private-key)]
       (is (private-key? parsed-key))
       (is (= original-key parsed-key))))
 

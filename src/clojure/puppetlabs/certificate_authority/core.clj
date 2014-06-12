@@ -260,6 +260,17 @@
   (with-open [r (reader pem)]
     (CertificateAuthority/pemToPrivateKey r)))
 
+(defn pem->public-key
+  "Given the path to a PEM file (or some other object supported by clojure's `reader`),
+   decode the contents into a `PublicKey` instance. Throws an exception if multiple
+   keys are found in the PEM.
+   See `key->pem!` to write public keys."
+  [pem]
+  {:pre  [(not (nil? pem))]
+   :post [(public-key? %)]}
+  (with-open [r (reader pem)]
+    (CertificateAuthority/pemToPublicKey r)))
+
 (defn key->pem!
   "Encodes a public or private key to PEM format, and writes it to a file (or other
   stream).  Arguments:
