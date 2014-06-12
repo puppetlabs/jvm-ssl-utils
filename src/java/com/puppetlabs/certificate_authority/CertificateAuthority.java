@@ -4,6 +4,7 @@ import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.cert.X509CRLHolder;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509v2CRLBuilder;
@@ -412,6 +413,25 @@ public class CertificateAuthority {
         if (privateKeys.size() != 1)
             throw new IllegalArgumentException("The PEM stream must contain exactly one private key");
         return privateKeys.get(0);
+    }
+
+    /**
+     * Given a PEM reader, decode the contents into a public key.
+     * Throws an exception if multiple keys are found.
+     *
+     * @param reader Reader for a PEM-encoded stream
+     * @return The decoded public key from the stream
+     * @throws IOException
+     * @see #writeToPEM
+     */
+    public static PublicKey pemToPublicKey(Reader reader)
+        throws IOException
+    {
+        List<Object> objects = pemToObjects(reader);
+        if (objects.size() != 1)
+            throw new IllegalArgumentException("The PEM stream must contain exactly one public key");
+        JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
+        return converter.getPublicKey((SubjectPublicKeyInfo) objects.get(0));
     }
 
     /**
