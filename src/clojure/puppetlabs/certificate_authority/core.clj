@@ -455,11 +455,11 @@
 (defn get-critical-extensions
   "Given a certificate, retrieve all critical extensions."
   [cert]
-  {:pre  (certificate? cert)}
+  {:pre [(certificate? cert)]}
   (CertificateAuthority/getCriticalExtensions cert))
 
 (defn get-noncritical-extensions
   "Given a certificate, retrieve all the non-critical extensions."
   [cert]
-  {:pre (certificate? cert)}
+  {:pre [(certificate? cert)]}
   (CertificateAuthority/getNonCriticalExtensions cert))
