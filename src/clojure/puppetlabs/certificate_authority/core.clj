@@ -442,3 +442,24 @@
    :post [(instance? SSLContext %)]}
   (with-open [ca-cert-reader (reader ca-cert)]
     (CertificateAuthority/caCertPemToSSLContext ca-cert-reader)))
+
+(defn get-extension-value
+  "Given a certificate, retrieve the parsed string value of an extension by its
+  OID."
+  [cert oid]
+  {:pre [(certificate? cert)
+         (string? oid)]
+   :post [(string? %)]}
+  (CertificateAuthority/getDecodedExtensionValue cert oid))
+
+(defn get-critical-extensions
+  "Given a certificate, retrieve all critical extensions."
+  [cert]
+  {:pre  (certificate? cert)}
+  (CertificateAuthority/getCriticalExtensions cert))
+
+(defn get-noncritical-extensions
+  "Given a certificate, retrieve all the non-critical extensions."
+  [cert]
+  {:pre (certificate? cert)}
+  (CertificateAuthority/getNonCriticalExtensions cert))

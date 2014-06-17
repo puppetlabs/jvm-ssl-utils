@@ -1,5 +1,6 @@
 package com.puppetlabs.certificate_authority;
 
+import org.bouncycastle.asn1.*;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
@@ -38,13 +39,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
-import java.util.Date;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.ListIterator;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.UUID;
+import java.util.*;
 
 public class CertificateAuthority {
 
@@ -655,4 +650,75 @@ public class CertificateAuthority {
         return context;
     }
 
+    /**
+     * Given a certificate, return the decoded value of an extension by its OID.
+     * If the OID does not exist on the provided certificate then null is returned.
+     *
+     * @param cert The certifiacte to retrieve extensions from.
+     * @param oid The OID of the extensions to retrieve.
+     * @return The DES-decoded value of the extension if it was found.
+     */
+    public static String getDecodedExtensionValue(X509Certificate cert, String oid)
+            throws IOException
+    {
+        byte[] val = cert.getExtensionValue(oid);
+        if (val != null) {
+            return decodeDesOctets(val);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Convert a DES-encoded array of bytes to a string.
+     *
+     * @param octets DES-encoded data.
+     * @return Decoded string representation of provided byte array.
+     */
+    public static String decodeDesOctets(byte[] octets) {
+        return new String(ASN1OctetString.getInstance(octets).getOctets());
+    }
+
+    /**
+     * Converts a list of extension OIDs into a maps containing the OID
+     * and its parsed value.
+     *
+     * @param cert  Certificate to pull the OIDs from.
+     * @param oids  A collection of OIDs to retrieve the values of.
+     * @return A list of maps from OID => Parsed OID value.
+     * @throws IOException
+     */
+    private static Map<String,String> oidsToMap(X509Certificate cert, Set<String> oids)
+        throws IOException
+    {
+        Map<String, String> ret = new HashMap<String,String>();
+        if (oids != null) {
+            for (String oid : oids) {
+                ret.put(oid, getDecodedExtensionValue(cert, oid));
+            }
+        }
+        return ret;
+    }
+
+    /**
+     * @param cert The certificate to retrieve extensions from.
+     * @return A map of the given certificate's critical extension OIDs and their values.
+     * @throws IOException
+     */
+    public static Map<String, String> getCriticalExtensions(X509Certificate cert)
+        throws IOException
+    {
+        return oidsToMap(cert, cert.getCriticalExtensionOIDs());
+    }
+
+    /**
+     * @param cert The certificate to retrieve extensions from.
+     * @return A map of the given certificate's non-critical extension OIDs and their values.
+     * @throws IOException
+     */
+    public static Map<String, String> getNonCriticalExtensions(X509Certificate cert)
+        throws IOException
+    {
+        return oidsToMap(cert, cert.getNonCriticalExtensionOIDs());
+    }
 }
