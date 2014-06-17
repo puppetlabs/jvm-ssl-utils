@@ -721,4 +721,15 @@ public class CertificateAuthority {
     {
         return oidsToMap(cert, cert.getNonCriticalExtensionOIDs());
     }
+
+    /**
+     * Returns the CN from an X500Principal object.
+     *
+     * @param principal
+     * @return String representation of the CN from a DN.
+     */
+    public static String getCnFromX500Principal(X500Principal principal) {
+        X500Name name = new X500Name(principal.getName());
+        return getCommonNameFromX500Name(name);
+    }
 }

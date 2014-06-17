@@ -33,6 +33,11 @@
   [x]
   (instance? X500Name x))
 
+(defn x500-principal?
+  "Returns true if x is an instance of 'X500Principal'."
+  [x]
+  (instance? X500Principal x))
+
 (defn certificate-request?
   "Returns true if x is an instance of `PKCS10CertificationRequest` (see `generate-certificate-request`)."
   [x]
@@ -463,3 +468,10 @@
   [cert]
   {:pre [(certificate? cert)]}
   (CertificateAuthority/getNonCriticalExtensions cert))
+
+(defn get-cn-from-x500-principal
+  "Given an X500Principal object, retrieve the common name (CN)."
+  [x500-principal]
+  {:pre [(x500-principal? x500-principal)]
+   :post [(string? %)]}
+  (CertificateAuthority/getCnFromX500Principal x500-principal))

@@ -402,6 +402,12 @@
                          open-ssl-file
                          pem->cert)]
 
+  (deftest cn-from-x500principal-test
+    (testing "cn extracted from an X500Principal"
+      (let [x500-principal (.getSubjectX500Principal cert-with-exts)
+            cn (get-cn-from-x500-principal x500-principal)]
+        (is (= "myagent" cn)))))
+
   (deftest extensions-returned
     (testing "found all critical extensions"
       (let [critical-extensions (get-critical-extensions cert-with-exts)]
