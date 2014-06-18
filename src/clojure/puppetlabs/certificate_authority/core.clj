@@ -5,7 +5,8 @@
            (javax.security.auth.x500 X500Principal)
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
-           (com.puppetlabs.certificate_authority CertificateAuthority))
+           (com.puppetlabs.certificate_authority CertificateAuthority)
+           (java.util Map))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :refer [keywordize-keys]]
             [clojure.java.io :refer [reader writer]]))
@@ -450,24 +451,21 @@
 
 (defn get-extension-value
   "Given a certificate, retrieve the parsed string value of an extension by its
-  OID."
+  OID. Returns nil if the extension does not exist."
   [cert oid]
   {:pre [(certificate? cert)
          (string? oid)]
-   :post [(string? %)]}
+   :post [(or nil? (string? %))]}
   (CertificateAuthority/getDecodedExtensionValue cert oid))
 
-(defn get-critical-extensions
-  "Given a certificate, retrieve all critical extensions."
+(defn get-all-extensions
+  "Given a certificate, retrieve a map of all critical and non-critical
+  extensions. The keys are the extension's OIDs and the values are UTF-8 string
+  representations of the binary data."
   [cert]
-  {:pre [(certificate? cert)]}
-  (CertificateAuthority/getCriticalExtensions cert))
-
-(defn get-noncritical-extensions
-  "Given a certificate, retrieve all the non-critical extensions."
-  [cert]
-  {:pre [(certificate? cert)]}
-  (CertificateAuthority/getNonCriticalExtensions cert))
+  {:pre [(certificate? cert)]
+   :post [(instance? Map %)]}
+  (CertificateAuthority/getAllExtensions cert))
 
 (defn get-cn-from-x500-principal
   "Given an X500Principal object, retrieve the common name (CN)."

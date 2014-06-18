@@ -410,20 +410,16 @@
 
   (deftest extensions-returned
     (testing "found all critical extensions"
-      (let [critical-extensions (get-critical-extensions cert-with-exts)]
-        (is (= 3 (count critical-extensions)))
-        (is (get critical-extensions "2.5.29.15"))
-        (is (get critical-extensions "2.5.29.19"))
-        (is (get critical-extensions "2.5.29.37"))))
-
-    (testing "found all non-critical extensions"
-      (let [noncritical-extensions (get-noncritical-extensions cert-with-exts)]
-        (is (= 7 (count noncritical-extensions)))
-        (is (get noncritical-extensions "2.5.29.14"))
-        (is (get noncritical-extensions "2.5.29.35"))
+      (let [extensions (get-all-extensions cert-with-exts)]
+        (is (= 10 (count extensions)))
+        (is (get extensions "2.5.29.15"))
+        (is (get extensions "2.5.29.19"))
+        (is (get extensions "2.5.29.37"))
+        (is (get extensions "2.5.29.14"))
+        (is (get extensions "2.5.29.35"))
         (doseq [[oid value] [["1.3.6.1.4.1.34380.1.1.1" "ED803750-E3C7-44F5-BB08-41A04433FE2E"]
                              ["1.3.6.1.4.1.34380.1.1.2" "1234567890"]
                              ["1.3.6.1.4.1.34380.1.1.3" "my_ami_image"]
                              ["1.3.6.1.4.1.34380.1.1.4" "342thbjkt82094y0uthhor289jnqthpc2290"]
                              ["2.16.840.1.113730.1.13" "Puppet Ruby/OpenSSL Internal Certificate"]]]
-          (is (= (get noncritical-extensions oid) value)))))))
+          (is (= (get extensions oid) value)))))))
