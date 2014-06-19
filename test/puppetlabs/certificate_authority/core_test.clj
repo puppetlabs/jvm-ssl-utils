@@ -404,24 +404,24 @@
       (is (true? (issued-by? crl (generate-x500-name "issuer"))))
       (is (false? (issued-by? crl "issuer"))))))
 
-(let [cert-with-exts (-> "certs/cert-with-exts.pem"
-                         open-ssl-file
-                         pem->cert)]
-  (deftest extensions-returned
-    (testing "Found all extensions"
-      (let [extensions (get-extensions cert-with-exts)]
-        (is (= 10 (count extensions)))
-        (doseq [oid ["2.5.29.15" "2.5.29.19" "2.5.29.37"
-                     "2.5.29.14" "2.5.29.35"]]
-          (is (get extensions oid)))
-        (doseq [[oid value] [["1.3.6.1.4.1.34380.1.1.1"
-                              "ED803750-E3C7-44F5-BB08-41A04433FE2E"]
-                             ["1.3.6.1.4.1.34380.1.1.2"
-                              "1234567890"]
-                             ["1.3.6.1.4.1.34380.1.1.3"
-                              "my_ami_image"]
-                             ["1.3.6.1.4.1.34380.1.1.4"
-                              "342thbjkt82094y0uthhor289jnqthpc2290"]
-                             ["2.16.840.1.113730.1.13"
-                              "Puppet Ruby/OpenSSL Internal Certificate"]]]
-          (is (= (get extensions oid) value)))))))
+
+(deftest extensions-returned
+  (testing "Found all extensions"
+    (let [extensions (get-extensions (-> "certs/cert-with-exts.pem"
+                                         open-ssl-file
+                                         pem->cert))]
+      (is (= 10 (count extensions)))
+      (doseq [oid ["2.5.29.15" "2.5.29.19" "2.5.29.37"
+                   "2.5.29.14" "2.5.29.35"]]
+        (is (get extensions oid)))
+      (doseq [[oid value] [["1.3.6.1.4.1.34380.1.1.1"
+                            "ED803750-E3C7-44F5-BB08-41A04433FE2E"]
+                           ["1.3.6.1.4.1.34380.1.1.2"
+                            "1234567890"]
+                           ["1.3.6.1.4.1.34380.1.1.3"
+                            "my_ami_image"]
+                           ["1.3.6.1.4.1.34380.1.1.4"
+                            "342thbjkt82094y0uthhor289jnqthpc2290"]
+                           ["2.16.840.1.113730.1.13"
+                            "Puppet Ruby/OpenSSL Internal Certificate"]]]
+        (is (= (get extensions oid) value))))))
