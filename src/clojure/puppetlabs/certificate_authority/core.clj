@@ -39,8 +39,9 @@
   [x]
   (instance? X500Principal x))
 
-(defn x509-extensions?
-  "Returns true if the given object contains X509 extensions."
+(defn x509-extension?
+  "Returns true if the given object contains X509 extensions, this generally
+  refers to `X509Certificate` and `X509CRL` objects."
   [x]
   (instance? X509Extension x))
 
@@ -459,7 +460,7 @@
   and non-critical extensions. The keys are the extension's OIDs and the values
   are UTF-8 string representations of the binary data."
   [exts]
-  {:pre [(x509-extensions? exts)]
+  {:pre [(x509-extension? exts)]
    :post [(instance? Map %)]}
   (CertificateAuthority/getExtensions exts))
 
