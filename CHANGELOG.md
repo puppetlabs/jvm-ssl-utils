@@ -1,3 +1,7 @@
+## 0.2.2
+ * New get-cn-from-x500-principal function to extract the CN from a DN stored in an `X500Principal` object
+ * New get-extensions function retrieve extension OIDs and values on an object which implements `X509Extension`  
+
 ## 0.2.1
  * New pem->public-key function
 
