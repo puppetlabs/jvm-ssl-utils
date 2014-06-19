@@ -449,23 +449,14 @@
   (with-open [ca-cert-reader (reader ca-cert)]
     (CertificateAuthority/caCertPemToSSLContext ca-cert-reader)))
 
-(defn get-extension-value
-  "Given a certificate, retrieve the parsed string value of an extension by its
-  OID. Returns nil if the extension does not exist."
-  [cert oid]
-  {:pre [(certificate? cert)
-         (string? oid)]
-   :post [(or nil? (string? %))]}
-  (CertificateAuthority/getDecodedExtensionValue cert oid))
-
-(defn get-all-extensions
+(defn get-extensions
   "Given a certificate, retrieve a map of all critical and non-critical
   extensions. The keys are the extension's OIDs and the values are UTF-8 string
   representations of the binary data."
   [cert]
   {:pre [(certificate? cert)]
    :post [(instance? Map %)]}
-  (CertificateAuthority/getAllExtensions cert))
+  (CertificateAuthority/getExtensions cert))
 
 (defn get-cn-from-x500-principal
   "Given an X500Principal object, retrieve the common name (CN)."

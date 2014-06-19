@@ -663,37 +663,6 @@ public class CertificateAuthority {
     }
 
     /**
-     * Given a certificate, return the decoded value of an extension by its OID.
-     * If the OID does not exist on the provided certificate then null is returned.
-     *
-     * @param cert The certifiacte to retrieve extensions from.
-     * @param oid The OID of the extensions to retrieve.
-     * @return The DES-decoded value of the extension if it was found.
-     */
-    public static String getDecodedExtensionValue(X509Certificate cert, String oid)
-            throws IOException
-    {
-        byte[] val = cert.getExtensionValue(oid);
-        if (val != null) {
-            return decodeDesOctets(val);
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * Convert a DES-encoded array of bytes to a string.
-     *
-     * @param octets DES-encoded data.
-     * @return Decoded string representation of provided byte array.
-     */
-    public static String decodeDesOctets(byte[] octets)
-        throws UnsupportedEncodingException
-    {
-        return new String(ASN1OctetString.getInstance(octets).getOctets(), "UTF-8");
-    }
-
-    /**
      * Converts a list of extension OIDs into a map containing the OID
      * and its parsed value.
      *
@@ -708,47 +677,27 @@ public class CertificateAuthority {
         Map<String, String> ret = new HashMap<String,String>();
         if (oids != null) {
             for (String oid : oids) {
-                ret.put(oid, getDecodedExtensionValue(cert, oid));
+                byte[] octets = cert.getExtensionValue(oid);
+                String value = new String(ASN1OctetString.getInstance(octets).getOctets(), "UTF-8");
+                ret.put(oid, value);
             }
         }
         return ret;
     }
 
     /**
-     * @param cert The certificate to retrieve extensions from.
-     * @return A map of the given certificate's critical extension OIDs and their values.
-     * @throws IOException
-     */
-    private static Map<String, String> getCriticalExtensions(X509Certificate cert)
-        throws IOException
-    {
-        return oidsToMap(cert, cert.getCriticalExtensionOIDs());
-    }
-
-    /**
-     * @param cert The certificate to retrieve extensions from.
-     * @return A map of the given certificate's non-critical extension OIDs and their values.
-     * @throws IOException
-     */
-    private static Map<String, String> getNonCriticalExtensions(X509Certificate cert)
-        throws IOException
-    {
-        return oidsToMap(cert, cert.getNonCriticalExtensionOIDs());
-    }
-
-    /**
-     * Return both critical and noncritical extensions in a map of OIDs to
-     * a parsed string value.
+     * Return both critical and noncritical extensions and their values, parsed
+     * into UTF-8 strings.
      *
      * @param cert The certificate to extract the extensions from.
-     * @return
+     * @return A map of extensions OID to their parsed string values.
      * @throws IOException
      */
-    public static Map<String, String> getAllExtensions(X509Certificate cert)
+    public static Map<String, String> getExtensions(X509Certificate cert)
             throws IOException
     {
-        Map<String, String> extensions = getNonCriticalExtensions(cert);
-        extensions.putAll(getCriticalExtensions(cert));
+        Map<String, String> extensions = oidsToMap(cert, cert.getCriticalExtensionOIDs());
+        extensions.putAll(oidsToMap(cert, cert.getNonCriticalExtensionOIDs()));
 
         return extensions;
     }
@@ -756,8 +705,8 @@ public class CertificateAuthority {
     /**
      * Returns the CN from an X500Principal object.
      *
-     * @param principal
-     * @return String representation of the CN from a DN.
+     * @param principal The X500Principal object
+     * @return String representation of the CN extracted from the X500Principal.
      */
     public static String getCnFromX500Principal(X500Principal principal) {
         X500Name name = new X500Name(principal.getName());
