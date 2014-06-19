@@ -137,6 +137,12 @@
       (is (x500-name? x500-name))
       (is (= "common name" common-name)))))
 
+(deftest cn-from-x500principal-test
+  (testing "cn extracted from an X500Principal"
+    (let [x500-principal (X500Principal.
+                           "CN=myagent, OU=Users, OU=Department A, DC=mydomain, DC=com")
+          cn (get-cn-from-x500-principal x500-principal)]
+      (is (= "myagent" cn)))))
 
 (deftest certification-request-test
   (testing "create CSR"
@@ -401,13 +407,6 @@
 (let [cert-with-exts (-> "certs/cert-with-exts.pem"
                          open-ssl-file
                          pem->cert)]
-
-  (deftest cn-from-x500principal-test
-    (testing "cn extracted from an X500Principal"
-      (let [x500-principal (.getSubjectX500Principal cert-with-exts)
-            cn (get-cn-from-x500-principal x500-principal)]
-        (is (= "myagent" cn)))))
-
   (deftest extensions-returned
     (testing "Found all extensions"
       (let [extensions (get-extensions cert-with-exts)]
