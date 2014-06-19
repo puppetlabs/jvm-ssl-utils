@@ -1,11 +1,12 @@
 (ns puppetlabs.certificate-authority.core
   (:import (java.security Key KeyPair PrivateKey PublicKey KeyStore)
-           (java.security.cert X509Certificate X509CRL)
+           (java.security.cert X509Certificate X509CRL X509Extension)
            (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
            (javax.security.auth.x500 X500Principal)
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
-           (com.puppetlabs.certificate_authority CertificateAuthority))
+           (com.puppetlabs.certificate_authority CertificateAuthority)
+           (java.util Map))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :refer [keywordize-keys]]
             [clojure.java.io :refer [reader writer]]))
@@ -32,6 +33,17 @@
   "Returns true if x is an instance of `X500Name` (see `generate-x500-name`)."
   [x]
   (instance? X500Name x))
+
+(defn x500-principal?
+  "Returns true if x is an instance of 'X500Principal'."
+  [x]
+  (instance? X500Principal x))
+
+(defn x509-extension?
+  "Returns true if the given object contains X509 extensions, this generally
+  refers to `X509Certificate` and `X509CRL` objects."
+  [x]
+  (instance? X509Extension x))
 
 (defn certificate-request?
   "Returns true if x is an instance of `PKCS10CertificationRequest` (see `generate-certificate-request`)."
@@ -442,3 +454,19 @@
    :post [(instance? SSLContext %)]}
   (with-open [ca-cert-reader (reader ca-cert)]
     (CertificateAuthority/caCertPemToSSLContext ca-cert-reader)))
+
+(defn get-extensions
+  "Given an object containing X509 extensions, retrieve a map of all critical
+  and non-critical extensions. The keys are the extension's OIDs and the values
+  are UTF-8 string representations of the binary data."
+  [exts]
+  {:pre [(x509-extension? exts)]
+   :post [(instance? Map %)]}
+  (CertificateAuthority/getExtensions exts))
+
+(defn get-cn-from-x500-principal
+  "Given an X500Principal object, retrieve the common name (CN)."
+  [x500-principal]
+  {:pre [(x500-principal? x500-principal)]
+   :post [(string? %)]}
+  (CertificateAuthority/getCnFromX500Principal x500-principal))

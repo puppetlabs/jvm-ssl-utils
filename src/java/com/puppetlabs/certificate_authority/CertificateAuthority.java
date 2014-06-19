@@ -1,5 +1,6 @@
 package com.puppetlabs.certificate_authority;
 
+import org.bouncycastle.asn1.ASN1OctetString;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
@@ -30,14 +31,28 @@ import javax.security.auth.x500.X500Principal;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.SSLContext;
-import java.io.*;
+
+import java.io.IOException;
+import java.io.Reader;
+import java.io.Writer;
 import java.math.BigInteger;
-import java.security.*;
+
+import java.security.KeyManagementException;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.UnrecoverableKeyException;
 import java.security.cert.CRLException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
+import java.security.cert.X509Extension;
 import java.util.Date;
 import java.util.List;
 import java.util.ArrayList;
@@ -45,6 +60,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.UUID;
+import java.util.Set;
 
 public class CertificateAuthority {
 
@@ -655,4 +671,54 @@ public class CertificateAuthority {
         return context;
     }
 
+    /**
+     * Converts a list of extension OIDs into a map containing the OID
+     * and its parsed value.
+     *
+     * @param exts Object containing X509 extensions to pull the OIDs from.
+     * @param oids  A collection of OIDs to retrieve the values of.
+     * @return A list of maps from OID => Parsed OID value.
+     * @throws IOException
+     */
+    private static Map<String,String> oidsToMap(X509Extension exts, Set<String> oids)
+        throws IOException
+    {
+        Map<String, String> ret = new HashMap<String,String>();
+        if (oids != null) {
+            for (String oid : oids) {
+                byte[] octets = exts.getExtensionValue(oid);
+                String value = new String(ASN1OctetString.getInstance(octets).getOctets(), "UTF-8");
+                ret.put(oid, value);
+            }
+        }
+        return ret;
+    }
+
+    /**
+     * Return both critical and noncritical extensions and their values, parsed
+     * into UTF-8 strings.
+     *
+     * @param exts The object which contains X509 extensions.
+     * @return A map of extensions OID to their parsed string values.
+     * @throws IOException
+     */
+    public static Map<String, String> getExtensions(X509Extension exts)
+            throws IOException
+    {
+        Map<String, String> extensions = oidsToMap(exts, exts.getCriticalExtensionOIDs());
+        extensions.putAll(oidsToMap(exts, exts.getNonCriticalExtensionOIDs()));
+
+        return extensions;
+    }
+
+    /**
+     * Returns the CN from an X500Principal object.
+     *
+     * @param principal The X500Principal object
+     * @return String representation of the CN extracted from the X500Principal.
+     */
+    public static String getCnFromX500Principal(X500Principal principal) {
+        X500Name name = new X500Name(principal.getName());
+        return getCommonNameFromX500Name(name);
+    }
 }
