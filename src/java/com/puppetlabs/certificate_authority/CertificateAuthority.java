@@ -39,11 +39,8 @@ import java.io.Writer;
 import java.math.BigInteger;
 
 import java.security.*;
-import java.security.cert.CRLException;
+import java.security.cert.*;
 import java.security.cert.Certificate;
-import java.security.cert.CertificateException;
-import java.security.cert.X509CRL;
-import java.security.cert.X509Certificate;
 import java.util.Date;
 import java.util.List;
 import java.util.ArrayList;
@@ -666,18 +663,18 @@ public class CertificateAuthority {
      * Converts a list of extension OIDs into a map containing the OID
      * and its parsed value.
      *
-     * @param cert  Certificate to pull the OIDs from.
+     * @param exts Object containing X509 extensions to pull the OIDs from.
      * @param oids  A collection of OIDs to retrieve the values of.
      * @return A list of maps from OID => Parsed OID value.
      * @throws IOException
      */
-    private static Map<String,String> oidsToMap(X509Certificate cert, Set<String> oids)
+    private static Map<String,String> oidsToMap(X509Extension exts, Set<String> oids)
         throws IOException
     {
         Map<String, String> ret = new HashMap<String,String>();
         if (oids != null) {
             for (String oid : oids) {
-                byte[] octets = cert.getExtensionValue(oid);
+                byte[] octets = exts.getExtensionValue(oid);
                 String value = new String(ASN1OctetString.getInstance(octets).getOctets(), "UTF-8");
                 ret.put(oid, value);
             }
@@ -689,15 +686,15 @@ public class CertificateAuthority {
      * Return both critical and noncritical extensions and their values, parsed
      * into UTF-8 strings.
      *
-     * @param cert The certificate to extract the extensions from.
+     * @param exts The object which contains X509 extensions.
      * @return A map of extensions OID to their parsed string values.
      * @throws IOException
      */
-    public static Map<String, String> getExtensions(X509Certificate cert)
+    public static Map<String, String> getExtensions(X509Extension exts)
             throws IOException
     {
-        Map<String, String> extensions = oidsToMap(cert, cert.getCriticalExtensionOIDs());
-        extensions.putAll(oidsToMap(cert, cert.getNonCriticalExtensionOIDs()));
+        Map<String, String> extensions = oidsToMap(exts, exts.getCriticalExtensionOIDs());
+        extensions.putAll(oidsToMap(exts, exts.getNonCriticalExtensionOIDs()));
 
         return extensions;
     }
