@@ -1,11 +1,23 @@
 package com.puppetlabs.certificate_authority;
 
+import org.bouncycastle.asn1.ASN1Encodable;
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1OctetString;
+import org.bouncycastle.asn1.ASN1Set;
+import org.bouncycastle.asn1.DEROctetString;
+import org.bouncycastle.asn1.DERSet;
+import org.bouncycastle.asn1.pkcs.Attribute;
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.Extensions;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.cert.X509CRLHolder;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509v2CRLBuilder;
@@ -52,6 +64,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
+//import java.security.cert.X509Extension;
 import java.security.cert.X509Extension;
 import java.util.Date;
 import java.util.List;
@@ -125,9 +138,11 @@ public class CertificateAuthority {
 
     /**
      * Given the subject's keypair and name, create and return a certificate signing request (CSR).
+     * If the extensions parameter is not null, they will be added to this request.
      *
      * @param keyPair The subject's public and private keys
      * @param subjectName The subject's name
+     * @param extensions Extensions to add to this cert request.
      * @return A request to certify the provided subject
      * @throws IOException
      * @throws OperatorCreationException
@@ -135,7 +150,8 @@ public class CertificateAuthority {
      * @see #generateX500Name
      * @see #signCertificateRequest
      */
-    public static PKCS10CertificationRequest generateCertificateRequest(KeyPair keyPair, X500Name subjectName)
+    public static PKCS10CertificationRequest generateCertificateRequest(KeyPair keyPair, X500Name subjectName,
+        List<Extension> extensions)
         throws IOException, OperatorCreationException
     {
         // TODO: the puppet code sets a property "version=0" on the request object
@@ -143,22 +159,64 @@ public class CertificateAuthority {
         PKCS10CertificationRequestBuilder requestBuilder =
                 new JcaPKCS10CertificationRequestBuilder(subjectName, keyPair.getPublic());
 
-        // TODO: support DNS ALT names; probably looks something like this:
-        //  Extensions extensions = new Extensions(new Extension[] {
-        //          new Extension(X509Extension.subjectAlternativeName, false,
-        //                  new DEROctetString(
-        //                          new GeneralNames(new GeneralName[] {
-        //                                  new GeneralName(GeneralName.dNSName, "foo.bar.com"),
-        //                                  new GeneralName(GeneralName.dNSName, "bar.baz.com"),
-        //                                  })))
-        //  });
-        //
-        //  requestBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest,
-        //          new DERSet(extensions));
+        if (extensions != null) {
+            requestBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest,
+                                        new DERSet(extensionsListToExtensions(extensions)));
+        }
 
         return requestBuilder.build(
                 new JcaContentSignerBuilder("SHA1withRSA").
                         build(keyPair.getPrivate()));
+    }
+
+    /**
+     * Create an X509 extensions which contains alternative DNS names.
+     *
+     * @param alternateDnsNames The list of alternative DNS names.
+     * @return A new X509 extension object
+     * @throws IOException
+     */
+    public static Extension generateDnsAltNamesExtension(List<String> alternateDnsNames)
+        throws IOException
+    {
+        GeneralName[] generalNames = new GeneralName[alternateDnsNames.size()];
+        for (int i=0; i < alternateDnsNames.size(); i++) {
+            generalNames[i] = new GeneralName(GeneralName.dNSName,
+                                              alternateDnsNames.get(i));
+        }
+
+        return new Extension(Extension.subjectAlternativeName, false,
+                             new DEROctetString(new GeneralNames(generalNames)));
+    }
+
+    /**
+     * Convert a list of extensions into an Extensions object.
+     *
+     * @param extensionList A list of extensions.
+     * @return A new Extensions object which contains all the extensions in the
+     *         given extension list.
+     */
+    public static Extensions extensionsListToExtensions(List<Extension> extensionList) {
+        return new Extensions(extensionList.toArray(new Extension[extensionList.size()]));
+    }
+
+    /**
+     * Find the extensions from a list of attributes. If no extensions attribute
+     * is found then null is returned.
+     *
+     * @param attributes A list of attributes to extract extension from.
+     * @return An extensions object extracted from a list of attributes.
+     */
+    private static Extensions getExtensionsFromAttributes(Attribute[] attributes) {
+        for (Attribute attr : attributes ) {
+            if (attr.getAttrType() == PKCSObjectIdentifiers.pkcs_9_at_extensionRequest) {
+                ASN1Set extsAsn1 = attr.getAttrValues();
+                DERSet derSet = (DERSet)extsAsn1.getObjectAt(0);
+                return (Extensions)derSet.getObjectAt(0);
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -178,8 +236,7 @@ public class CertificateAuthority {
                                                          X500Name issuer,
                                                          BigInteger serialNum,
                                                          PrivateKey issuerPrivateKey)
-        throws OperatorCreationException, CertificateException
-    {
+            throws OperatorCreationException, CertificateException, CertIOException {
         // Make the certificate valid as of yesterday, because so many people's
         // clocks are out of sync.  This gives one more day of validity than people
         // might expect, but is better than making every person who has a messed up
@@ -196,9 +253,21 @@ public class CertificateAuthority {
                 certReq.getSubject(),
                 certReq.getSubjectPublicKeyInfo());
 
-        // TODO: add extensions to cert (maps to build_ca_extensions,
-        // build_server_extensions in certificate_factory.rb.
-        // add_extensions_to(cert, csr, issuer, send(build_extensions))
+        Extensions exts = getExtensionsFromAttributes(certReq.getAttributes());
+        if (exts != null) {
+            // TODO: For now indiscriminately copy every extension. This will need to
+            // be filtered according to a whitelist later. See:
+            // build_server_extensions in certificate_factory.rb.
+            // add_extensions_to(cert, csr, issuer, send(build_extensions))
+
+            for (ASN1ObjectIdentifier oid : exts.getNonCriticalExtensionOIDs()) {
+                builder.addExtension(oid, false, exts.getExtensionParsedValue(oid));
+            }
+
+            for (ASN1ObjectIdentifier oid : exts.getCriticalExtensionOIDs()) {
+                builder.addExtension(oid, true, exts.getExtensionParsedValue(oid));
+            }
+        }
 
         JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder("SHA256WithRSA");
         ContentSigner signer = signerBuilder.build(issuerPrivateKey);
@@ -402,7 +471,7 @@ public class CertificateAuthority {
      * @see #writeToPEM
      */
     public static List<PrivateKey> pemToPrivateKeys(Reader reader)
-        throws IOException, PEMException
+        throws IOException
     {
         List<Object> objects = pemToObjects(reader);
         List<PrivateKey> results = new ArrayList<PrivateKey>(objects.size());

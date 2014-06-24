@@ -6,7 +6,8 @@
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
            (com.puppetlabs.certificate_authority CertificateAuthority)
-           (java.util Map))
+           (java.util Map)
+           (org.bouncycastle.asn1.x509 Extension))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :refer [keywordize-keys]]
             [clojure.java.io :refer [reader writer]]))
@@ -44,6 +45,11 @@
   refers to `X509Certificate` and `X509CRL` objects."
   [x]
   (instance? X509Extension x))
+
+(defn extension?
+  "Returns true if the given object is an X509 Extensions object."
+  [x]
+  (instance? Extension x))
 
 (defn certificate-request?
   "Returns true if x is an instance of `PKCS10CertificationRequest` (see `generate-certificate-request`)."
@@ -99,19 +105,30 @@
    :post [(string? %)]}
   (CertificateAuthority/getCommonNameFromX500Name x500-name))
 
+(defn generate-dns-alt-names-ext
+  "Given a list of DNS names, generate a DNS alternative names extension which
+  contains them all."
+  [dns-alt-names]
+  {:pre [(coll? dns-alt-names)]
+   :post [(extension? %)]}
+  (CertificateAuthority/generateDnsAltNamesExtension dns-alt-names))
+
 (defn generate-certificate-request
   "Given the subject's keypair and name, create and return a certificate signing request (CSR).
   Arguments:
 
   `keypair`:      subject's public & private keys
   `subject-name`: subject's `X500Name`
+  `extensions`: a collection of `Extension` objects to add to the certificate request
 
   See `sign-certificate-request`, `obj->pem!`, and `pem->csr` to sign & read/write CSRs."
-  [keypair subject-name]
+  [keypair subject-name extensions]
   {:pre  [(keypair? keypair)
-          (x500-name? subject-name)]
+          (x500-name? subject-name)
+          (coll? extensions)]
    :post [(certificate-request? %)]}
-  (CertificateAuthority/generateCertificateRequest keypair subject-name))
+  (CertificateAuthority/generateCertificateRequest
+    keypair subject-name extensions))
 
 (defn sign-certificate-request
   "Given a certificate signing request and certificate authority information, sign the request
