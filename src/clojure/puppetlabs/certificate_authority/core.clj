@@ -119,16 +119,19 @@
 
   `keypair`:      subject's public & private keys
   `subject-name`: subject's `X500Name`
-  `extensions`: a collection of `Extension` objects to add to the certificate request
+  `extensions`: an optional collection of `Extension` objects to add to the certificate request
 
   See `sign-certificate-request`, `obj->pem!`, and `pem->csr` to sign & read/write CSRs."
-  [keypair subject-name extensions]
-  {:pre  [(keypair? keypair)
-          (x500-name? subject-name)
-          (coll? extensions)]
-   :post [(certificate-request? %)]}
-  (CertificateAuthority/generateCertificateRequest
-    keypair subject-name extensions))
+  ([keypair subject-name]
+   (generate-certificate-request keypair subject-name []))
+  ([keypair subject-name extensions]
+   {:pre  [(keypair? keypair)
+           (x500-name? subject-name)
+           (coll? extensions)
+           (every? extension? extensions)]
+    :post [(certificate-request? %)]}
+   (CertificateAuthority/generateCertificateRequest
+     keypair subject-name extensions)))
 
 (defn sign-certificate-request
   "Given a certificate signing request and certificate authority information, sign the request

@@ -1,6 +1,5 @@
 package com.puppetlabs.certificate_authority;
 
-import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1OctetString;
 import org.bouncycastle.asn1.ASN1Set;
@@ -64,7 +63,6 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
-//import java.security.cert.X509Extension;
 import java.security.cert.X509Extension;
 import java.util.Date;
 import java.util.List;
@@ -138,7 +136,8 @@ public class CertificateAuthority {
 
     /**
      * Given the subject's keypair and name, create and return a certificate signing request (CSR).
-     * If the extensions parameter is not null, they will be added to this request.
+     * If the extensions parameter is not null and is a list of size great than 0, they will be
+     * added to this request.
      *
      * @param keyPair The subject's public and private keys
      * @param subjectName The subject's name
@@ -159,7 +158,7 @@ public class CertificateAuthority {
         PKCS10CertificationRequestBuilder requestBuilder =
                 new JcaPKCS10CertificationRequestBuilder(subjectName, keyPair.getPublic());
 
-        if (extensions != null) {
+        if ((extensions != null) && (extensions.size() > 0)) {
             requestBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest,
                                         new DERSet(extensionsListToExtensions(extensions)));
         }
@@ -196,7 +195,7 @@ public class CertificateAuthority {
      * @return A new Extensions object which contains all the extensions in the
      *         given extension list.
      */
-    public static Extensions extensionsListToExtensions(List<Extension> extensionList) {
+    private static Extensions extensionsListToExtensions(List<Extension> extensionList) {
         return new Extensions(extensionList.toArray(new Extension[extensionList.size()]));
     }
 
@@ -212,7 +211,11 @@ public class CertificateAuthority {
             if (attr.getAttrType() == PKCSObjectIdentifiers.pkcs_9_at_extensionRequest) {
                 ASN1Set extsAsn1 = attr.getAttrValues();
                 DERSet derSet = (DERSet)extsAsn1.getObjectAt(0);
-                return (Extensions)derSet.getObjectAt(0);
+                if (derSet != null) {
+                    return (Extensions) derSet.getObjectAt(0);
+                } else {
+                    return null;
+                }
             }
         }
 
@@ -471,7 +474,7 @@ public class CertificateAuthority {
      * @see #writeToPEM
      */
     public static List<PrivateKey> pemToPrivateKeys(Reader reader)
-        throws IOException
+        throws IOException, PEMException
     {
         List<Object> objects = pemToObjects(reader);
         List<PrivateKey> results = new ArrayList<PrivateKey>(objects.size());
