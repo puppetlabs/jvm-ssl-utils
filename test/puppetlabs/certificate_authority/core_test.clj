@@ -6,7 +6,8 @@
            (javax.security.auth.x500 X500Principal)
            (javax.net.ssl SSLContext)
            (org.bouncycastle.asn1.x500 X500Name)
-           (org.bouncycastle.pkcs PKCS10CertificationRequest))
+           (org.bouncycastle.pkcs PKCS10CertificationRequest)
+           (com.puppetlabs.certificate_authority CertificateAuthority))
   (:require [clojure.test :refer :all]
             [clojure.java.io :refer [resource reader]]
             [puppetlabs.certificate-authority.core :refer :all]))
@@ -180,8 +181,19 @@
           parsed-csr (pem->csr pem)]
       (is (certificate-request? parsed-csr))
       (is (has-subject? parsed-csr subject))
-      (is (= orig-csr parsed-csr)))))
+      (is (= orig-csr parsed-csr))))
 
+  (testing "create a CSR with alternative DNS names"
+    (let [subject (generate-x500-name "localhost")
+          issuer (generate-x500-name "issuer")
+          issuer-key (.getPrivate (generate-key-pair))
+          keypair (generate-key-pair)
+          alt-dns-names (generate-dns-alt-names-ext ["onefish" "twofish"])
+          csr (generate-certificate-request keypair subject [alt-dns-names])
+          cert (sign-certificate-request csr issuer 42 issuer-key)]
+      (is (certificate-request? csr))
+      (is (certificate? cert))
+      (is (get (get-extensions cert) "2.5.29.17")))))
 
 (deftest certificate-test
   (testing "read certificates from PEM stream"

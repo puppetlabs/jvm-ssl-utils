@@ -1,5 +1,6 @@
 package com.puppetlabs.certificate_authority;
 
+import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1OctetString;
 import org.bouncycastle.asn1.ASN1Set;
@@ -223,6 +224,18 @@ public class CertificateAuthority {
     }
 
     /**
+     * Get the Extensions object from a certificate request. If the CSR does
+     * not contain any extensions, then null is returned.
+     *
+     * @param csr The certificate request which contains extensions
+     * @return An Extensions object containing this CSR's extensions, or null
+     *         if no extensions were found.
+     */
+    public static Extensions getExtensions(PKCS10CertificationRequest csr) {
+        return getExtensionsFromAttributes(csr.getAttributes());
+    }
+
+    /**
      * Given a certificate signing request and certificate authority information, sign the request
      * and return the signed certificate.
      *
@@ -256,13 +269,10 @@ public class CertificateAuthority {
                 certReq.getSubject(),
                 certReq.getSubjectPublicKeyInfo());
 
-        Extensions exts = getExtensionsFromAttributes(certReq.getAttributes());
+        Extensions exts = getExtensions(certReq);
         if (exts != null) {
-            // TODO: For now indiscriminately copy every extension. This will need to
-            // be filtered according to a whitelist later. See:
-            // build_server_extensions in certificate_factory.rb.
-            // add_extensions_to(cert, csr, issuer, send(build_extensions))
-
+            // TODO: (PE-3701) For now indiscriminately copy every extension.
+            // This will need to be filtered according to a whitelist later.
             for (ASN1ObjectIdentifier oid : exts.getNonCriticalExtensionOIDs()) {
                 builder.addExtension(oid, false, exts.getExtensionParsedValue(oid));
             }
