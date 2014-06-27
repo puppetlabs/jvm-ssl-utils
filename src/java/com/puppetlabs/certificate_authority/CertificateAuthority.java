@@ -1,6 +1,5 @@
 package com.puppetlabs.certificate_authority;
 
-import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1OctetString;
 import org.bouncycastle.asn1.ASN1Set;
@@ -211,11 +210,13 @@ public class CertificateAuthority {
         for (Attribute attr : attributes ) {
             if (attr.getAttrType() == PKCSObjectIdentifiers.pkcs_9_at_extensionRequest) {
                 ASN1Set extsAsn1 = attr.getAttrValues();
-                DERSet derSet = (DERSet)extsAsn1.getObjectAt(0);
-                if (derSet != null) {
-                    return (Extensions) derSet.getObjectAt(0);
-                } else {
-                    return null;
+                if (extsAsn1 != null) {
+                    DERSet derSet = (DERSet) extsAsn1.getObjectAt(0);
+                    if (derSet != null) {
+                        return (Extensions) derSet.getObjectAt(0);
+                    } else {
+                        return null;
+                    }
                 }
             }
         }
@@ -246,6 +247,7 @@ public class CertificateAuthority {
      * @return A signed certificate for the subject
      * @throws OperatorCreationException
      * @throws CertificateException
+     * @throws CertIOException
      * @see #generateCertificateRequest
      */
     public static X509Certificate signCertificateRequest(PKCS10CertificationRequest certReq,

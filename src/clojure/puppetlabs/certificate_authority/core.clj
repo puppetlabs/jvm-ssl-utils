@@ -46,6 +46,7 @@
   [x]
   (instance? X509Extension x))
 
+;; TODO: (PE-4778) This library should not leak Bouncy Castle objects
 (defn extension?
   "Returns true if the given object is an X509 Extensions object."
   [x]
