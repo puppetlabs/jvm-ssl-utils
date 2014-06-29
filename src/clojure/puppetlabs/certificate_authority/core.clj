@@ -5,8 +5,9 @@
            (javax.security.auth.x500 X500Principal)
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
-           (com.puppetlabs.certificate_authority CertificateAuthority)
-           (java.util Map)
+           (com.puppetlabs.certificate_authority CertificateAuthority
+                                                 ExtensionsUtils)
+           (java.util Map List)
            (org.bouncycastle.asn1.x509 Extension))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :refer [keywordize-keys]]
@@ -476,14 +477,40 @@
   (with-open [ca-cert-reader (reader ca-cert)]
     (CertificateAuthority/caCertPemToSSLContext ca-cert-reader)))
 
-(defn get-extensions
+(defn get-extensions-list
   "Given an object containing X509 extensions, retrieve a map of all critical
   and non-critical extensions. The keys are the extension's OIDs and the values
   are UTF-8 string representations of the binary data."
-  [exts]
-  {:pre [(x509-extension? exts)]
-   :post [(instance? Map %)]}
-  (CertificateAuthority/getExtensions exts))
+  [ext-container]
+  {:pre [(or (certificate? ext-container)
+             (certificate-request? ext-container))]
+   :post [(instance? List %)]}
+  (ExtensionsUtils/getExtensionList ext-container))
+
+(defn get-extension
+  "Given a X509 certificate object, CSR or a list of extensions returned by
+  `get-extensions`, return a map describing the value and criticality of the
+  extension described by its OID. If the extension does not exist, nil is
+  returned."
+  [ext-container oid]
+  {:pre [(or (certificate? ext-container)
+             (certificate-request? ext-container)
+             (instance? List ext-container))
+         (string? oid)]
+   :post [(or (nil? %)
+              (instance? Map %))]}
+  (ExtensionsUtils/getExtension ext-container oid))
+
+(defn get-extension-value
+  "Given a X509 certificate object, CSR or a list of extensions returned by
+  `get-extensions`, return the value of an extension by its OID. If the OID
+  doesn't exist on the provided object, then nil is returned."
+  [ext-container oid]
+  {:pre [(or (certificate? ext-container)
+             (certificate-request? ext-container)
+             (instance? List ext-container))
+         (string? oid)]}
+  (ExtensionsUtils/getExtensionValue ext-container oid))
 
 (defn get-cn-from-x500-principal
   "Given an X500Principal object, retrieve the common name (CN)."

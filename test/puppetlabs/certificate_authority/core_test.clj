@@ -7,7 +7,8 @@
            (javax.net.ssl SSLContext)
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
-           (com.puppetlabs.certificate_authority CertificateAuthority))
+           (com.puppetlabs.certificate_authority CertificateAuthority
+                                                 ExtensionsUtils))
   (:require [clojure.test :refer :all]
             [clojure.java.io :refer [resource reader]]
             [puppetlabs.certificate-authority.core :refer :all]))
@@ -181,19 +182,26 @@
           parsed-csr (pem->csr pem)]
       (is (certificate-request? parsed-csr))
       (is (has-subject? parsed-csr subject))
-      (is (= orig-csr parsed-csr))))
+      (is (= orig-csr parsed-csr)))))
 
+(deftest alt-dns-names
   (testing "create a CSR with alternative DNS names"
     (let [subject (generate-x500-name "localhost")
           issuer (generate-x500-name "issuer")
           issuer-key (.getPrivate (generate-key-pair))
-          keypair (generate-key-pair)
-          alt-dns-names (generate-dns-alt-names-ext ["onefish" "twofish"])
-          csr (generate-certificate-request keypair subject [alt-dns-names])
-          cert (sign-certificate-request csr issuer 42 issuer-key)]
+          keypair (generate-key-pair 512)
+          alt-names ["onefish" "twofish"]
+          dns-alt-names (generate-dns-alt-names-ext alt-names)
+          dns-alt-names-oid "2.5.29.17"
+          csr (generate-certificate-request keypair subject [dns-alt-names])
+          csr-ext (get-extension-value csr dns-alt-names-oid)
+          cert (sign-certificate-request csr issuer 42 issuer-key)
+          cert-ext (get-extension-value cert dns-alt-names-oid)]
       (is (certificate-request? csr))
       (is (certificate? cert))
-      (is (get (get-extensions cert) "2.5.29.17")))))
+      (is (= csr-ext alt-names)
+      (is (= cert-ext alt-names)
+             "The DNS alt names on the certificate should be the same as on the CSR")))))
 
 (deftest certificate-test
   (testing "read certificates from PEM stream"
@@ -416,24 +424,28 @@
       (is (true? (issued-by? crl (generate-x500-name "issuer"))))
       (is (false? (issued-by? crl "issuer"))))))
 
-
 (deftest extensions-returned
   (testing "Found all extensions"
-    (let [extensions (get-extensions (-> "certs/cert-with-exts.pem"
-                                         open-ssl-file
-                                         pem->cert))]
+    (let [extensions (get-extensions-list (-> "certs/cert-with-exts.pem"
+                                              open-ssl-file
+                                              pem->cert))]
       (is (= 10 (count extensions)))
-      (doseq [oid ["2.5.29.15" "2.5.29.19" "2.5.29.37"
-                   "2.5.29.14" "2.5.29.35"]]
-        (is (get extensions oid)))
-      (doseq [[oid value] [["1.3.6.1.4.1.34380.1.1.1"
-                            "ED803750-E3C7-44F5-BB08-41A04433FE2E"]
-                           ["1.3.6.1.4.1.34380.1.1.2"
-                            "1234567890"]
-                           ["1.3.6.1.4.1.34380.1.1.3"
-                            "my_ami_image"]
-                           ["1.3.6.1.4.1.34380.1.1.4"
-                            "342thbjkt82094y0uthhor289jnqthpc2290"]
-                           ["2.16.840.1.113730.1.13"
-                            "Puppet Ruby/OpenSSL Internal Certificate"]]]
-        (is (= (get extensions oid) value))))))
+      (doseq [[oid value]
+              [["2.5.29.15" {"key_agreement"     false
+                             "non_repudiation"   false
+                             "data_encipherment" false
+                             "key_encipherment"  false
+                             "digital_signature" false
+                             "key_cert_sign"     false
+                             "crl_sign"          false
+                             "decipher_only"     false
+                             "encipher_only"     false}]
+               ["2.5.29.19" {"is_ca"               false
+                             "path_len_constraint" nil}]
+               ["2.5.29.37" ["1.3.6.1.5.5.7.3.1" "1.3.6.1.5.5.7.3.2"]]
+               ["1.3.6.1.4.1.34380.1.1.1" "ED803750-E3C7-44F5-BB08-41A04433FE2E"]
+               ["1.3.6.1.4.1.34380.1.1.2" "1234567890"]
+               ["1.3.6.1.4.1.34380.1.1.3" "my_ami_image"]
+               ["1.3.6.1.4.1.34380.1.1.4" "342thbjkt82094y0uthhor289jnqthpc2290"]
+               ["2.16.840.1.113730.1.13" "Puppet Ruby/OpenSSL Internal Certificate"]]]
+        (is (= (get-extension-value extensions oid) value))))))

@@ -1,11 +1,8 @@
 package com.puppetlabs.certificate_authority;
 
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
-import org.bouncycastle.asn1.ASN1OctetString;
-import org.bouncycastle.asn1.ASN1Set;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERSet;
-import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
@@ -200,43 +197,6 @@ public class CertificateAuthority {
     }
 
     /**
-     * Find the extensions from a list of attributes. If no extensions attribute
-     * is found then null is returned.
-     *
-     * @param attributes A list of attributes to extract extension from.
-     * @return An extensions object extracted from a list of attributes.
-     */
-    private static Extensions getExtensionsFromAttributes(Attribute[] attributes) {
-        for (Attribute attr : attributes ) {
-            if (attr.getAttrType() == PKCSObjectIdentifiers.pkcs_9_at_extensionRequest) {
-                ASN1Set extsAsn1 = attr.getAttrValues();
-                if (extsAsn1 != null) {
-                    DERSet derSet = (DERSet) extsAsn1.getObjectAt(0);
-                    if (derSet != null) {
-                        return (Extensions) derSet.getObjectAt(0);
-                    } else {
-                        return null;
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Get the Extensions object from a certificate request. If the CSR does
-     * not contain any extensions, then null is returned.
-     *
-     * @param csr The certificate request which contains extensions
-     * @return An Extensions object containing this CSR's extensions, or null
-     *         if no extensions were found.
-     */
-    public static Extensions getExtensions(PKCS10CertificationRequest csr) {
-        return getExtensionsFromAttributes(csr.getAttributes());
-    }
-
-    /**
      * Given a certificate signing request and certificate authority information, sign the request
      * and return the signed certificate.
      *
@@ -271,10 +231,10 @@ public class CertificateAuthority {
                 certReq.getSubject(),
                 certReq.getSubjectPublicKeyInfo());
 
-        Extensions exts = getExtensions(certReq);
+        Extensions exts = ExtensionsUtils.getExtensionsFromCSR(certReq);
         if (exts != null) {
-            // TODO: (PE-3701) For now indiscriminately copy every extension.
-            // This will need to be filtered according to a whitelist later.
+            // TODO: (PE-3701 and PE-3864) This method indiscriminately copies every extension.
+            // OID whitelisting will be done in JVM puppoet and not here
             for (ASN1ObjectIdentifier oid : exts.getNonCriticalExtensionOIDs()) {
                 builder.addExtension(oid, false, exts.getExtensionParsedValue(oid));
             }
@@ -753,46 +713,6 @@ public class CertificateAuthority {
         SSLContext context = SSLContext.getInstance("SSL");
         context.init(null, tmf.getTrustManagers(), null);
         return context;
-    }
-
-    /**
-     * Converts a list of extension OIDs into a map containing the OID
-     * and its parsed value.
-     *
-     * @param exts Object containing X509 extensions to pull the OIDs from.
-     * @param oids  A collection of OIDs to retrieve the values of.
-     * @return A list of maps from OID => Parsed OID value.
-     * @throws IOException
-     */
-    private static Map<String,String> oidsToMap(X509Extension exts, Set<String> oids)
-        throws IOException
-    {
-        Map<String, String> ret = new HashMap<String,String>();
-        if (oids != null) {
-            for (String oid : oids) {
-                byte[] octets = exts.getExtensionValue(oid);
-                String value = new String(ASN1OctetString.getInstance(octets).getOctets(), "UTF-8");
-                ret.put(oid, value);
-            }
-        }
-        return ret;
-    }
-
-    /**
-     * Return both critical and noncritical extensions and their values, parsed
-     * into UTF-8 strings.
-     *
-     * @param exts The object which contains X509 extensions.
-     * @return A map of extensions OID to their parsed string values.
-     * @throws IOException
-     */
-    public static Map<String, String> getExtensions(X509Extension exts)
-            throws IOException
-    {
-        Map<String, String> extensions = oidsToMap(exts, exts.getCriticalExtensionOIDs());
-        extensions.putAll(oidsToMap(exts, exts.getNonCriticalExtensionOIDs()));
-
-        return extensions;
     }
 
     /**
