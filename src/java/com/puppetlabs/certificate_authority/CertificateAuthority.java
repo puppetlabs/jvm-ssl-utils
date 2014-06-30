@@ -197,13 +197,22 @@ public class CertificateAuthority {
     }
 
     /**
-     * Given a certificate signing request and certificate authority information, sign the request
-     * and return the signed certificate.
+     * Given a certificate signing request and certificate authority
+     * information, sign the request and return the signed certificate. If X509
+     * extensions are found in the certificate request then they will be copied
+     * onto the signed certificate, but only if their OIDs exist in the provided
+     * oidWhitelist parameter. If oidWhitelist is null or does not contain the OID
+     * of an extension on the certificate request, it will not be copied into the
+     * cert. Each extensions that is copied will be copied with the same
+     * criticality that was found in the signing request.
      *
      * @param certReq The signing request
      * @param issuer The certificate authority's name
      * @param serialNum An arbitrary serial number
      * @param issuerPrivateKey The certificate authority's private key
+     * @param oidWhitelist A list of X509 extensions OIDs which are allowed to
+     *                     be copied from the signing request into the signed
+     *                     certificate.
      * @return A signed certificate for the subject
      * @throws OperatorCreationException
      * @throws CertificateException
@@ -213,7 +222,8 @@ public class CertificateAuthority {
     public static X509Certificate signCertificateRequest(PKCS10CertificationRequest certReq,
                                                          X500Name issuer,
                                                          BigInteger serialNum,
-                                                         PrivateKey issuerPrivateKey)
+                                                         PrivateKey issuerPrivateKey,
+                                                         List<String> oidWhitelist)
             throws OperatorCreationException, CertificateException, CertIOException {
         // Make the certificate valid as of yesterday, because so many people's
         // clocks are out of sync.  This gives one more day of validity than people
@@ -232,15 +242,17 @@ public class CertificateAuthority {
                 certReq.getSubjectPublicKeyInfo());
 
         Extensions exts = ExtensionsUtils.getExtensionsFromCSR(certReq);
-        if (exts != null) {
-            // TODO: (PE-3701 and PE-3864) This method indiscriminately copies every extension.
-            // OID whitelisting will be done in JVM puppoet and not here
+        if ((exts != null) && (oidWhitelist != null)) {
             for (ASN1ObjectIdentifier oid : exts.getNonCriticalExtensionOIDs()) {
-                builder.addExtension(oid, false, exts.getExtensionParsedValue(oid));
+                if (oidWhitelist.contains(oid.getId())) {
+                    builder.addExtension(oid, false, exts.getExtensionParsedValue(oid));
+                }
             }
 
             for (ASN1ObjectIdentifier oid : exts.getCriticalExtensionOIDs()) {
-                builder.addExtension(oid, true, exts.getExtensionParsedValue(oid));
+                if (oidWhitelist.contains(oid.getId())) {
+                    builder.addExtension(oid, true, exts.getExtensionParsedValue(oid));
+                }
             }
         }
 

@@ -136,22 +136,34 @@
      keypair subject-name extensions)))
 
 (defn sign-certificate-request
-  "Given a certificate signing request and certificate authority information, sign the request
-  and return the signed `X509Certificate`.  Arguments:
+  "Given a certificate signing request and certificate authority information,
+  sign the request and return the signed `X509Certificate`. If X509 extensions
+  exist on the signing request, then they will be copied into the certificate
+  if and only if the extension's OID exists in the provided `oid-whitelist`
+  parameter. If the extension's OID does not exist in `oid-whitelist` then the
+  extension will not be copied from the signing request into the certificate.
+
+  Arguments:
 
   `request`:            the certificate signing request
   `issuer`:             the issuer's `X500Name`
   `serial`:             an arbitrary serial number integer
   `issuer-private-key`: the issuer's `PrivateKey`
+  `oid-whitelist`:      an optional list of X509 extensions OIDs which are
+                        allowed to be copied onto the signed certificate.
 
   See `generate-certificate-request`, `obj->pem!`, and `pem->certs` to create & read/write certificates."
-  [request issuer serial issuer-private-key]
-  {:pre  [(certificate-request? request)
-          (x500-name? issuer)
-          (number? serial)
-          (private-key? issuer-private-key)]
-   :post [(certificate? %)]}
-  (CertificateAuthority/signCertificateRequest request issuer (biginteger serial) issuer-private-key))
+  ([request issuer serial issuer-private-key]
+    (sign-certificate-request request issuer serial issuer-private-key []))
+  ([request issuer serial issuer-private-key oid-whitelist]
+   {:pre  [(certificate-request? request)
+           (x500-name? issuer)
+           (number? serial)
+           (private-key? issuer-private-key)
+           (coll? oid-whitelist)]
+    :post [(certificate? %)]}
+   (CertificateAuthority/signCertificateRequest
+     request issuer (biginteger serial) issuer-private-key oid-whitelist)))
 
 (defn generate-crl
   "Given the certificate authority's principal identifier and private key, create and return

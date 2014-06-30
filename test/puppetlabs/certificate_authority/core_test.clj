@@ -164,6 +164,22 @@
       (is (issued-by? certificate issuer))
       (is (= (.getSerialNumber certificate) 42))))
 
+  (testing "don't copy extensions not in whitelist"
+    (let [subject (generate-x500-name "localhost")
+          issuer (generate-x500-name "issuer")
+          issuer-key (.getPrivate (generate-key-pair))
+          keypair (generate-key-pair 512)
+          alt-names ["anotherdnsname"]
+          dns-alt-names (generate-dns-alt-names-ext alt-names)
+          dns-alt-names-oid "2.5.29.17"
+          csr (generate-certificate-request keypair subject [dns-alt-names])
+          csr-ext (get-extension-value csr dns-alt-names-oid)
+          no-ext-cert (sign-certificate-request csr issuer 42 issuer-key [])
+          no-ext-cert-ext (get-extension-value no-ext-cert dns-alt-names-oid)]
+      (is (= csr-ext alt-names))
+      (is (nil? no-ext-cert-ext)
+            "The certificate has no white list and should not have any extensions")))
+
   (testing "read CSR from PEM stream"
     (let [pem (open-ssl-file "certification_requests/ca_test_client.pem")
           csr (pem->csr pem)]
@@ -195,7 +211,7 @@
           dns-alt-names-oid "2.5.29.17"
           csr (generate-certificate-request keypair subject [dns-alt-names])
           csr-ext (get-extension-value csr dns-alt-names-oid)
-          cert (sign-certificate-request csr issuer 42 issuer-key)
+          cert (sign-certificate-request csr issuer 42 issuer-key [dns-alt-names-oid])
           cert-ext (get-extension-value cert dns-alt-names-oid)]
       (is (certificate-request? csr))
       (is (certificate? cert))
@@ -424,8 +440,8 @@
       (is (true? (issued-by? crl (generate-x500-name "issuer"))))
       (is (false? (issued-by? crl "issuer"))))))
 
-(deftest extensions-returned
-  (testing "Found all extensions"
+(deftest extensions
+  (testing "Found all extensions from a certificate on disk."
     (let [extensions (get-extensions-list (-> "certs/cert-with-exts.pem"
                                               open-ssl-file
                                               pem->cert))]
