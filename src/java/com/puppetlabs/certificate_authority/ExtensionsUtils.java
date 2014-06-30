@@ -42,7 +42,8 @@ import java.util.Map;
 public class ExtensionsUtils {
     /**
      * Given a Java X509Certificate object, return a list of maps representing
-     * all the X509 extensions embedded in the certificate.
+     * all the X509 extensions embedded in the certificate. If no extensions
+     * exist on the certificate, the null is returned.
      *
      * @param cert The X509 certificate object.
      * @return A list of maps describing each extensions in the provided
@@ -55,12 +56,19 @@ public class ExtensionsUtils {
     getExtensionList(X509Certificate cert)
             throws IOException, CertificateEncodingException
     {
-        return getExtensionList(getExtensionsFromCert(cert));
+        Extensions extensions = getExtensionsFromCert(cert);
+
+        if (extensions != null) {
+            return getExtensionList(extensions);
+        } else {
+            return null;
+        }
     }
 
     /**
      * Given a Bouncy Castle CSR object, return a list of maps representing
-     * all the X509 extensions embedded in the CSR>
+     * all the X509 extensions embedded in the CSR. If no extensions exist on
+     * the CSR, then null is returned.
      *
      * @param csr The Bouncy Castle CertificationRequest object
      * @return A list of maps describing each extensions in the provided
@@ -72,7 +80,13 @@ public class ExtensionsUtils {
     getExtensionList(PKCS10CertificationRequest csr)
             throws IOException
     {
-        return getExtensionList(getExtensionsFromCSR(csr));
+        Extensions extensions = getExtensionsFromCSR(csr);
+
+        if (extensions != null) {
+            return getExtensionList(extensions);
+        } else{
+            return null;
+        }
     }
 
     /**
@@ -88,8 +102,13 @@ public class ExtensionsUtils {
     getExtension(X509Certificate cert, String oid)
             throws IOException, CertificateEncodingException
     {
-        return makeExtensionMap(getExtensionsFromCert(cert),
-                new ASN1ObjectIdentifier(oid));
+        Extensions extensions = getExtensionsFromCert(cert);
+
+        if (extensions != null) {
+            return makeExtensionMap(extensions, new ASN1ObjectIdentifier(oid));
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -106,8 +125,13 @@ public class ExtensionsUtils {
     getExtension(PKCS10CertificationRequest csr, String oid)
             throws IOException
     {
-        return makeExtensionMap(getExtensionsFromCSR(csr),
-                                new ASN1ObjectIdentifier(oid));
+        Extensions extensions = getExtensionsFromCSR(csr);
+
+        if (extensions != null) {
+            return makeExtensionMap(extensions, new ASN1ObjectIdentifier(oid));
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -154,7 +178,11 @@ public class ExtensionsUtils {
 
     public static Object
     getExtensionValue(Map<String, Object> extMap) {
-        return extMap.get("value");
+        if (extMap != null) {
+            return extMap.get("value");
+        } else {
+            return null;
+        }
     }
 
 
@@ -229,7 +257,7 @@ public class ExtensionsUtils {
 
     /**
      * Get a Bouncy Castle Extensions container from a Java X509 certificate
-     * object.
+     * object. If no extensions are found then null is returned.
      *
      * @param cert  The Java X509 certificate object.
      * @return A Bouncy Castle Extensions container object extracted from the
