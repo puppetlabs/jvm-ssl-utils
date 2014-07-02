@@ -350,14 +350,13 @@ public class ExtensionsUtils {
     }
 
     /**
-     * Convert a Bouncy Castle ASN1Object into a Java string, or list of
-     * strings, depending upon the type of ASN1 object provided. If this
-     * method can't determine a method of converting the ASN1 object then
+     * Convert a Bouncy Castle ASN1Object into a Java data structure, which
+     * will generally be in the form of a string, map, list or combination thereof.
+     * If this method can't determine a method of converting the ASN1 object then
      * the raw byte array is returned.
      *
      * @param asn1Prim The ASN1 object to
-     * @return A String or List of Strings which represents the provided
-     *         ASN1Object.
+     * @return A Java data structure which represents the provided ASN1Object.
      * @throws IOException
      */
     private static Object asn1ObjToObj(ASN1Encodable asn1Prim)
