@@ -447,17 +447,17 @@
                                               pem->cert))]
       (is (= 10 (count extensions)))
       (doseq [[oid value]
-              [["2.5.29.15" {"key_agreement"     false
-                             "non_repudiation"   false
-                             "data_encipherment" false
-                             "key_encipherment"  false
-                             "digital_signature" false
-                             "key_cert_sign"     false
-                             "crl_sign"          false
-                             "decipher_only"     false
-                             "encipher_only"     false}]
-               ["2.5.29.19" {"is_ca"               false
-                             "path_len_constraint" nil}]
+              [["2.5.29.15" {:key-agreement     false
+                             :non-repudiation   false
+                             :data-encipherment false
+                             :key-encipherment  false
+                             :digital-signature false
+                             :key-cert-sign     false
+                             :crl-sign          false
+                             :decipher-only     false
+                             :encipher-only     false}]
+               ["2.5.29.19" {:is-ca               false
+                             :path-len-constraint nil}]
                ["2.5.29.37" ["1.3.6.1.5.5.7.3.1" "1.3.6.1.5.5.7.3.2"]]
                ["1.3.6.1.4.1.34380.1.1.1" "ED803750-E3C7-44F5-BB08-41A04433FE2E"]
                ["1.3.6.1.4.1.34380.1.1.2" "1234567890"]
