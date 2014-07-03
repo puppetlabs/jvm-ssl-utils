@@ -143,15 +143,6 @@
    :post [(string? %)]}
   (CertificateAuthority/getCommonNameFromX500Name x500-name))
 
-(defn generate-dns-alt-names-ext
-  ;; TODO:
-  "Given a list of DNS names, generate a DNS alternative names extension which
-  contains them all."
-  [dns-alt-names]
-  {:pre [(coll? dns-alt-names)]
-   :post [(extension? %)]}
-  (CertificateAuthority/generateDnsAltNamesExtension dns-alt-names))
-
 (defn generate-certificate-request
   "Given the subject's keypair and name, create and return a certificate signing request (CSR).
   Arguments:
@@ -186,21 +177,21 @@
   `issuer`:             the issuer's `X500Name`
   `serial`:             an arbitrary serial number integer
   `issuer-private-key`: the issuer's `PrivateKey`
-  `oid-whitelist`:      an optional list of X509 extensions OIDs which are
-                        allowed to be copied onto the signed certificate.
+  `extensions`:         an optional list of X509 extensions, each of which is
+                        a map with an `oid`, `value` and `critical` flag.
 
   See `generate-certificate-request`, `obj->pem!`, and `pem->certs` to create & read/write certificates."
   ([request issuer serial issuer-private-key]
     (sign-certificate-request request issuer serial issuer-private-key []))
-  ([request issuer serial issuer-private-key oid-whitelist]
+  ([request issuer serial issuer-private-key extensions]
    {:pre  [(certificate-request? request)
            (x500-name? issuer)
            (number? serial)
            (private-key? issuer-private-key)
-           (coll? oid-whitelist)]
+           (coll? extensions)]
     :post [(certificate? %)]}
    (CertificateAuthority/signCertificateRequest
-     request issuer (biginteger serial) issuer-private-key oid-whitelist)))
+     request issuer (biginteger serial) issuer-private-key (javaize extensions))))
 
 (defn generate-crl
   "Given the certificate authority's principal identifier and private key, create and return
@@ -526,7 +517,7 @@
   (with-open [ca-cert-reader (reader ca-cert)]
     (CertificateAuthority/caCertPemToSSLContext ca-cert-reader)))
 
-(defn get-extensions-list
+(defn get-extensions
   "Given an object containing X509 extensions, retrieve a list of maps of all
   extensions. Each map in the list contains the following keys:
 

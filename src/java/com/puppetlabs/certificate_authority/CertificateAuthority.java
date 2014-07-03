@@ -1,7 +1,6 @@
 package com.puppetlabs.certificate_authority;
 
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
-import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERSet;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
@@ -10,8 +9,6 @@ import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.Extensions;
-import org.bouncycastle.asn1.x509.GeneralName;
-import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.cert.X509CRLHolder;
@@ -60,7 +57,6 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
-import java.security.cert.X509Extension;
 import java.util.Date;
 import java.util.List;
 import java.util.ArrayList;
@@ -68,7 +64,6 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.UUID;
-import java.util.Set;
 
 public class CertificateAuthority {
 
@@ -157,7 +152,7 @@ public class CertificateAuthority {
 
         if ((extensions != null) && (extensions.size() > 0)) {
             requestBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest,
-                                        new DERSet(extensionsListToExtensions(extensions)));
+                                        new DERSet(new Extensions(extensions.toArray(new Extension[extensions.size()]))));
         }
 
         return requestBuilder.build(
@@ -166,53 +161,17 @@ public class CertificateAuthority {
     }
 
     /**
-     * Create an X509 extensions which contains alternative DNS names.
-     *
-     * @param alternateDnsNames The list of alternative DNS names.
-     * @return A new X509 extension object
-     * @throws IOException
-     */
-    public static Extension generateDnsAltNamesExtension(List<String> alternateDnsNames)
-        throws IOException
-    {
-        GeneralName[] generalNames = new GeneralName[alternateDnsNames.size()];
-        for (int i=0; i < alternateDnsNames.size(); i++) {
-            generalNames[i] = new GeneralName(GeneralName.dNSName,
-                                              alternateDnsNames.get(i));
-        }
-
-        return new Extension(Extension.subjectAlternativeName, false,
-                             new DEROctetString(new GeneralNames(generalNames)));
-    }
-
-    /**
-     * Convert a list of extensions into an Extensions object.
-     *
-     * @param extensionList A list of extensions.
-     * @return A new Extensions object which contains all the extensions in the
-     *         given extension list.
-     */
-    private static Extensions extensionsListToExtensions(List<Extension> extensionList) {
-        return new Extensions(extensionList.toArray(new Extension[extensionList.size()]));
-    }
-
-    /**
      * Given a certificate signing request and certificate authority
-     * information, sign the request and return the signed certificate. If X509
-     * extensions are found in the certificate request then they will be copied
-     * onto the signed certificate, but only if their OIDs exist in the provided
-     * oidWhitelist parameter. If oidWhitelist is null or does not contain the OID
-     * of an extension on the certificate request, it will not be copied into the
-     * cert. Each extensions that is copied will be copied with the same
-     * criticality that was found in the signing request.
+     * information, sign the request and return the signed certificate. If
+     * extensions is not null, then all extensions in the list will be written
+     * to the new signed certificate. The maps in the extensions list will have
+     * the same form as ExtensionsUtils.getExtensionsList().
      *
      * @param certReq The signing request
      * @param issuer The certificate authority's name
      * @param serialNum An arbitrary serial number
      * @param issuerPrivateKey The certificate authority's private key
-     * @param oidWhitelist A list of X509 extensions OIDs which are allowed to
-     *                     be copied from the signing request into the signed
-     *                     certificate.
+     * @param extensions A list of X509 extensions to sign into the certificate.
      * @return A signed certificate for the subject
      * @throws OperatorCreationException
      * @throws CertificateException
@@ -223,8 +182,8 @@ public class CertificateAuthority {
                                                          X500Name issuer,
                                                          BigInteger serialNum,
                                                          PrivateKey issuerPrivateKey,
-                                                         List<String> oidWhitelist)
-            throws OperatorCreationException, CertificateException, CertIOException {
+                                                         List<Map<String, Object>> extensions)
+            throws OperatorCreationException, CertificateException, IOException {
         // Make the certificate valid as of yesterday, because so many people's
         // clocks are out of sync.  This gives one more day of validity than people
         // might expect, but is better than making every person who has a messed up
@@ -241,18 +200,14 @@ public class CertificateAuthority {
                 certReq.getSubject(),
                 certReq.getSubjectPublicKeyInfo());
 
-        Extensions exts = ExtensionsUtils.getExtensionsFromCSR(certReq);
-        if ((exts != null) && (oidWhitelist != null)) {
-            for (ASN1ObjectIdentifier oid : exts.getNonCriticalExtensionOIDs()) {
-                if (oidWhitelist.contains(oid.getId())) {
-                    builder.addExtension(oid, false, exts.getExtensionParsedValue(oid));
-                }
+        Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
+        if (extensions != null) {
+            for (ASN1ObjectIdentifier oid : bcExtensions.getNonCriticalExtensionOIDs()) {
+                builder.addExtension(oid, false, bcExtensions.getExtensionParsedValue(oid));
             }
 
-            for (ASN1ObjectIdentifier oid : exts.getCriticalExtensionOIDs()) {
-                if (oidWhitelist.contains(oid.getId())) {
-                    builder.addExtension(oid, true, exts.getExtensionParsedValue(oid));
-                }
+            for (ASN1ObjectIdentifier oid : bcExtensions.getCriticalExtensionOIDs()) {
+                builder.addExtension(oid, true, bcExtensions.getExtensionParsedValue(oid));
             }
         }
 

@@ -9,6 +9,7 @@ import org.bouncycastle.asn1.ASN1Set;
 import org.bouncycastle.asn1.ASN1String;
 import org.bouncycastle.asn1.ASN1TaggedObject;
 import org.bouncycastle.asn1.DERBitString;
+import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERPrintableString;
 import org.bouncycastle.asn1.DERSet;
 import org.bouncycastle.asn1.misc.MiscObjectIdentifiers;
@@ -256,6 +257,55 @@ public class ExtensionsUtils {
     }
 
     /**
+     * Given a list of maps which represent Extensions, produce a Bouncy Castle
+     * Extensions object which contains each extension parsed into Bouncy Castle
+     * Extension objects.
+     *
+     * @return The results Extensions container.
+     */
+    static Extensions
+    getExtensionsObjFromMap(List<Map<String,Object>> extMapsList)
+            throws IOException
+    {
+        List<Extension> ret = new ArrayList<Extension>();
+
+        for (Map<String, Object> extObj: extMapsList) {
+            ret.add(parseExtensionObject(extObj));
+        }
+
+        return new Extensions(ret.toArray(new Extension[ret.size()]));
+    }
+
+    /**
+     * Provided a map which describes an X509 extension, parse it into a
+     * Bouncy Castle Extension object.
+     *
+     * @param extMap Map describing an extension.
+     * @return A parsed Extension object.
+     * @throws IOException
+     */
+    static Extension
+    parseExtensionObject(Map<String, Object> extMap)
+            throws IOException
+    {
+        ASN1ObjectIdentifier oid = new ASN1ObjectIdentifier((String)extMap.get("oid"));
+
+        ASN1Object ret;
+        if (oid.equals(Extension.subjectAlternativeName) ||
+            oid.equals(Extension.issuerAlternativeName))
+        {
+            ret = listToGeneralNames((List<Map<String,String>>)extMap.get("value"));
+        } else {
+            throw new IllegalArgumentException(
+                    "Parsing an extension with an OID=" +
+                    oid.getId() + " is not yet supported.");
+        }
+
+        return new Extension(oid, (Boolean)extMap.get("critical"), new DEROctetString(ret));
+    }
+
+
+    /**
      * Get a Bouncy Castle Extensions container from a Java X509 certificate
      * object. If no extensions are found then null is returned.
      *
@@ -464,9 +514,39 @@ public class ExtensionsUtils {
         return ret;
     }
 
+    /** The key name each tag number represents in a GeneralNames data structure */
+    private static Map<Integer, String> generalNameTags =
+            new HashMap<Integer, String>() {{
+                put(0, "other_name");
+                put(1, "rfc822_name");
+                put(2, "dns_name");
+                put(3, "x400_address");
+                put(4, "directory_name");
+                put(5, "edi_party_name");
+                put(6, "uri");
+                put(7, "ip");
+                put(8, "registered_id");
+            }};
+
     /**
-     * Convert a Bouncy Castle GeneralNames object into a Java list of strings
-     * which represent the value of each name.
+     * Given type name, return the general name tag value.
+     *
+     * @param name The GeneralName tag name defined in generalNameTags
+     * @return The tag number of the name, or null if the name doesn't exist.
+     */
+    private static Integer getGnTagFromName(String name) {
+        for (int i=0; i < generalNameTags.size(); i++) {
+            if (generalNameTags.get(i).equalsIgnoreCase(name)) {
+                return i;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Convert a Bouncy Castle GeneralNames object into a Java list of maps
+     * which contain two keys, the
      *
      * @param names The GeneralNames object to be parsed.
      * @return A list of the names contained in each GeneralName in the
@@ -474,13 +554,16 @@ public class ExtensionsUtils {
      * @throws IOException
      * @see org.bouncycastle.asn1.x509.GeneralName
      */
-    private static List<String> generalNamesToList(GeneralNames names)
+    private static List<Map<String, Object>> generalNamesToList(GeneralNames names)
             throws IOException
     {
-        if ( names != null ) {
-            List<String> ret = new ArrayList<String>();
-            for (GeneralName name : names.getNames()) {
-                ret.add((String) asn1ObjToObj(name.getName().toASN1Primitive()));
+        if (names != null) {
+            List<Map<String, Object>> ret = new ArrayList<Map<String, Object>>();
+            for (GeneralName generalName : names.getNames()) {
+                HashMap<String, Object> name = new HashMap<String, Object>();
+                name.put(generalNameTags.get(generalName.getTagNo()),
+                         asn1ObjToObj(generalName.getName().toASN1Primitive()));
+                ret.add(name);
             }
 
             return ret;
@@ -488,4 +571,37 @@ public class ExtensionsUtils {
             return null;
         }
     }
+
+    /**
+     * Convert a list of general name maps into a GeneralNames object.
+     *
+     * @param gnList A list of general name maps, as produced by generalNamesToList
+     * @return A Bouncy Castle GeneralNames object.
+     * @see #generalNamesToList(org.bouncycastle.asn1.x509.GeneralNames)
+     */
+    private static GeneralNames
+    listToGeneralNames(List<Map<String, String>> gnList) {
+        List<GeneralName> ret = new ArrayList<GeneralName>();
+        for (Map<String, String> gnMap : gnList) {
+            if (gnMap.keySet().size() != 1) {
+                throw new IllegalArgumentException(
+                        "Each GeneralName map should have only one entry which " +
+                        "is a mapping form the name type to the name value.");
+            }
+
+            String type = (String)gnMap.keySet().toArray()[0];
+            Integer tag = getGnTagFromName(type);
+
+            if (tag == null) {
+                throw new IllegalArgumentException(
+                        "Could not find a tag number for the type name '" +
+                        type + '"');
+            }
+
+            ret.add(new GeneralName(tag, gnMap.get(type)));
+        }
+
+        return new GeneralNames(ret.toArray(new GeneralName[ret.size()]));
+    }
+
 }
