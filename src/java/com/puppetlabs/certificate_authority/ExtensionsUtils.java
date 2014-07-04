@@ -262,6 +262,7 @@ public class ExtensionsUtils {
      * Extension objects.
      *
      * @return The results Extensions container.
+     * @see #parseExtensionObject(java.util.Map)
      */
     static Extensions
     getExtensionsObjFromMap(List<Map<String,Object>> extMapsList)

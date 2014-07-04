@@ -8,7 +8,8 @@
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
            (com.puppetlabs.certificate_authority CertificateAuthority
-                                                 ExtensionsUtils))
+                                                 ExtensionsUtils)
+           (org.joda.time DateTime Period))
   (:require [clojure.test :refer :all]
             [clojure.java.io :refer [resource reader]]
             [puppetlabs.certificate-authority.core :refer :all]))
@@ -64,6 +65,16 @@
 (defmethod issued-by? X500Name
   [x x500-name]
   (issued-by? x (str x500-name)))
+
+(defn generate-not-before-date []
+  (-> (DateTime/now)
+      (.minus (Period/days 1))
+      (.toDate)))
+
+(defn generate-not-after-date []
+  (-> (DateTime/now)
+      (.plus (Period/years 5))
+      (.toDate)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Tests
@@ -134,9 +145,9 @@
 
 (deftest name-test
   (testing "create X500 name from common name"
-    (let [x500-name   (generate-x500-name "common name")
+    (let [x500-name "CN=common name"
           common-name (x500-name->CN x500-name)]
-      (is (x500-name? x500-name))
+      (is (valid-x500-name? x500-name))
       (is (= "common name" common-name)))))
 
 (deftest cn-from-x500principal-test
@@ -148,21 +159,10 @@
 
 (deftest certification-request-test
   (testing "create CSR"
-    (let [subject (generate-x500-name "subject")
+    (let [subject "CN=subject"
           csr     (generate-certificate-request (generate-key-pair) subject)]
       (is (certificate-request? csr))
       (is (has-subject? csr subject))))
-
-  (testing "sign CSR"
-    (let [subject     (generate-x500-name "foo")
-          csr         (generate-certificate-request (generate-key-pair) subject)
-          issuer      (generate-x500-name "my ca")
-          issuer-key  (.getPrivate (generate-key-pair))
-          certificate (sign-certificate-request csr issuer 42 issuer-key)]
-      (is (certificate? certificate))
-      (is (has-subject? certificate subject))
-      (is (issued-by? certificate issuer))
-      (is (= (.getSerialNumber certificate) 42))))
 
   (testing "read CSR from PEM stream"
     (let [pem (open-ssl-file "certification_requests/ca_test_client.pem")
@@ -176,7 +176,7 @@
                             (-> "certs/multiple.pem" open-ssl-file pem->csr)))))
 
   (testing "write CSR to PEM stream"
-    (let [subject    (generate-x500-name "foo")
+    (let [subject    "CN=foo"
           orig-csr   (generate-certificate-request (generate-key-pair) subject)
           pem        (write-to-pem-stream orig-csr)
           parsed-csr (pem->csr pem)]
@@ -184,22 +184,31 @@
       (is (has-subject? parsed-csr subject))
       (is (= orig-csr parsed-csr)))))
 
-(deftest alt-dns-names
-  (testing "create a CSR with alternative DNS names"
-    (let [subject (generate-x500-name "localhost")
-          issuer (generate-x500-name "issuer")
-          issuer-key (.getPrivate (generate-key-pair))
-          keypair (generate-key-pair 512)
-          sign-exts [{:oid "2.5.29.17"
-                      :critical false
-                      :value [{:dns-name "onefish"}
-                              {:dns-name "twofish"}]}]
-          csr (generate-certificate-request keypair subject)
-          cert (sign-certificate-request csr issuer 42 issuer-key sign-exts)
-          cert-exts (get-extensions cert)]
-      (is (certificate-request? csr))
-      (is (certificate? cert))
-      (is (= cert-exts sign-exts)))))
+(deftest signing-certificates
+  (let [subject    "CN=foo"
+        key-pair   (generate-key-pair)
+        subj-pub   (.getPublic key-pair)
+        issuer     "CN=my ca"
+        issuer-key (.getPrivate (generate-key-pair))
+        not-before (generate-not-before-date)
+        not-after  (generate-not-after-date)]
+    (testing "sign certificate"
+      (let [certificate (sign-certificate issuer issuer-key 42 not-before not-after
+                                      subject subj-pub)]
+        (is (certificate? certificate))
+        (is (has-subject? certificate subject))
+        (is (issued-by? certificate issuer))
+        (is (= (.getSerialNumber certificate) 42))))
+
+    (testing "signing extensions into certificate"
+      (let [sign-exts   [{:oid      "2.5.29.17"
+                          :critical false
+                          :value    [{:dns-name "onefish"}
+                                     {:dns-name "twofish"}]}]
+            cert-w-exts (sign-certificate issuer issuer-key 42 not-before
+                                          not-after subject subj-pub sign-exts)
+            cert-exts   (get-extensions cert-w-exts)]
+        (is (= cert-exts sign-exts))))))
 
 (deftest certificate-test
   (testing "read certificates from PEM stream"
@@ -223,18 +232,23 @@
         (is (= (.getVersion actual) (expected :version))))))
 
   (testing "write certificate to PEM stream"
-    (let [subject     (generate-x500-name "foo")
-          csr         (generate-certificate-request (generate-key-pair) subject)
-          issuer      (generate-x500-name "my ca")
-          orig-cert   (sign-certificate-request csr issuer 42 (.getPrivate (generate-key-pair)))
+    (let [subject     "CN=foo"
+          key-pair    (generate-key-pair 512)
+          subj-pub    (.getPublic key-pair)
+          issuer      "CN=my ca"
+          issuer-key  (.getPrivate (generate-key-pair))
+          serial      42
+          not-before  (generate-not-before-date)
+          not-after   (generate-not-after-date)
+          orig-cert   (sign-certificate issuer issuer-key serial not-before
+                                        not-after subject subj-pub)
           pem         (write-to-pem-stream orig-cert cert->pem!)
           parsed-cert (pem->cert pem)]
       (is (certificate? parsed-cert))
       (is (has-subject? parsed-cert subject))
       (is (issued-by? parsed-cert issuer))
-      (is (= (.getSerialNumber parsed-cert) 42))
+      (is (= (.getSerialNumber parsed-cert) serial))
       (is (= orig-cert parsed-cert)))))
-
 
 (deftest certificate-revocation-list
   (let [key-pair    (generate-key-pair)
@@ -361,17 +375,19 @@
     (is (false? (private-key? "foo")))
     (is (false? (private-key? nil)))))
 
-(let [subject (generate-x500-name "subject")
-      issuer  (generate-x500-name "issuer")
+(let [subject "CN=subject"
+      issuer  "CN=issuer"
       csr     (generate-certificate-request (generate-key-pair 512) subject)
-      cert    (sign-certificate-request csr issuer 42 (.getPrivate (generate-key-pair 512)))
+      cert    (sign-certificate issuer (.getPrivate (generate-key-pair 512))
+                                42 (generate-not-before-date)
+                                (generate-not-after-date) subject
+                                (.getPublic (generate-key-pair 512)))
       crl     (generate-crl (X500Principal. (str issuer)) (.getPrivate (generate-key-pair 512)))]
 
-  (deftest x500-name?-test
-    (is (true? (x500-name? subject)))
-    (is (false? (x500-name? (str subject))))
-    (is (false? (x500-name? "subject")))
-    (is (false? (x500-name? nil))))
+  (deftest valid-x500-name?-test
+    (is (true?  (valid-x500-name? subject)))
+    (is (false? (valid-x500-name? "subject")))
+    (is (false? (valid-x500-name? nil))))
 
   (deftest certificate-request?-test
     (is (true? (certificate-request? csr)))
@@ -397,14 +413,12 @@
       (is (true? (has-subject? csr subject)))
       (is (true? (has-subject? csr (str subject))))
       (is (true? (has-subject? csr "CN=subject")))
-      (is (true? (has-subject? csr (generate-x500-name "subject"))))
       (is (false? (has-subject? csr "subject"))))
 
     (testing "certificate"
       (is (true? (has-subject? cert subject)))
       (is (true? (has-subject? cert (str subject))))
       (is (true? (has-subject? cert "CN=subject")))
-      (is (true? (has-subject? cert (generate-x500-name "subject"))))
       (is (false? (has-subject? cert "subject")))))
 
   (deftest issued-by?-test
@@ -412,15 +426,17 @@
       (is (true? (issued-by? cert issuer)))
       (is (true? (issued-by? cert (str issuer))))
       (is (true? (issued-by? cert "CN=issuer")))
-      (is (true? (issued-by? cert (generate-x500-name "issuer"))))
       (is (false? (issued-by? cert "issuer"))))
 
     (testing "certificate revocation list"
       (is (true? (issued-by? crl issuer)))
       (is (true? (issued-by? crl (str issuer))))
       (is (true? (issued-by? crl "CN=issuer")))
-      (is (true? (issued-by? crl (generate-x500-name "issuer"))))
-      (is (false? (issued-by? crl "issuer"))))))
+      (is (false? (issued-by? crl "issuer")))))
+
+  (deftest x500-name->CN-test
+    (testing "getting CN from DN works"
+      (is (= "subject" (x500-name->CN subject))))))
 
 (deftest extensions
   (testing "Found all extensions from a certificate on disk."

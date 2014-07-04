@@ -7,7 +7,6 @@ import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
-import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.cert.CertIOException;
@@ -118,12 +117,12 @@ public class CertificateAuthority {
     /**
      * Given an X500Name, return the common name from it.
      *
-     * @param x500Name The X500Name to extract from
+     * @param x500Name The X500 name string to extract from
      * @return The common name from the X500Name
      * @see #generateX500Name
      */
-    public static String getCommonNameFromX500Name(X500Name x500Name) {
-        return x500Name.getRDNs(BCStyle.CN)[0].getFirst().getValue().toString();
+    public static String getCommonNameFromX500Name(String x500Name) {
+        return new X500Name(x500Name).getRDNs(BCStyle.CN)[0].getFirst().getValue().toString();
     }
 
     /**
@@ -131,8 +130,8 @@ public class CertificateAuthority {
      * If the extensions parameter is not null and is a list of size great than 0, they will be
      * added to this request.
      *
-     * @param keyPair The subject's public and private keys
-     * @param subjectName The subject's name
+     * @param keyPair The subject's public and private keys.
+     * @param subjectDN The subject's CN.
      * @param extensions Extensions to add to this cert request.
      * @return A request to certify the provided subject
      * @throws IOException
@@ -141,18 +140,20 @@ public class CertificateAuthority {
      * @see #generateX500Name
      * @see #signCertificateRequest
      */
-    public static PKCS10CertificationRequest generateCertificateRequest(KeyPair keyPair, X500Name subjectName,
-        List<Extension> extensions)
+    public static PKCS10CertificationRequest generateCertificateRequest(KeyPair keyPair, String subjectDN,
+        List<Map<String, Object>> extensions)
         throws IOException, OperatorCreationException
     {
         // TODO: the puppet code sets a property "version=0" on the request object
         // here; can't figure out how to do that at the moment.  Not sure if it's needed.
         PKCS10CertificationRequestBuilder requestBuilder =
-                new JcaPKCS10CertificationRequestBuilder(subjectName, keyPair.getPublic());
+                new JcaPKCS10CertificationRequestBuilder(new X500Name(subjectDN), keyPair.getPublic());
 
         if ((extensions != null) && (extensions.size() > 0)) {
+            Extensions parsedExts = ExtensionsUtils.getExtensionsObjFromMap(extensions);
+
             requestBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest,
-                                        new DERSet(new Extensions(extensions.toArray(new Extension[extensions.size()]))));
+                                        new DERSet(parsedExts));
         }
 
         return requestBuilder.build(
@@ -199,6 +200,66 @@ public class CertificateAuthority {
                 notAfter.toDate(),
                 certReq.getSubject(),
                 certReq.getSubjectPublicKeyInfo());
+
+        Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
+        if (extensions != null) {
+            for (ASN1ObjectIdentifier oid : bcExtensions.getNonCriticalExtensionOIDs()) {
+                builder.addExtension(oid, false, bcExtensions.getExtensionParsedValue(oid));
+            }
+
+            for (ASN1ObjectIdentifier oid : bcExtensions.getCriticalExtensionOIDs()) {
+                builder.addExtension(oid, true, bcExtensions.getExtensionParsedValue(oid));
+            }
+        }
+
+        JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder("SHA256WithRSA");
+        ContentSigner signer = signerBuilder.build(issuerPrivateKey);
+
+        X509CertificateHolder holder = builder.build(signer);
+        JcaX509CertificateConverter converter = new JcaX509CertificateConverter();
+        return converter.getCertificate(holder);
+    }
+
+    /**
+     * Given certificate authority information, expiration dates, and the
+     * subject's name and public key info, create a newly signed certificate.
+     * If the extensions parameter is not null then all the maps in the list
+     * will be parsed into extensions and written on to the certificate. The
+     * extensions
+     *
+     * @param issuerDn A string containing the issuer's distinguished name.
+     * @param issuerPrivateKey The issuer's private key
+     * @param serialNumber Serial number to assign the generated certificate.
+     * @param notBefore Date to assign to the not-before field.
+     * @param notAfter Date to assign to the not-after field.
+     * @param subjectDn A string containing the subject's distinguished name.
+     * @param subjectPublicKey The subject's public key
+     * @param extensions A list of maps which contain extensions that are to be
+     *                   written to the signed certificate.
+     * @return The newly signed certificate.
+     * @throws IOException
+     * @throws OperatorCreationException
+     * @throws CertificateException
+     * @see com.puppetlabs.certificate_authority.ExtensionsUtils#getExtensionsObjFromMap(java.util.List)
+     */
+    public static X509Certificate signCertificate(String issuerDn,
+                                                  PrivateKey issuerPrivateKey,
+                                                  BigInteger serialNumber,
+                                                  Date notBefore, Date notAfter,
+                                                  String subjectDn,
+                                                  PublicKey subjectPublicKey,
+                                                  List<Map<String, Object>> extensions)
+            throws IOException, OperatorCreationException, CertificateException
+    {
+        SubjectPublicKeyInfo pubKeyInfo =
+                SubjectPublicKeyInfo.getInstance(subjectPublicKey.getEncoded());
+
+        X509v3CertificateBuilder builder = new X509v3CertificateBuilder(
+                new X500Name(issuerDn),
+                serialNumber,
+                notBefore, notAfter,
+                new X500Name(subjectDn),
+                pubKeyInfo);
 
         Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
         if (extensions != null) {
@@ -689,7 +750,6 @@ public class CertificateAuthority {
      * @return String representation of the CN extracted from the X500Principal.
      */
     public static String getCnFromX500Principal(X500Principal principal) {
-        X500Name name = new X500Name(principal.getName());
-        return getCommonNameFromX500Name(name);
+        return getCommonNameFromX500Name(principal.getName());
     }
 }

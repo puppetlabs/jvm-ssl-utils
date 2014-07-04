@@ -7,7 +7,7 @@
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
            (com.puppetlabs.certificate_authority CertificateAuthority
                                                  ExtensionsUtils)
-           (java.util Map List)
+           (java.util Map List Date)
            (org.bouncycastle.asn1.x509 Extension))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :as walk]
@@ -16,6 +16,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Predicates
+
+(defn valid-x500-name?
+  "Returns true if x is a valid X500 name string."
+  ;; TODO: Maybe using a string parsing algo is faster?
+  [x]
+  (try
+    (X500Name. x)
+    (not (nil? x))
+    (catch Exception _
+      false)))
 
 (defn keypair?
   "Returns true if x is a keypair (see `generate-key-pair`)."
@@ -32,11 +42,6 @@
   [x]
   (instance? PrivateKey x))
 
-(defn x500-name?
-  "Returns true if x is an instance of `X500Name` (see `generate-x500-name`)."
-  [x]
-  (instance? X500Name x))
-
 (defn x500-principal?
   "Returns true if x is an instance of 'X500Principal'."
   [x]
@@ -49,11 +54,6 @@
   (instance? X509Extension x))
 
 ;; TODO: (PE-4778) This library should not leak Bouncy Castle objects
-(defn extension?
-  "Returns true if the given object is an X509 Extensions object."
-  [x]
-  (instance? Extension x))
-
 (defn certificate-request?
   "Returns true if x is an instance of `PKCS10CertificationRequest` (see `generate-certificate-request`)."
   [x]
@@ -98,7 +98,7 @@
                     [(string/replace k #"-" "_") (javaize v)])
                     (walk/stringify-keys data-structure)))
 
-    (vector? data-structure)
+    (sequential? data-structure)
     (mapv javaize data-structure)
 
     :else
@@ -129,17 +129,10 @@
       :post [(keypair? %)]}
      (CertificateAuthority/generateKeyPair key-length)))
 
-(defn generate-x500-name
-  "Given a common name, return an X500 name built from it."
-  [common-name]
-  {:pre  [(string? common-name)]
-   :post [(x500-name? %)]}
-  (CertificateAuthority/generateX500Name common-name))
-
 (defn x500-name->CN
   "Given an X500 name, return the common name from it."
   [x500-name]
-  {:pre  [(x500-name? x500-name)]
+  {:pre  [(valid-x500-name? x500-name)]
    :post [(string? %)]}
   (CertificateAuthority/getCommonNameFromX500Name x500-name))
 
@@ -148,50 +141,54 @@
   Arguments:
 
   `keypair`:      subject's public & private keys
-  `subject-name`: subject's `X500Name`
+  `subject-name`: subject's X500 distinguished name
   `extensions`: an optional collection of `Extension` objects to add to the certificate request
 
   See `sign-certificate-request`, `obj->pem!`, and `pem->csr` to sign & read/write CSRs."
-  ([keypair subject-name]
-   (generate-certificate-request keypair subject-name []))
-  ([keypair subject-name extensions]
+  ([keypair subject-dn]
+   (generate-certificate-request keypair subject-dn []))
+  ([keypair subject-dn extensions]
    {:pre  [(keypair? keypair)
-           (x500-name? subject-name)
-           (coll? extensions)
-           (every? extension? extensions)]
+           (valid-x500-name? subject-dn)
+           (sequential? extensions)]
     :post [(certificate-request? %)]}
    (CertificateAuthority/generateCertificateRequest
-     keypair subject-name extensions)))
+     keypair subject-dn extensions)))
 
-(defn sign-certificate-request
-  "Given a certificate signing request and certificate authority information,
-  sign the request and return the signed `X509Certificate`. If X509 extensions
-  exist on the signing request, then they will be copied into the certificate
-  if and only if the extension's OID exists in the provided `oid-whitelist`
-  parameter. If the extension's OID does not exist in `oid-whitelist` then the
-  extension will not be copied from the signing request into the certificate.
+(defn sign-certificate
+  "Given a subject, certificate authority information and other certificate info,
+  return a signed  `X509Certificate` object.
 
   Arguments:
 
-  `request`:            the certificate signing request
-  `issuer`:             the issuer's `X500Name`
-  `serial`:             an arbitrary serial number integer
-  `issuer-private-key`: the issuer's `PrivateKey`
+  `issuer-dn`:          a string containing the issuer's DN.
+  `issuer-priv-key`:    the issuer's private key.
+  `serial`:             an arbitrary serial number integer.
+  `not-before`:         the certificate's 'not before' date.
+  `not-after`:          the certificate's 'not after' date.
+  `subject-dn`:         the subject's DN
+  `subject-pub-key`:    the subject's public key
   `extensions`:         an optional list of X509 extensions, each of which is
-                        a map with an `oid`, `value` and `critical` flag.
-
-  See `generate-certificate-request`, `obj->pem!`, and `pem->certs` to create & read/write certificates."
-  ([request issuer serial issuer-private-key]
-    (sign-certificate-request request issuer serial issuer-private-key []))
-  ([request issuer serial issuer-private-key extensions]
-   {:pre  [(certificate-request? request)
-           (x500-name? issuer)
-           (number? serial)
-           (private-key? issuer-private-key)
-           (coll? extensions)]
+                        a map with an `oid`, `value` and `critical` flag. The
+                        value format is dependent upon the oid."
+  ([issuer-dn issuer-priv-key serial not-before not-after
+    subject-dn subject-pub-key]
+    (sign-certificate issuer-dn issuer-priv-key serial not-before not-after
+                      subject-dn subject-pub-key []))
+  ([issuer-dn issuer-priv-key serial not-before not-after
+    subject-dn subject-pub-key extensions]
+   {:pre [(valid-x500-name? issuer-dn)
+          (private-key? issuer-priv-key)
+          (number? serial)
+          (instance? Date not-before)
+          (instance? Date not-after)
+          (valid-x500-name? subject-dn)
+          (public-key? subject-pub-key)
+          (sequential? extensions)]
     :post [(certificate? %)]}
-   (CertificateAuthority/signCertificateRequest
-     request issuer (biginteger serial) issuer-private-key (javaize extensions))))
+   (CertificateAuthority/signCertificate
+     issuer-dn issuer-priv-key (biginteger serial) not-before not-after subject-dn
+     subject-pub-key (javaize extensions))))
 
 (defn generate-crl
   "Given the certificate authority's principal identifier and private key, create and return
