@@ -295,7 +295,7 @@ public class ExtensionsUtils {
         if (oid.equals(Extension.subjectAlternativeName) ||
             oid.equals(Extension.issuerAlternativeName))
         {
-            ret = listToGeneralNames((List<Map<String,String>>)extMap.get("value"));
+            ret = mapToGeneralNames((Map<String, List<String>>) extMap.get("value"));
         } else {
             throw new IllegalArgumentException(
                     "Parsing an extension with an OID=" +
@@ -414,7 +414,7 @@ public class ExtensionsUtils {
             throws IOException
     {
         if (asn1Prim instanceof GeneralNames) {
-            return generalNamesToList((GeneralNames) asn1Prim);
+            return generalNamesToMap((GeneralNames) asn1Prim);
         } else if (asn1Prim instanceof AuthorityKeyIdentifier) {
             return authorityKeyIdToMap((AuthorityKeyIdentifier) asn1Prim);
         } else if (asn1Prim instanceof BasicConstraints) {
@@ -489,7 +489,7 @@ public class ExtensionsUtils {
             throws IOException
     {
         Map<String, Object> ret = new HashMap<String, Object>();
-        ret.put("issuer", generalNamesToList(akid.getAuthorityCertIssuer()));
+        ret.put("issuer", generalNamesToMap(akid.getAuthorityCertIssuer()));
         ret.put("serial_number", akid.getAuthorityCertSerialNumber());
         ret.put("key_identifier", akid.getKeyIdentifier());
         return ret;
@@ -546,10 +546,8 @@ public class ExtensionsUtils {
     }
 
     /**
-     * Convert a Bouncy Castle GeneralNames object into a Java list of maps
-     * each of which contains one key/value pair. The key is one of the values
-     * contained in the generalNameTags map depending upon which type of name
-     * is defined, and the value is the string form of the name itself.
+     * Convert a Bouncy Castle GeneralNames object into a Java map where the key
+     * is the type of name defined, and the value is a list of names of that type.
      *
      * @param names The GeneralNames object to be parsed.
      * @return A list of the names contained in each GeneralName in the
@@ -557,16 +555,19 @@ public class ExtensionsUtils {
      * @throws IOException
      * @see org.bouncycastle.asn1.x509.GeneralName
      */
-    private static List<Map<String, Object>> generalNamesToList(GeneralNames names)
+    private static Map<String, List<String>> generalNamesToMap(GeneralNames names)
             throws IOException
     {
         if (names != null) {
-            List<Map<String, Object>> ret = new ArrayList<Map<String, Object>>();
+            Map<String, List<String>> ret = new HashMap<String, List<String>>();
             for (GeneralName generalName : names.getNames()) {
-                HashMap<String, Object> name = new HashMap<String, Object>();
-                name.put(generalNameTags.get(generalName.getTagNo()),
-                         asn1ObjToObj(generalName.getName().toASN1Primitive()));
-                ret.add(name);
+                String type = generalNameTags.get(generalName.getTagNo());
+                if (ret.get(type) == null) {
+                    ret.put(type, new ArrayList<String>());
+                }
+
+                String name = (String) asn1ObjToObj(generalName.getName().toASN1Primitive());
+                ret.get(type).add(name);
             }
 
             return ret;
@@ -578,32 +579,27 @@ public class ExtensionsUtils {
     /**
      * Convert a list of general name maps into a GeneralNames object.
      *
-     * @param gnList A list of general name maps, as produced by generalNamesToList
+     * @param gnMap A map containing name types and a list of names.
      * @return A Bouncy Castle GeneralNames object.
-     * @see #generalNamesToList(org.bouncycastle.asn1.x509.GeneralNames)
+     * @see #generalNamesToMap(org.bouncycastle.asn1.x509.GeneralNames)
      */
     private static GeneralNames
-    listToGeneralNames(List<Map<String, String>> gnList) {
+    mapToGeneralNames(Map<String, List<String>> gnMap) {
         List<GeneralName> ret = new ArrayList<GeneralName>();
-        for (Map<String, String> gnMap : gnList) {
-            if (gnMap.keySet().size() != 1) {
-                throw new IllegalArgumentException(
-                        "Each GeneralName map should have only one entry which " +
-                        "is a mapping from the name type to the name value.");
-            }
-
-            String type = (String)gnMap.keySet().toArray()[0];
+        for (String type: gnMap.keySet()) {
             Integer tag = getGnTagFromName(type);
 
             if (tag == null) {
                 throw new IllegalArgumentException(
-                        "Could not find a tag number for the type name '" +
-                        type + '"');
+                               "Could not find a tag number for the type name '" +
+                                type + '"');
             }
 
-            ret.add(new GeneralName(tag, gnMap.get(type)));
-        }
+            for (String name: gnMap.get(type)) {
+                ret.add(new GeneralName(tag, name));
+            }
 
+        }
         return new GeneralNames(ret.toArray(new GeneralName[ret.size()]));
     }
 

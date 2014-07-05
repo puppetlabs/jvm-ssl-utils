@@ -194,7 +194,7 @@
         not-after  (generate-not-after-date)]
     (testing "sign certificate"
       (let [certificate (sign-certificate issuer issuer-key 42 not-before not-after
-                                      subject subj-pub)]
+                                          subject subj-pub)]
         (is (certificate? certificate))
         (is (has-subject? certificate subject))
         (is (issued-by? certificate issuer))
@@ -203,8 +203,7 @@
     (testing "signing extensions into certificate"
       (let [sign-exts   [{:oid      "2.5.29.17"
                           :critical false
-                          :value    [{:dns-name "onefish"}
-                                     {:dns-name "twofish"}]}]
+                          :value    {:dns-name ["onefish" "twofish"]}}]
             cert-w-exts (sign-certificate issuer issuer-key 42 not-before
                                           not-after subject subj-pub sign-exts)
             cert-exts   (get-extensions cert-w-exts)]

@@ -96,7 +96,7 @@
     (map? data-structure)
     (into {} (map (fn [[k v]]
                     [(string/replace k #"-" "_") (javaize v)])
-                    (walk/stringify-keys data-structure)))
+                  (walk/stringify-keys data-structure)))
 
     (sequential? data-structure)
     (mapv javaize data-structure)
