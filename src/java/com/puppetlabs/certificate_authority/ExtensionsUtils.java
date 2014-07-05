@@ -547,7 +547,9 @@ public class ExtensionsUtils {
 
     /**
      * Convert a Bouncy Castle GeneralNames object into a Java list of maps
-     * which contain two keys, the
+     * each of which contains one key/value pair. The key is one of the values
+     * contained in the generalNameTags map depending upon which type of name
+     * is defined, and the value is the string form of the name itself.
      *
      * @param names The GeneralNames object to be parsed.
      * @return A list of the names contained in each GeneralName in the
@@ -587,7 +589,7 @@ public class ExtensionsUtils {
             if (gnMap.keySet().size() != 1) {
                 throw new IllegalArgumentException(
                         "Each GeneralName map should have only one entry which " +
-                        "is a mapping form the name type to the name value.");
+                        "is a mapping from the name type to the name value.");
             }
 
             String type = (String)gnMap.keySet().toArray()[0];
