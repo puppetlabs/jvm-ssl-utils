@@ -5,8 +5,10 @@ import org.bouncycastle.asn1.DERBitString;
 import org.bouncycastle.asn1.DERSet;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.asn1.x500.AttributeTypeAndValue;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
+import org.bouncycastle.asn1.x500.X500NameStyle;
 import org.bouncycastle.asn1.x500.style.BCStyle;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x509.Extensions;
@@ -68,6 +70,7 @@ import java.util.ArrayList;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Set;
 import java.util.UUID;
 
 public class CertificateAuthority {
@@ -108,24 +111,10 @@ public class CertificateAuthority {
     }
 
     /**
-     * Given a common, return an X500 name built from it.
-     *
-     * @param commonName The common name to use
-     * @return A new X500Name built from the common name
-     * @see #getCommonNameFromX500Name
-     */
-    public static X500Name generateX500Name(String commonName) {
-        X500NameBuilder x500NameBuilder = new X500NameBuilder(BCStyle.INSTANCE);
-        x500NameBuilder.addRDN(BCStyle.CN, commonName);
-        return x500NameBuilder.build();
-    }
-
-    /**
      * Given an X500Name, return the common name from it.
      *
      * @param x500Name The X500 name string to extract from
      * @return The common name from the X500Name
-     * @see #generateX500Name
      */
     public static String getCommonNameFromX500Name(String x500Name) {
         return new X500Name(x500Name).getRDNs(BCStyle.CN)[0].getFirst().getValue().toString();
@@ -143,7 +132,6 @@ public class CertificateAuthority {
      * @throws IOException
      * @throws OperatorCreationException
      * @see #generateKeyPair
-     * @see #generateX500Name
      * @see #signCertificateRequest
      */
     public static PKCS10CertificationRequest generateCertificateRequest(KeyPair keyPair, String subjectDN,
@@ -777,9 +765,37 @@ public class CertificateAuthority {
      * Given a Java key pair, return the public key.
      *
      * @param keyPair Java KeyPair object
-     * @return The public key half of the key pair.
+     * @return The public key half of the key pair.=
      */
     public static PublicKey getPublicKey(KeyPair keyPair) {
         return keyPair.getPublic();
+    }
+
+    /**
+     * Given a list of attribute names followed by their values, construct an
+     * X.500 DN string. For example, if the list ["cn", "common", "o", org"] is
+     * passed in then the DN string "CN=common,O=org" is returned.
+     *
+     * @param rdnPairs A list of attribute and value pairs.
+     * @return A X.500 DN string constructed from the given map.
+     * @throws IllegalArgumentException If an invalid attribute name is found.
+     */
+    public static String x500Name(List<String> rdnPairs) {
+        if ((rdnPairs.size() % 2) != 0) {
+            throw new IllegalArgumentException(
+                    "The RDN pairs list must contain an even number of elements.");
+        }
+
+        X500NameBuilder builder = new X500NameBuilder(BCStyle.INSTANCE);
+
+        for (int i=0; i < rdnPairs.size(); i++) {
+            String attr = rdnPairs.get(i);
+            i++;
+            String val = rdnPairs.get(i);
+
+            builder.addRDN(BCStyle.INSTANCE.attrNameToOID(attr), val);
+        }
+
+        return builder.build().toString();
     }
 }

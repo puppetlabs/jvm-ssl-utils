@@ -101,11 +101,32 @@
     (sequential? data-structure)
     (mapv javaize data-structure)
 
+    (keyword? data-structure)
+    (name data-structure)
+
     :else
     data-structure))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Core
+
+(defn dn
+  "Given a sequence of attribute names and value pairs, generate an X.500 DN
+  string. For example, [:cn \"common\" :o \"org\"] would return
+  \"CN=common,O=org\""
+  [rdns]
+  {:pre  [(sequential? rdns)
+          (even? (count rdns))
+          (> (count rdns) 0)]
+   :post [(valid-x500-name? %)]}
+  (CertificateAuthority/x500Name (javaize rdns)))
+
+(defn cn
+  "Given a common name, generate an X.500 RDN from it"
+  [common-name]
+  {:pre [(string? common-name)]
+   :post [(valid-x500-name? %)]}
+  (dn [:cn common-name]))
 
 (defn keylength
   "Given a key, return the length key length that was used when generating it."

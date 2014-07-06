@@ -145,7 +145,7 @@
 
 (deftest name-test
   (testing "create X500 name from common name"
-    (let [x500-name "CN=common name"
+    (let [x500-name (cn "common name")
           common-name (x500-name->CN x500-name)]
       (is (valid-x500-name? x500-name))
       (is (= "common name" common-name)))))
@@ -159,7 +159,7 @@
 
 (deftest certification-request-test
   (testing "create CSR"
-    (let [subject "CN=subject"
+    (let [subject (cn "subject")
           csr     (generate-certificate-request (generate-key-pair) subject)]
       (is (certificate-request? csr))
       (is (has-subject? csr subject))))
@@ -168,7 +168,7 @@
     (let [pem (open-ssl-file "certification_requests/ca_test_client.pem")
           csr (pem->csr pem)]
       (is (certificate-request? csr))
-      (is (has-subject? csr "CN=ca_test_client")))
+      (is (has-subject? csr "CN=ca_test_client"))))
 
     (testing "throws exception if multiples found"
       (is (thrown-with-msg? IllegalArgumentException
@@ -176,19 +176,19 @@
                             (-> "certs/multiple.pem" open-ssl-file pem->csr)))))
 
   (testing "write CSR to PEM stream"
-    (let [subject    "CN=foo"
+    (let [subject    (cn "foo")
           orig-csr   (generate-certificate-request (generate-key-pair) subject)
           pem        (write-to-pem-stream orig-csr)
           parsed-csr (pem->csr pem)]
       (is (certificate-request? parsed-csr))
       (is (has-subject? parsed-csr subject))
-      (is (= orig-csr parsed-csr)))))
+      (is (= orig-csr parsed-csr))))
 
 (deftest signing-certificates
-  (let [subject    "CN=foo"
+  (let [subject    (cn "foo")
         key-pair   (generate-key-pair)
         subj-pub   (get-public-key key-pair)
-        issuer     "CN=my ca"
+        issuer     (cn "my ca")
         issuer-key (.getPrivate (generate-key-pair))
         not-before (generate-not-before-date)
         not-after  (generate-not-after-date)]
@@ -231,10 +231,10 @@
         (is (= (.getVersion actual) (expected :version))))))
 
   (testing "write certificate to PEM stream"
-    (let [subject     "CN=foo"
+    (let [subject     (cn "foo")
           key-pair    (generate-key-pair 512)
           subj-pub    (get-public-key key-pair)
-          issuer      "CN=my ca"
+          issuer      (cn "my ca")
           issuer-key  (.getPrivate (generate-key-pair))
           serial      42
           not-before  (generate-not-before-date)
@@ -253,7 +253,7 @@
   (let [key-pair    (generate-key-pair)
         public-key  (get-public-key key-pair)
         private-key (.getPrivate key-pair)
-        issuer-name "CN=my ca"
+        issuer-name (cn "my ca")
         crl         (generate-crl (X500Principal. issuer-name) private-key)]
 
     (testing "create CRL"
@@ -374,8 +374,8 @@
     (is (false? (private-key? "foo")))
     (is (false? (private-key? nil)))))
 
-(let [subject "CN=subject"
-      issuer  "CN=issuer"
+(let [subject (cn "subject")
+      issuer  (cn "issuer")
       key-pair (generate-key-pair 512)
       csr     (generate-certificate-request key-pair subject)
       cert    (sign-certificate issuer (.getPrivate (generate-key-pair 512))
@@ -389,6 +389,10 @@
       (is (= pub-key (get-public-key key-pair)))))
 
   (deftest valid-x500-name?-test
+    (is (= "CN=common name" (dn [:cn "common name"])))
+    (is (= "CN=cn,O=org" (dn [:cn "cn" :o "org"])))
+    (is (thrown? AssertionError (dn [])))
+    (is (thrown? AssertionError (dn [:cn :cn "cn"])))
     (is (true?  (valid-x500-name? subject)))
     (is (false? (valid-x500-name? "subject")))
     (is (false? (valid-x500-name? nil))))
