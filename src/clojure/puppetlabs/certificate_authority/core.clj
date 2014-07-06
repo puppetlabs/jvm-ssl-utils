@@ -558,3 +558,11 @@
   {:pre [(x500-principal? x500-principal)]
    :post [(string? %)]}
   (CertificateAuthority/getCnFromX500Principal x500-principal))
+
+(defn get-public-key
+  "Given an object which contains a public key, extract the public key
+  and return it."
+  [key-object]
+  {:pre [(or (certificate-request? key-object)
+             (keypair? key-object))]}
+  (CertificateAuthority/getPublicKey key-object))

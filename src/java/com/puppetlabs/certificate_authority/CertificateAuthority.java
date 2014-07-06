@@ -1,12 +1,14 @@
 package com.puppetlabs.certificate_authority;
 
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.DERBitString;
 import org.bouncycastle.asn1.DERSet;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.cert.CertIOException;
@@ -17,6 +19,8 @@ import org.bouncycastle.cert.X509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CRLConverter;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v2CRLBuilder;
+import org.bouncycastle.crypto.util.PublicKeyFactory;
+import org.bouncycastle.jce.provider.JCERSAPublicKey;
 import org.bouncycastle.openssl.PEMWriter;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.PEMKeyPair;
@@ -30,6 +34,7 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequestBuilder;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.Period;
+import sun.security.x509.X509Key;
 
 import javax.security.auth.x500.X500Principal;
 import javax.net.ssl.KeyManagerFactory;
@@ -41,6 +46,7 @@ import java.io.Reader;
 import java.io.Writer;
 import java.math.BigInteger;
 
+import java.security.KeyFactory;
 import java.security.KeyManagementException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -751,5 +757,29 @@ public class CertificateAuthority {
      */
     public static String getCnFromX500Principal(X500Principal principal) {
         return getCommonNameFromX500Name(principal.getName());
+    }
+
+    /**
+     * Gets the public key object from a PKCS10CertificationRequest.
+     *
+     * @param csr A Bouncy Castle certificate request.
+     * @return The PublicKey stored in certification request.
+     * @throws IOException
+     */
+    public static PublicKey getPublicKey(PKCS10CertificationRequest csr)
+            throws IOException
+    {
+        JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
+        return converter.getPublicKey(csr.getSubjectPublicKeyInfo());
+    }
+
+    /**
+     * Given a Java key pair, return the public key.
+     *
+     * @param keyPair Java KeyPair object
+     * @return The public key half of the key pair.
+     */
+    public static PublicKey getPublicKey(KeyPair keyPair) {
+        return keyPair.getPublic();
     }
 }
