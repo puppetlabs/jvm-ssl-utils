@@ -123,7 +123,6 @@ public class CertificateAuthority {
      * @throws IOException
      * @throws OperatorCreationException
      * @see #generateKeyPair
-     * @see #signCertificateRequest
      */
     public static PKCS10CertificationRequest generateCertificateRequest(KeyPair keyPair, String subjectDN,
         List<Map<String, Object>> extensions)
@@ -144,65 +143,6 @@ public class CertificateAuthority {
         return requestBuilder.build(
                 new JcaContentSignerBuilder("SHA1withRSA").
                         build(keyPair.getPrivate()));
-    }
-
-    /**
-     * Given a certificate signing request and certificate authority
-     * information, sign the request and return the signed certificate. If
-     * extensions is not null, then all extensions in the list will be written
-     * to the new signed certificate. The maps in the extensions list will have
-     * the same form as ExtensionsUtils.getExtensionsList().
-     *
-     * @param certReq The signing request
-     * @param issuer The certificate authority's name
-     * @param serialNum An arbitrary serial number
-     * @param issuerPrivateKey The certificate authority's private key
-     * @param extensions A list of X509 extensions to sign into the certificate.
-     * @return A signed certificate for the subject
-     * @throws OperatorCreationException
-     * @throws CertificateException
-     * @throws CertIOException
-     * @see #generateCertificateRequest
-     */
-    public static X509Certificate signCertificateRequest(PKCS10CertificationRequest certReq,
-                                                         X500Name issuer,
-                                                         BigInteger serialNum,
-                                                         PrivateKey issuerPrivateKey,
-                                                         List<Map<String, Object>> extensions)
-            throws OperatorCreationException, CertificateException, IOException {
-        // Make the certificate valid as of yesterday, because so many people's
-        // clocks are out of sync.  This gives one more day of validity than people
-        // might expect, but is better than making every person who has a messed up
-        // clock fail, and better than having every cert we generate expire a day
-        // before the user expected it to when they asked for "one year".
-        DateTime notBefore = DateTime.now().minus(Period.days(1));
-        DateTime notAfter = DateTime.now().plus(Period.years(5));
-
-        X509v3CertificateBuilder builder = new X509v3CertificateBuilder(
-                issuer,
-                serialNum,
-                notBefore.toDate(),
-                notAfter.toDate(),
-                certReq.getSubject(),
-                certReq.getSubjectPublicKeyInfo());
-
-        Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
-        if (extensions != null) {
-            for (ASN1ObjectIdentifier oid : bcExtensions.getNonCriticalExtensionOIDs()) {
-                builder.addExtension(oid, false, bcExtensions.getExtensionParsedValue(oid));
-            }
-
-            for (ASN1ObjectIdentifier oid : bcExtensions.getCriticalExtensionOIDs()) {
-                builder.addExtension(oid, true, bcExtensions.getExtensionParsedValue(oid));
-            }
-        }
-
-        JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder("SHA256WithRSA");
-        ContentSigner signer = signerBuilder.build(issuerPrivateKey);
-
-        X509CertificateHolder holder = builder.build(signer);
-        JcaX509CertificateConverter converter = new JcaX509CertificateConverter();
-        return converter.getCertificate(holder);
     }
 
     /**
