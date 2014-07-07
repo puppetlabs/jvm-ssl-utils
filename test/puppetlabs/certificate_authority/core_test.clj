@@ -83,7 +83,7 @@
   (testing "generate public & private keys"
     (let [key-pair (generate-key-pair)
           public   (get-public-key key-pair)
-          private  (.getPrivate key-pair)]
+          private  (get-private-key key-pair)]
       (is (keypair? key-pair))
       (is (public-key? public))
       (is (private-key? private))))
@@ -94,7 +94,7 @@
              ["is configurable"  (generate-key-pair 1024) 1024]]]
       (testing test-str
         (let [public-length  (-> keypair get-public-key keylength)
-              private-length (-> keypair .getPrivate keylength)]
+              private-length (-> keypair get-private-key keylength)]
           (is (= expected-length public-length))
           (is (= expected-length private-length))))))
 
@@ -131,7 +131,7 @@
       (is (every? private-key? private-keys))))
 
   (testing "write private key to PEM stream"
-    (let [original-key (.getPrivate (generate-key-pair 512))
+    (let [original-key (get-private-key (generate-key-pair 512))
           parsed-key   (-> original-key
                            (write-to-pem-stream key->pem!)
                            pem->private-key)]
@@ -189,7 +189,7 @@
         key-pair   (generate-key-pair)
         subj-pub   (get-public-key key-pair)
         issuer     (cn "my ca")
-        issuer-key (.getPrivate (generate-key-pair))
+        issuer-key (get-private-key (generate-key-pair))
         not-before (generate-not-before-date)
         not-after  (generate-not-after-date)]
     (testing "sign certificate"
@@ -235,7 +235,7 @@
           key-pair    (generate-key-pair 512)
           subj-pub    (get-public-key key-pair)
           issuer      (cn "my ca")
-          issuer-key  (.getPrivate (generate-key-pair))
+          issuer-key  (get-private-key (generate-key-pair))
           serial      42
           not-before  (generate-not-before-date)
           not-after   (generate-not-after-date)
@@ -252,7 +252,7 @@
 (deftest certificate-revocation-list
   (let [key-pair    (generate-key-pair)
         public-key  (get-public-key key-pair)
-        private-key (.getPrivate key-pair)
+        private-key (get-private-key key-pair)
         issuer-name (cn "my ca")
         crl         (generate-crl (X500Principal. issuer-name) private-key)]
 
@@ -273,7 +273,6 @@
         (is (certificate-revocation-list? parsed-crl))
         (is (issued-by? parsed-crl issuer-name))
         (is (= crl parsed-crl))))))
-
 
 (deftest keystore-test
   (testing "create keystore"
@@ -350,7 +349,7 @@
 
 (let [keypair (generate-key-pair 512)
       public (get-public-key keypair)
-      private (.getPrivate keypair)]
+      private (get-private-key keypair)]
 
   (deftest keypair?-test
     (is (true? (keypair? keypair)))
@@ -378,11 +377,11 @@
       issuer  (cn "issuer")
       key-pair (generate-key-pair 512)
       csr     (generate-certificate-request key-pair subject)
-      cert    (sign-certificate issuer (.getPrivate (generate-key-pair 512))
+      cert    (sign-certificate issuer (get-private-key (generate-key-pair 512))
                                 42 (generate-not-before-date)
                                 (generate-not-after-date) subject
                                 (get-public-key (generate-key-pair 512)))
-      crl     (generate-crl (X500Principal. (str issuer)) (.getPrivate (generate-key-pair 512)))]
+      crl     (generate-crl (X500Principal. (str issuer)) (get-private-key (generate-key-pair 512)))]
 
   (deftest getting-public-key
     (let [pub-key (get-public-key csr)]

@@ -585,5 +585,13 @@
   and return it."
   [key-object]
   {:pre [(or (certificate-request? key-object)
-             (keypair? key-object))]}
+             (keypair? key-object))]
+   :post [(instance? PublicKey %)]}
   (CertificateAuthority/getPublicKey key-object))
+
+(defn get-private-key
+  "Given an object which contains a private key, extract and return it."
+  [key-object]
+  {:pre [(keypair? key-object)]
+   :post [(instance? PrivateKey %)]}
+  (CertificateAuthority/getPrivateKey key-object))
