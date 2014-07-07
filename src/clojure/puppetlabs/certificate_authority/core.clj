@@ -36,6 +36,12 @@
        (not (nil? (:critical x)))
        (not (nil? (:value x)))))
 
+(defn extension-list?
+  "Returns true if the given data structure is a list that contains extensions."
+  [x]
+  (and (sequential? x)
+       (every? extension? x)))
+
 (defn keypair?
   "Returns true if x is a keypair (see `generate-key-pair`)."
   [x]
@@ -180,7 +186,7 @@
   ([keypair subject-dn extensions]
    {:pre  [(keypair? keypair)
            (valid-x500-name? subject-dn)
-           (sequential? extensions)]
+           (extension-list? extensions)]
     :post [(certificate-request? %)]}
    (CertificateAuthority/generateCertificateRequest
      keypair subject-dn extensions)))
@@ -214,8 +220,7 @@
           (instance? Date not-after)
           (valid-x500-name? subject-dn)
           (public-key? subject-pub-key)
-          (sequential? extensions)
-          (every? extension? extensions)]
+          (extension-list? extensions)]
     :post [(certificate? %)]}
    (CertificateAuthority/signCertificate
      issuer-dn issuer-priv-key (biginteger serial) not-before not-after subject-dn
@@ -555,8 +560,7 @@
   [ext-container]
   {:pre [(or (certificate? ext-container)
              (certificate-request? ext-container))]
-   :post [(sequential? %)
-          (every? extension? %)]}
+   :post [(extension-list? %)]}
   (-> (ExtensionsUtils/getExtensionList (javaize ext-container))
       clojureize))
 
