@@ -27,6 +27,15 @@
     (catch Exception _
       false)))
 
+(defn extension?
+  "Returns true if the given map contains all the fields required to define an
+  extension."
+  [x]
+  (and (map? x)
+       (string? (:oid x))
+       (not (nil? (:critical x)))
+       (not (nil? (:value x)))))
+
 (defn keypair?
   "Returns true if x is a keypair (see `generate-key-pair`)."
   [x]
@@ -70,7 +79,7 @@
   (instance? X509CRL x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Utilities
+;;; Internal
 
 (defn clojureize
   "Convert a Java data structure returned from a Java utility method into a
@@ -205,7 +214,8 @@
           (instance? Date not-after)
           (valid-x500-name? subject-dn)
           (public-key? subject-pub-key)
-          (sequential? extensions)]
+          (sequential? extensions)
+          (every? extension? extensions)]
     :post [(certificate? %)]}
    (CertificateAuthority/signCertificate
      issuer-dn issuer-priv-key (biginteger serial) not-before not-after subject-dn
@@ -544,7 +554,9 @@
   `critical` : True if this is a critical extensions, false if it is not."
   [ext-container]
   {:pre [(or (certificate? ext-container)
-             (certificate-request? ext-container))]}
+             (certificate-request? ext-container))]
+   :post [(sequential? %)
+          (every? extension? %)]}
   (-> (ExtensionsUtils/getExtensionList (javaize ext-container))
       clojureize))
 
@@ -557,7 +569,7 @@
              (certificate-request? ext-container)
              (instance? List ext-container))
          (string? oid)]
-   :post [(map? %)]}
+   :post [(extension? %)]}
   (-> (ExtensionsUtils/getExtension (javaize ext-container) oid)
       clojureize))
 
@@ -593,5 +605,5 @@
   "Given an object which contains a private key, extract and return it."
   [key-object]
   {:pre [(keypair? key-object)]
-   :post [(instance? PrivateKey %)]}
+   :post [(private-key? %)]}
   (CertificateAuthority/getPrivateKey key-object))
