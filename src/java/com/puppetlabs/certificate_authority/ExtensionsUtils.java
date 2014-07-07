@@ -53,8 +53,7 @@ public class ExtensionsUtils {
      * @throws CertificateEncodingException
      * @see #getExtensionList(Extensions)
      */
-    public static List<Map<String, Object>>
-    getExtensionList(X509Certificate cert)
+    public static List<Map<String, Object>> getExtensionList(X509Certificate cert)
             throws IOException, CertificateEncodingException
     {
         Extensions extensions = getExtensionsFromCert(cert);
@@ -77,8 +76,7 @@ public class ExtensionsUtils {
      * @throws IOException
      * @see #getExtensionList(Extensions)
      */
-    public static List<Map<String, Object>>
-    getExtensionList(PKCS10CertificationRequest csr)
+    public static List<Map<String, Object>> getExtensionList(PKCS10CertificationRequest csr)
             throws IOException
     {
         Extensions extensions = getExtensionsFromCSR(csr);
@@ -99,8 +97,7 @@ public class ExtensionsUtils {
      * @param oid The OID of the extension to be found.
      * @return The map containing the extension value and critical flag.
      */
-    public static Map<String, Object>
-    getExtension(X509Certificate cert, String oid)
+    public static Map<String, Object> getExtension(X509Certificate cert, String oid)
             throws IOException, CertificateEncodingException
     {
         Extensions extensions = getExtensionsFromCert(cert);
@@ -122,8 +119,7 @@ public class ExtensionsUtils {
      * @return A map describing the extension requested by its OID.
      * @throws IOException
      */
-    public static Map<String, Object>
-    getExtension(PKCS10CertificationRequest csr, String oid)
+    public static Map<String, Object> getExtension(PKCS10CertificationRequest csr, String oid)
             throws IOException
     {
         Extensions extensions = getExtensionsFromCSR(csr);
@@ -146,8 +142,8 @@ public class ExtensionsUtils {
      * @see #getExtensionList(org.bouncycastle.asn1.x509.Extensions)
      * @see #getExtensionList(java.security.cert.X509Certificate)
      */
-    public static Map<String, Object>
-    getExtension(List<Map<String, Object>> extList, String oid)
+    public static Map<String, Object> getExtension(List<Map<String, Object>> extList,
+                                                   String oid)
     {
         for (Map<String, Object> ext: extList) {
             if (ext.get("oid").equals(oid)) {
@@ -158,27 +154,26 @@ public class ExtensionsUtils {
         return null;
     }
 
-    public static Object
-    getExtensionValue(X509Certificate cert, String oid)
+    public static Object getExtensionValue(X509Certificate cert, String oid)
             throws IOException, CertificateEncodingException
     {
         return getExtensionValue(getExtension(cert, oid));
     }
 
-    public static Object
-    getExtensionValue(PKCS10CertificationRequest csr, String oid)
+    public static Object getExtensionValue(PKCS10CertificationRequest csr,
+                                           String oid)
             throws IOException
     {
         return getExtensionValue(getExtension(csr, oid));
     }
 
-    public static Object
-    getExtensionValue(List<Map<String, Object>> extList, String oid) {
+    public static Object getExtensionValue(List<Map<String, Object>> extList,
+                                           String oid)
+    {
         return getExtensionValue(getExtension(extList, oid));
     }
 
-    public static Object
-    getExtensionValue(Map<String, Object> extMap) {
+    public static Object getExtensionValue(Map<String, Object> extMap) {
         if (extMap != null) {
             return extMap.get("value");
         } else {
@@ -196,8 +191,9 @@ public class ExtensionsUtils {
      *         certificate.
      * @throws IOException
      */
-    private static List<Map<String, Object>>
-    getExtensionList(Extensions exts) throws IOException {
+    private static List<Map<String, Object>> getExtensionList(Extensions exts)
+            throws IOException
+    {
         List<Map<String, Object>> ret = new ArrayList<Map<String, Object>>();
 
         for (ASN1ObjectIdentifier oid : exts.getCriticalExtensionOIDs()) {
@@ -221,8 +217,8 @@ public class ExtensionsUtils {
      * @return A map
      * @throws IOException
      */
-    private static Map<String, Object>
-    makeExtensionMap(Extensions exts, ASN1ObjectIdentifier oid)
+    private static Map<String, Object> makeExtensionMap(Extensions exts,
+                                                        ASN1ObjectIdentifier oid)
             throws IOException
     {
         boolean critical = Arrays.asList(exts.getCriticalExtensionOIDs()).contains(oid);
@@ -236,8 +232,7 @@ public class ExtensionsUtils {
      * @param csr The CSR object to extract the Extensions container from.
      * @return An extensions container extracted form the CSR.
      */
-    static Extensions
-    getExtensionsFromCSR(PKCS10CertificationRequest csr) {
+    static Extensions getExtensionsFromCSR(PKCS10CertificationRequest csr) {
         for (Attribute attr : csr.getAttributes()) {
             if (attr.getAttrType() == PKCSObjectIdentifiers.pkcs_9_at_extensionRequest) {
                 // TODO: All this casting shouldn't be needed.
@@ -264,8 +259,7 @@ public class ExtensionsUtils {
      * @return The results Extensions container.
      * @see #parseExtensionObject(java.util.Map)
      */
-    static Extensions
-    getExtensionsObjFromMap(List<Map<String,Object>> extMapsList)
+    static Extensions getExtensionsObjFromMap(List<Map<String,Object>> extMapsList)
             throws IOException
     {
         List<Extension> ret = new ArrayList<Extension>();
@@ -285,8 +279,7 @@ public class ExtensionsUtils {
      * @return A parsed Extension object.
      * @throws IOException
      */
-    static Extension
-    parseExtensionObject(Map<String, Object> extMap)
+    static Extension parseExtensionObject(Map<String, Object> extMap)
             throws IOException
     {
         ASN1ObjectIdentifier oid = new ASN1ObjectIdentifier((String)extMap.get("oid"));
@@ -316,8 +309,7 @@ public class ExtensionsUtils {
      * @throws CertificateEncodingException
      * @throws IOException
      */
-    private static Extensions
-    getExtensionsFromCert(X509Certificate cert)
+    private static Extensions getExtensionsFromCert(X509Certificate cert)
             throws CertificateEncodingException, IOException
     {
         return new X509CertificateHolder(cert.getEncoded()).getExtensions();
@@ -342,20 +334,22 @@ public class ExtensionsUtils {
      *         in the provided Extensions container.
      * @throws IOException
      */
-    private static Map<String, Object>
-    makeExtensionMap(Extensions exts, final ASN1ObjectIdentifier oid, final boolean critical)
+    private static Map<String, Object> makeExtensionMap(Extensions exts,
+                                                        ASN1ObjectIdentifier oid,
+                                                        boolean critical)
             throws IOException
     {
         Extension ext = exts.getExtension(oid);
         if (ext != null) {
-            final byte[] extensionData = ext.getExtnValue().getOctets();
-            final ASN1Object asn1Value = binaryToASN1Object(oid, extensionData);
+            byte[] extensionData = ext.getExtnValue().getOctets();
+            ASN1Object asn1Value = binaryToASN1Object(oid, extensionData);
 
-            return new HashMap<String, Object>() {{
-                put("oid", oid.getId());
-                put("critical", critical);
-                put("value", asn1ObjToObj(asn1Value));
-            }};
+            HashMap<String, Object> ret = new HashMap<String, Object>();
+            ret.put("oid", oid.getId());
+            ret.put("critical", critical);
+            ret.put("value", asn1ObjToObj(asn1Value));
+
+            return ret;
         } else {
             return null;
         }
@@ -373,8 +367,8 @@ public class ExtensionsUtils {
      *         provided OID.
      * @throws IOException
      */
-    private static ASN1Object
-    binaryToASN1Object(ASN1ObjectIdentifier oid, byte[] data)
+    private static ASN1Object binaryToASN1Object(ASN1ObjectIdentifier oid,
+                                                 byte[] data)
             throws IOException
     {
         if (oid.equals(Extension.subjectAlternativeName) ||
@@ -450,23 +444,21 @@ public class ExtensionsUtils {
         }
     }
 
-    private static Map<String, Boolean>
-    keyUsageToMap(final KeyUsage ku) {
-        return new HashMap<String, Boolean>() {{
-            put("digital_signature", ku.hasUsages(KeyUsage.digitalSignature));
-            put("non_repudiation",   ku.hasUsages(KeyUsage.nonRepudiation));
-            put("key_encipherment",  ku.hasUsages(KeyUsage.keyEncipherment));
-            put("data_encipherment", ku.hasUsages(KeyUsage.dataEncipherment));
-            put("key_agreement",     ku.hasUsages(KeyUsage.keyAgreement));
-            put("key_cert_sign",     ku.hasUsages(KeyUsage.keyCertSign));
-            put("crl_sign",          ku.hasUsages(KeyUsage.cRLSign));
-            put("encipher_only",     ku.hasUsages(KeyUsage.encipherOnly));
-            put("decipher_only",     ku.hasUsages(KeyUsage.decipherOnly));
-        }};
+    private static Map<String, Boolean> keyUsageToMap(KeyUsage ku) {
+        HashMap<String, Boolean> ret = new HashMap<String, Boolean>();
+        ret.put("digital_signature", ku.hasUsages(KeyUsage.digitalSignature));
+        ret.put("non_repudiation",   ku.hasUsages(KeyUsage.nonRepudiation));
+        ret.put("key_encipherment",  ku.hasUsages(KeyUsage.keyEncipherment));
+        ret.put("data_encipherment", ku.hasUsages(KeyUsage.dataEncipherment));
+        ret.put("key_agreement",     ku.hasUsages(KeyUsage.keyAgreement));
+        ret.put("key_cert_sign",     ku.hasUsages(KeyUsage.keyCertSign));
+        ret.put("crl_sign",          ku.hasUsages(KeyUsage.cRLSign));
+        ret.put("encipher_only",     ku.hasUsages(KeyUsage.encipherOnly));
+        ret.put("decipher_only",     ku.hasUsages(KeyUsage.decipherOnly));
+        return ret;
     }
 
-    private static List<Object>
-    extKeyUsageToList(ExtendedKeyUsage eku)
+    private static List<Object> extKeyUsageToList(ExtendedKeyUsage eku)
             throws IOException
     {
         List<Object> ret = new ArrayList<Object>();
@@ -476,16 +468,14 @@ public class ExtensionsUtils {
         return ret;
     }
 
-    private static Map<String, Object>
-    basicConstraintsToMap(BasicConstraints bc) {
+    private static Map<String, Object> basicConstraintsToMap(BasicConstraints bc) {
         Map<String, Object> ret = new HashMap<String, Object>();
         ret.put("is_ca", bc.isCA());
         ret.put("path_len_constraint", bc.getPathLenConstraint());
         return ret;
     }
 
-    private static Map<String, Object>
-    authorityKeyIdToMap(AuthorityKeyIdentifier akid)
+    private static Map<String, Object> authorityKeyIdToMap(AuthorityKeyIdentifier akid)
             throws IOException
     {
         Map<String, Object> ret = new HashMap<String, Object>();
@@ -502,8 +492,7 @@ public class ExtensionsUtils {
      * @return A List of parsed ASN1 objects contained in the provided sequence.
      * @throws IOException
      */
-    private static List<Object>
-    asn1SeqToList(ASN1Sequence seq)
+    private static List<Object> asn1SeqToList(ASN1Sequence seq)
             throws IOException
     {
         List<Object> ret = new ArrayList<Object>();
@@ -583,8 +572,7 @@ public class ExtensionsUtils {
      * @return A Bouncy Castle GeneralNames object.
      * @see #generalNamesToMap(org.bouncycastle.asn1.x509.GeneralNames)
      */
-    private static GeneralNames
-    mapToGeneralNames(Map<String, List<String>> gnMap) {
+    private static GeneralNames mapToGeneralNames(Map<String, List<String>> gnMap) {
         List<GeneralName> ret = new ArrayList<GeneralName>();
         for (String type: gnMap.keySet()) {
             Integer tag = getGnTagFromName(type);
@@ -602,5 +590,4 @@ public class ExtensionsUtils {
         }
         return new GeneralNames(ret.toArray(new GeneralName[ret.size()]));
     }
-
 }
