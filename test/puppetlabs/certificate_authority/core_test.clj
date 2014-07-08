@@ -7,8 +7,6 @@
            (javax.net.ssl SSLContext)
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
-           (com.puppetlabs.certificate_authority CertificateAuthority
-                                                 ExtensionsUtils)
            (org.joda.time DateTime Period))
   (:require [clojure.test :refer :all]
             [clojure.java.io :refer [resource reader]]
