@@ -3,7 +3,6 @@ package com.puppetlabs.certificate_authority.test;
 import com.puppetlabs.certificate_authority.CertificateAuthority;
 
 import org.apache.commons.io.FileUtils;
-import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.joda.time.DateTime;
@@ -18,7 +17,6 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.ArrayList;
 
 public class PuppetMasterCertManager {
     private static final String PATH_CA_PUBLIC_KEY      = "ca/ca_pub.pem";
@@ -59,7 +57,7 @@ public class PuppetMasterCertManager {
         this.sslDir = PathUtils.concat(confDir, "ssl");
         this.masterCertname = masterCertname;
 
-        this.caX500Name = "CN=" + masterCertname;
+        this.caX500Name = CertificateAuthority.x500NameCn("Puppet CA: " + masterCertname);
 
         this.caPublicKeyPath  = PathUtils.concat(sslDir, PATH_CA_PUBLIC_KEY);
         this.caPrivateKeyPath = PathUtils.concat(sslDir, PATH_CA_PRIVATE_KEY);
@@ -68,7 +66,7 @@ public class PuppetMasterCertManager {
 
         this.masterPublicKeyPath  = PathUtils.concat(sslDir, PATH_HOST_PUBLIC_KEYS, this.masterCertname + ".pem");
         this.masterPrivateKeyPath = PathUtils.concat(sslDir, PATH_HOST_PRIVATE_KEYS, this.masterCertname + ".pem");
-        this.masterCertPath       = getHostCertPath(this.masterCertname.toString());
+        this.masterCertPath       = getHostCertPath(this.masterCertname);
 
         initializeCACert();
 
@@ -92,11 +90,11 @@ public class PuppetMasterCertManager {
     {
         // TODO: we are just autosigning here, never saving the CSR to disk.
         X509Certificate cert = CertificateAuthority.signCertificate(
-                certRequest.getSubject().toString(),
+                caX500Name,
                 caPrivateKey,
                 nextSerial(),
                 this.notBefore, this.notAfter,
-                caX500Name.toString(),
+                certRequest.getSubject().toString(),
                 CertificateAuthority.getPublicKey(certRequest),
                 null);
 
@@ -168,10 +166,10 @@ public class PuppetMasterCertManager {
         CertificateAuthority.writeToPEM(masterKeyPair.getPublic(), new FileWriter(masterPublicKeyPath));
         CertificateAuthority.writeToPEM(masterKeyPair.getPrivate(), new FileWriter(masterPrivateKeyPath));
 
-        String masterX500Name = "CN=" + masterCertname;
+        String masterX500Name = CertificateAuthority.x500NameCn(masterCertname);
 
         X509Certificate caCert = CertificateAuthority.signCertificate(
-                caX500Name.toString(),
+                caX500Name,
                 caPrivateKey,
                 nextSerial(),
                 notBefore, notAfter,
