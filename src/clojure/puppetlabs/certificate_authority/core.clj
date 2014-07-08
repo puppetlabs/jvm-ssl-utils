@@ -141,7 +141,7 @@
   [common-name]
   {:pre [(string? common-name)]
    :post [(valid-x500-name? %)]}
-  (dn [:cn common-name]))
+  (CertificateAuthority/x500NameCn common-name))
 
 (defn keylength
   "Given a key, return the length key length that was used when generating it."

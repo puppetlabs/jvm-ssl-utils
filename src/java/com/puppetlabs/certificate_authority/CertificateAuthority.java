@@ -739,4 +739,14 @@ public class CertificateAuthority {
 
         return builder.build().toString();
     }
+
+    /**
+     * Create an RDN which contains the given common name.
+     *
+     * @param commonName Common name string
+     * @return The RDN form of the common name.
+     */
+    public static String x500NameCn(String commonName) {
+        return new X500NameBuilder(BCStyle.INSTANCE).addRDN(BCStyle.CN, commonName).build().toString();
+    }
 }
