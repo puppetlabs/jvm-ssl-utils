@@ -262,13 +262,16 @@ public class ExtensionsUtils {
     static Extensions getExtensionsObjFromMap(List<Map<String,Object>> extMapsList)
             throws IOException
     {
-        List<Extension> ret = new ArrayList<Extension>();
+        if ((extMapsList != null) && (extMapsList.size() > 0)) {
+            List<Extension> ret = new ArrayList<Extension>();
+            for (Map<String, Object> extObj : extMapsList) {
+                ret.add(parseExtensionObject(extObj));
+            }
 
-        for (Map<String, Object> extObj: extMapsList) {
-            ret.add(parseExtensionObject(extObj));
+            return new Extensions(ret.toArray(new Extension[ret.size()]));
+        } else {
+            return null;
         }
-
-        return new Extensions(ret.toArray(new Extension[ret.size()]));
     }
 
     /**
@@ -505,7 +508,7 @@ public class ExtensionsUtils {
     }
 
     /** The key name each tag number represents in a GeneralNames data structure */
-    private static Map<Integer, String> generalNameTags =
+    private static final Map<Integer, String> generalNameTags =
             new HashMap<Integer, String>() {{
                 put(0, "other_name");
                 put(1, "rfc822_name");

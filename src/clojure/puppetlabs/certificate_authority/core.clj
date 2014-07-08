@@ -602,7 +602,7 @@
   [key-object]
   {:pre [(or (certificate-request? key-object)
              (keypair? key-object))]
-   :post [(instance? PublicKey %)]}
+   :post [(public-key? %)]}
   (CertificateAuthority/getPublicKey key-object))
 
 (defn get-private-key
