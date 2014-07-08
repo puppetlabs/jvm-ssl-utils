@@ -187,7 +187,7 @@ public class CertificateAuthority {
                 pubKeyInfo);
 
         Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
-        if (extensions != null) {
+        if (bcExtensions != null) {
             for (ASN1ObjectIdentifier oid : bcExtensions.getNonCriticalExtensionOIDs()) {
                 builder.addExtension(oid, false, bcExtensions.getExtensionParsedValue(oid));
             }
