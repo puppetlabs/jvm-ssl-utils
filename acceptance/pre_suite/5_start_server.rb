@@ -2,11 +2,12 @@ step "Start certificate-authority test server" do
   vm = hosts.first
 
   server_log = '/tmp/jvm-ca-server-log.out'
-  command = 'cd /tmp/jvm-certificate-authority && ' +
+  command = 'service iptables stop && ' +
+            'cd /tmp/jvm-certificate-authority && ' +
             "bash -c \"LEIN_ROOT=true lein with-profile +acceptance server > #{server_log} &\""
   on(vm, command)
 
-  timeout = 60
+  timeout = 120
   if port_open_within?(vm, 8080, timeout)
     on(vm, "cat #{server_log}") do |result|
       puts result.stderr
