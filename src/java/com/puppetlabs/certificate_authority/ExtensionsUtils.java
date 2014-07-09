@@ -291,7 +291,9 @@ public class ExtensionsUtils {
         if (oid.equals(Extension.subjectAlternativeName) ||
             oid.equals(Extension.issuerAlternativeName))
         {
-            ret = mapToGeneralNames((Map<String, List<String>>) extMap.get("value"));
+            @SuppressWarnings("unchecked")
+            Map<String, List<String>> val = (Map<String, List<String>>) extMap.get("value");
+            ret = mapToGeneralNames(val);
         } else {
             throw new IllegalArgumentException(
                     "Parsing an extension with an OID=" +
