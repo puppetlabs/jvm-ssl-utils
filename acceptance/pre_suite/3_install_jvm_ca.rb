@@ -12,7 +12,7 @@ step "Install jvm-certificate-authority" do
 
   repo_owner = ENV['REPO_OWNER'] || 'puppetlabs'
   revision = ENV['REVISION'] || 'master'
-  install_from_git(vm, '/tmp', {:path => "git@github.com:#{repo_owner}/jvm-certificate-authority.git",
+  install_from_git(vm, '/tmp', {:path => "https://github.com/#{repo_owner}/jvm-certificate-authority.git",
                                 :name => 'jvm-certificate-authority',
                                 :rev => revision})
 

@@ -6,7 +6,8 @@
            (javax.security.auth.x500 X500Principal)
            (javax.net.ssl SSLContext)
            (org.bouncycastle.asn1.x500 X500Name)
-           (org.bouncycastle.pkcs PKCS10CertificationRequest))
+           (org.bouncycastle.pkcs PKCS10CertificationRequest)
+           (org.joda.time DateTime Period))
   (:require [clojure.test :refer :all]
             [clojure.java.io :refer [resource reader]]
             [puppetlabs.certificate-authority.core :refer :all]))
@@ -63,14 +64,24 @@
   [x x500-name]
   (issued-by? x (str x500-name)))
 
+(defn generate-not-before-date []
+  (-> (DateTime/now)
+      (.minus (Period/days 1))
+      (.toDate)))
+
+(defn generate-not-after-date []
+  (-> (DateTime/now)
+      (.plus (Period/years 5))
+      (.toDate)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Tests
 
 (deftest key-test
   (testing "generate public & private keys"
     (let [key-pair (generate-key-pair)
-          public   (.getPublic key-pair)
-          private  (.getPrivate key-pair)]
+          public   (get-public-key key-pair)
+          private  (get-private-key key-pair)]
       (is (keypair? key-pair))
       (is (public-key? public))
       (is (private-key? private))))
@@ -80,8 +91,8 @@
             [["defaults to 4096" (generate-key-pair)      4096]
              ["is configurable"  (generate-key-pair 1024) 1024]]]
       (testing test-str
-        (let [public-length  (-> keypair .getPublic keylength)
-              private-length (-> keypair .getPrivate keylength)]
+        (let [public-length  (-> keypair get-public-key keylength)
+              private-length (-> keypair get-private-key keylength)]
           (is (= expected-length public-length))
           (is (= expected-length private-length))))))
 
@@ -92,7 +103,7 @@
       (is (public-key? public-key))))
 
   (testing "write public key to PEM stream"
-    (let [original-key (.getPublic (generate-key-pair 512))
+    (let [original-key (get-public-key (generate-key-pair 512))
           parsed-key   (-> original-key
                            (write-to-pem-stream key->pem!)
                            pem->public-key)]
@@ -118,7 +129,7 @@
       (is (every? private-key? private-keys))))
 
   (testing "write private key to PEM stream"
-    (let [original-key (.getPrivate (generate-key-pair 512))
+    (let [original-key (get-private-key (generate-key-pair 512))
           parsed-key   (-> original-key
                            (write-to-pem-stream key->pem!)
                            pem->private-key)]
@@ -132,9 +143,9 @@
 
 (deftest name-test
   (testing "create X500 name from common name"
-    (let [x500-name   (generate-x500-name "common name")
+    (let [x500-name (cn "common name")
           common-name (x500-name->CN x500-name)]
-      (is (x500-name? x500-name))
+      (is (valid-x500-name? x500-name))
       (is (= "common name" common-name)))))
 
 (deftest cn-from-x500principal-test
@@ -146,27 +157,16 @@
 
 (deftest certification-request-test
   (testing "create CSR"
-    (let [subject (generate-x500-name "subject")
+    (let [subject (cn "subject")
           csr     (generate-certificate-request (generate-key-pair) subject)]
       (is (certificate-request? csr))
       (is (has-subject? csr subject))))
-
-  (testing "sign CSR"
-    (let [subject     (generate-x500-name "foo")
-          csr         (generate-certificate-request (generate-key-pair) subject)
-          issuer      (generate-x500-name "my ca")
-          issuer-key  (.getPrivate (generate-key-pair))
-          certificate (sign-certificate-request csr issuer 42 issuer-key)]
-      (is (certificate? certificate))
-      (is (has-subject? certificate subject))
-      (is (issued-by? certificate issuer))
-      (is (= (.getSerialNumber certificate) 42))))
 
   (testing "read CSR from PEM stream"
     (let [pem (open-ssl-file "certification_requests/ca_test_client.pem")
           csr (pem->csr pem)]
       (is (certificate-request? csr))
-      (is (has-subject? csr "CN=ca_test_client")))
+      (is (has-subject? csr "CN=ca_test_client"))))
 
     (testing "throws exception if multiples found"
       (is (thrown-with-msg? IllegalArgumentException
@@ -174,14 +174,38 @@
                             (-> "certs/multiple.pem" open-ssl-file pem->csr)))))
 
   (testing "write CSR to PEM stream"
-    (let [subject    (generate-x500-name "foo")
+    (let [subject    (cn "foo")
           orig-csr   (generate-certificate-request (generate-key-pair) subject)
           pem        (write-to-pem-stream orig-csr)
           parsed-csr (pem->csr pem)]
       (is (certificate-request? parsed-csr))
       (is (has-subject? parsed-csr subject))
-      (is (= orig-csr parsed-csr)))))
+      (is (= orig-csr parsed-csr))))
 
+(deftest signing-certificates
+  (let [subject    (cn "foo")
+        key-pair   (generate-key-pair)
+        subj-pub   (get-public-key key-pair)
+        issuer     (cn "my ca")
+        issuer-key (get-private-key (generate-key-pair))
+        not-before (generate-not-before-date)
+        not-after  (generate-not-after-date)]
+    (testing "sign certificate"
+      (let [certificate (sign-certificate issuer issuer-key 42 not-before not-after
+                                          subject subj-pub)]
+        (is (certificate? certificate))
+        (is (has-subject? certificate subject))
+        (is (issued-by? certificate issuer))
+        (is (= (.getSerialNumber certificate) 42))))
+
+    (testing "signing extensions into certificate"
+      (let [sign-exts   [{:oid      "2.5.29.17"
+                          :critical false
+                          :value    {:dns-name ["onefish" "twofish"]}}]
+            cert-w-exts (sign-certificate issuer issuer-key 42 not-before
+                                          not-after subject subj-pub sign-exts)
+            cert-exts   (get-extensions cert-w-exts)]
+        (is (= cert-exts sign-exts))))))
 
 (deftest certificate-test
   (testing "read certificates from PEM stream"
@@ -205,24 +229,29 @@
         (is (= (.getVersion actual) (expected :version))))))
 
   (testing "write certificate to PEM stream"
-    (let [subject     (generate-x500-name "foo")
-          csr         (generate-certificate-request (generate-key-pair) subject)
-          issuer      (generate-x500-name "my ca")
-          orig-cert   (sign-certificate-request csr issuer 42 (.getPrivate (generate-key-pair)))
+    (let [subject     (cn "foo")
+          key-pair    (generate-key-pair 512)
+          subj-pub    (get-public-key key-pair)
+          issuer      (cn "my ca")
+          issuer-key  (get-private-key (generate-key-pair))
+          serial      42
+          not-before  (generate-not-before-date)
+          not-after   (generate-not-after-date)
+          orig-cert   (sign-certificate issuer issuer-key serial not-before
+                                        not-after subject subj-pub)
           pem         (write-to-pem-stream orig-cert cert->pem!)
           parsed-cert (pem->cert pem)]
       (is (certificate? parsed-cert))
       (is (has-subject? parsed-cert subject))
       (is (issued-by? parsed-cert issuer))
-      (is (= (.getSerialNumber parsed-cert) 42))
+      (is (= (.getSerialNumber parsed-cert) serial))
       (is (= orig-cert parsed-cert)))))
-
 
 (deftest certificate-revocation-list
   (let [key-pair    (generate-key-pair)
-        public-key  (.getPublic key-pair)
-        private-key (.getPrivate key-pair)
-        issuer-name "CN=my ca"
+        public-key  (get-public-key key-pair)
+        private-key (get-private-key key-pair)
+        issuer-name (cn "my ca")
         crl         (generate-crl (X500Principal. issuer-name) private-key)]
 
     (testing "create CRL"
@@ -230,7 +259,7 @@
       (is (issued-by? crl issuer-name))
       (is (nil? (.verify crl public-key)))
       (is (thrown? SignatureException
-                   (.verify crl (.getPublic (generate-key-pair))))))
+                   (.verify crl (get-public-key (generate-key-pair))))))
 
     (testing "read CRL from PEM stream"
       (let [parsed-crl (-> "ca_crl.pem" open-ssl-file pem->crl)]
@@ -242,7 +271,6 @@
         (is (certificate-revocation-list? parsed-crl))
         (is (issued-by? parsed-crl issuer-name))
         (is (= crl parsed-crl))))))
-
 
 (deftest keystore-test
   (testing "create keystore"
@@ -318,8 +346,8 @@
       (is (instance? SSLContext result)))))
 
 (let [keypair (generate-key-pair 512)
-      public (.getPublic keypair)
-      private (.getPrivate keypair)]
+      public (get-public-key keypair)
+      private (get-private-key keypair)]
 
   (deftest keypair?-test
     (is (true? (keypair? keypair)))
@@ -343,17 +371,28 @@
     (is (false? (private-key? "foo")))
     (is (false? (private-key? nil)))))
 
-(let [subject (generate-x500-name "subject")
-      issuer  (generate-x500-name "issuer")
-      csr     (generate-certificate-request (generate-key-pair 512) subject)
-      cert    (sign-certificate-request csr issuer 42 (.getPrivate (generate-key-pair 512)))
-      crl     (generate-crl (X500Principal. (str issuer)) (.getPrivate (generate-key-pair 512)))]
+(let [subject (cn "subject")
+      issuer  (cn "issuer")
+      key-pair (generate-key-pair 512)
+      csr     (generate-certificate-request key-pair subject)
+      cert    (sign-certificate issuer (get-private-key (generate-key-pair 512))
+                                42 (generate-not-before-date)
+                                (generate-not-after-date) subject
+                                (get-public-key (generate-key-pair 512)))
+      crl     (generate-crl (X500Principal. (str issuer)) (get-private-key (generate-key-pair 512)))]
 
-  (deftest x500-name?-test
-    (is (true? (x500-name? subject)))
-    (is (false? (x500-name? (str subject))))
-    (is (false? (x500-name? "subject")))
-    (is (false? (x500-name? nil))))
+  (deftest getting-public-key
+    (let [pub-key (get-public-key csr)]
+      (is (= pub-key (get-public-key key-pair)))))
+
+  (deftest valid-x500-name?-test
+    (is (= "CN=common name" (dn [:cn "common name"])))
+    (is (= "CN=cn,O=org" (dn [:cn "cn" :o "org"])))
+    (is (thrown? AssertionError (dn [])))
+    (is (thrown? AssertionError (dn [:cn :cn "cn"])))
+    (is (true?  (valid-x500-name? subject)))
+    (is (false? (valid-x500-name? "subject")))
+    (is (false? (valid-x500-name? nil))))
 
   (deftest certificate-request?-test
     (is (true? (certificate-request? csr)))
@@ -379,14 +418,14 @@
       (is (true? (has-subject? csr subject)))
       (is (true? (has-subject? csr (str subject))))
       (is (true? (has-subject? csr "CN=subject")))
-      (is (true? (has-subject? csr (generate-x500-name "subject"))))
+      (is (true? (has-subject? csr (cn "subject"))))
       (is (false? (has-subject? csr "subject"))))
 
     (testing "certificate"
       (is (true? (has-subject? cert subject)))
       (is (true? (has-subject? cert (str subject))))
       (is (true? (has-subject? cert "CN=subject")))
-      (is (true? (has-subject? cert (generate-x500-name "subject"))))
+      (is (true? (has-subject? cert (cn "subject"))))
       (is (false? (has-subject? cert "subject")))))
 
   (deftest issued-by?-test
@@ -394,34 +433,42 @@
       (is (true? (issued-by? cert issuer)))
       (is (true? (issued-by? cert (str issuer))))
       (is (true? (issued-by? cert "CN=issuer")))
-      (is (true? (issued-by? cert (generate-x500-name "issuer"))))
+      (is (true? (issued-by? cert (cn "issuer"))))
       (is (false? (issued-by? cert "issuer"))))
 
     (testing "certificate revocation list"
       (is (true? (issued-by? crl issuer)))
       (is (true? (issued-by? crl (str issuer))))
       (is (true? (issued-by? crl "CN=issuer")))
-      (is (true? (issued-by? crl (generate-x500-name "issuer"))))
-      (is (false? (issued-by? crl "issuer"))))))
+      (is (true? (issued-by? crl (cn "issuer"))))
+      (is (false? (issued-by? crl "issuer")))))
 
+  (deftest x500-name->CN-test
+    (testing "getting CN from DN works"
+      (is (= "subject" (x500-name->CN subject))))))
 
-(deftest extensions-returned
-  (testing "Found all extensions"
+(deftest extensions
+  (testing "Found all extensions from a certificate on disk."
     (let [extensions (get-extensions (-> "certs/cert-with-exts.pem"
-                                         open-ssl-file
-                                         pem->cert))]
+                                              open-ssl-file
+                                              pem->cert))]
       (is (= 10 (count extensions)))
-      (doseq [oid ["2.5.29.15" "2.5.29.19" "2.5.29.37"
-                   "2.5.29.14" "2.5.29.35"]]
-        (is (get extensions oid)))
-      (doseq [[oid value] [["1.3.6.1.4.1.34380.1.1.1"
-                            "ED803750-E3C7-44F5-BB08-41A04433FE2E"]
-                           ["1.3.6.1.4.1.34380.1.1.2"
-                            "1234567890"]
-                           ["1.3.6.1.4.1.34380.1.1.3"
-                            "my_ami_image"]
-                           ["1.3.6.1.4.1.34380.1.1.4"
-                            "342thbjkt82094y0uthhor289jnqthpc2290"]
-                           ["2.16.840.1.113730.1.13"
-                            "Puppet Ruby/OpenSSL Internal Certificate"]]]
-        (is (= (get extensions oid) value))))))
+      (doseq [[oid value]
+              [["2.5.29.15" {:key-agreement     false
+                             :non-repudiation   false
+                             :data-encipherment false
+                             :key-encipherment  false
+                             :digital-signature false
+                             :key-cert-sign     false
+                             :crl-sign          false
+                             :decipher-only     false
+                             :encipher-only     false}]
+               ["2.5.29.19" {:is-ca               false
+                             :path-len-constraint nil}]
+               ["2.5.29.37" ["1.3.6.1.5.5.7.3.1" "1.3.6.1.5.5.7.3.2"]]
+               ["1.3.6.1.4.1.34380.1.1.1" "ED803750-E3C7-44F5-BB08-41A04433FE2E"]
+               ["1.3.6.1.4.1.34380.1.1.2" "1234567890"]
+               ["1.3.6.1.4.1.34380.1.1.3" "my_ami_image"]
+               ["1.3.6.1.4.1.34380.1.1.4" "342thbjkt82094y0uthhor289jnqthpc2290"]
+               ["2.16.840.1.113730.1.13" "Puppet Ruby/OpenSSL Internal Certificate"]]]
+        (is (= (get-extension-value extensions oid) value))))))

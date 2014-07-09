@@ -1,11 +1,15 @@
 package com.puppetlabs.certificate_authority;
 
-import org.bouncycastle.asn1.ASN1OctetString;
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.DERSet;
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
+import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.cert.X509CRLHolder;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509v2CRLBuilder;
@@ -52,7 +56,6 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
-import java.security.cert.X509Extension;
 import java.util.Date;
 import java.util.List;
 import java.util.ArrayList;
@@ -60,7 +63,6 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.UUID;
-import java.util.Set;
 
 public class CertificateAuthority {
 
@@ -100,61 +102,43 @@ public class CertificateAuthority {
     }
 
     /**
-     * Given a common, return an X500 name built from it.
-     *
-     * @param commonName The common name to use
-     * @return A new X500Name built from the common name
-     * @see #getCommonNameFromX500Name
-     */
-    public static X500Name generateX500Name(String commonName) {
-        X500NameBuilder x500NameBuilder = new X500NameBuilder(BCStyle.INSTANCE);
-        x500NameBuilder.addRDN(BCStyle.CN, commonName);
-        return x500NameBuilder.build();
-    }
-
-    /**
      * Given an X500Name, return the common name from it.
      *
-     * @param x500Name The X500Name to extract from
+     * @param x500Name The X500 name string to extract from
      * @return The common name from the X500Name
-     * @see #generateX500Name
      */
-    public static String getCommonNameFromX500Name(X500Name x500Name) {
-        return x500Name.getRDNs(BCStyle.CN)[0].getFirst().getValue().toString();
+    public static String getCommonNameFromX500Name(String x500Name) {
+        return new X500Name(x500Name).getRDNs(BCStyle.CN)[0].getFirst().getValue().toString();
     }
 
     /**
      * Given the subject's keypair and name, create and return a certificate signing request (CSR).
+     * If the extensions parameter is not null and is a list of size great than 0, they will be
+     * added to this request.
      *
-     * @param keyPair The subject's public and private keys
-     * @param subjectName The subject's name
+     * @param keyPair The subject's public and private keys.
+     * @param subjectDN The subject's CN.
+     * @param extensions Extensions to add to this cert request.
      * @return A request to certify the provided subject
      * @throws IOException
      * @throws OperatorCreationException
      * @see #generateKeyPair
-     * @see #generateX500Name
-     * @see #signCertificateRequest
      */
-    public static PKCS10CertificationRequest generateCertificateRequest(KeyPair keyPair, X500Name subjectName)
+    public static PKCS10CertificationRequest generateCertificateRequest(KeyPair keyPair, String subjectDN,
+        List<Map<String, Object>> extensions)
         throws IOException, OperatorCreationException
     {
         // TODO: the puppet code sets a property "version=0" on the request object
         // here; can't figure out how to do that at the moment.  Not sure if it's needed.
         PKCS10CertificationRequestBuilder requestBuilder =
-                new JcaPKCS10CertificationRequestBuilder(subjectName, keyPair.getPublic());
+                new JcaPKCS10CertificationRequestBuilder(new X500Name(subjectDN), keyPair.getPublic());
 
-        // TODO: support DNS ALT names; probably looks something like this:
-        //  Extensions extensions = new Extensions(new Extension[] {
-        //          new Extension(X509Extension.subjectAlternativeName, false,
-        //                  new DEROctetString(
-        //                          new GeneralNames(new GeneralName[] {
-        //                                  new GeneralName(GeneralName.dNSName, "foo.bar.com"),
-        //                                  new GeneralName(GeneralName.dNSName, "bar.baz.com"),
-        //                                  })))
-        //  });
-        //
-        //  requestBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest,
-        //          new DERSet(extensions));
+        if ((extensions != null) && (extensions.size() > 0)) {
+            Extensions parsedExts = ExtensionsUtils.getExtensionsObjFromMap(extensions);
+
+            requestBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest,
+                                        new DERSet(parsedExts));
+        }
 
         return requestBuilder.build(
                 new JcaContentSignerBuilder("SHA1withRSA").
@@ -162,43 +146,56 @@ public class CertificateAuthority {
     }
 
     /**
-     * Given a certificate signing request and certificate authority information, sign the request
-     * and return the signed certificate.
+     * Given certificate authority information, expiration dates, and the
+     * subject's name and public key info, create a newly signed certificate.
+     * If the extensions parameter is not null then all the maps in the list
+     * will be parsed into extensions and written on to the certificate. The
+     * extensions
      *
-     * @param certReq The signing request
-     * @param issuer The certificate authority's name
-     * @param serialNum An arbitrary serial number
-     * @param issuerPrivateKey The certificate authority's private key
-     * @return A signed certificate for the subject
+     * @param issuerDn A string containing the issuer's distinguished name.
+     * @param issuerPrivateKey The issuer's private key
+     * @param serialNumber Serial number to assign the generated certificate.
+     * @param notBefore Date to assign to the not-before field.
+     * @param notAfter Date to assign to the not-after field.
+     * @param subjectDn A string containing the subject's distinguished name.
+     * @param subjectPublicKey The subject's public key
+     * @param extensions A list of maps which contain extensions that are to be
+     *                   written to the signed certificate.
+     * @return The newly signed certificate.
+     * @throws IOException
      * @throws OperatorCreationException
      * @throws CertificateException
-     * @see #generateCertificateRequest
+     * @see com.puppetlabs.certificate_authority.ExtensionsUtils#getExtensionsObjFromMap(java.util.List)
      */
-    public static X509Certificate signCertificateRequest(PKCS10CertificationRequest certReq,
-                                                         X500Name issuer,
-                                                         BigInteger serialNum,
-                                                         PrivateKey issuerPrivateKey)
-        throws OperatorCreationException, CertificateException
+    public static X509Certificate signCertificate(String issuerDn,
+                                                  PrivateKey issuerPrivateKey,
+                                                  BigInteger serialNumber,
+                                                  Date notBefore, Date notAfter,
+                                                  String subjectDn,
+                                                  PublicKey subjectPublicKey,
+                                                  List<Map<String, Object>> extensions)
+            throws IOException, OperatorCreationException, CertificateException
     {
-        // Make the certificate valid as of yesterday, because so many people's
-        // clocks are out of sync.  This gives one more day of validity than people
-        // might expect, but is better than making every person who has a messed up
-        // clock fail, and better than having every cert we generate expire a day
-        // before the user expected it to when they asked for "one year".
-        DateTime notBefore = DateTime.now().minus(Period.days(1));
-        DateTime notAfter = DateTime.now().plus(Period.years(5));
+        SubjectPublicKeyInfo pubKeyInfo =
+                SubjectPublicKeyInfo.getInstance(subjectPublicKey.getEncoded());
 
         X509v3CertificateBuilder builder = new X509v3CertificateBuilder(
-                issuer,
-                serialNum,
-                notBefore.toDate(),
-                notAfter.toDate(),
-                certReq.getSubject(),
-                certReq.getSubjectPublicKeyInfo());
+                new X500Name(issuerDn),
+                serialNumber,
+                notBefore, notAfter,
+                new X500Name(subjectDn),
+                pubKeyInfo);
 
-        // TODO: add extensions to cert (maps to build_ca_extensions,
-        // build_server_extensions in certificate_factory.rb.
-        // add_extensions_to(cert, csr, issuer, send(build_extensions))
+        Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
+        if (bcExtensions != null) {
+            for (ASN1ObjectIdentifier oid : bcExtensions.getNonCriticalExtensionOIDs()) {
+                builder.addExtension(oid, false, bcExtensions.getExtensionParsedValue(oid));
+            }
+
+            for (ASN1ObjectIdentifier oid : bcExtensions.getCriticalExtensionOIDs()) {
+                builder.addExtension(oid, true, bcExtensions.getExtensionParsedValue(oid));
+            }
+        }
 
         JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder("SHA256WithRSA");
         ContentSigner signer = signerBuilder.build(issuerPrivateKey);
@@ -672,53 +669,84 @@ public class CertificateAuthority {
     }
 
     /**
-     * Converts a list of extension OIDs into a map containing the OID
-     * and its parsed value.
-     *
-     * @param exts Object containing X509 extensions to pull the OIDs from.
-     * @param oids  A collection of OIDs to retrieve the values of.
-     * @return A list of maps from OID => Parsed OID value.
-     * @throws IOException
-     */
-    private static Map<String,String> oidsToMap(X509Extension exts, Set<String> oids)
-        throws IOException
-    {
-        Map<String, String> ret = new HashMap<String,String>();
-        if (oids != null) {
-            for (String oid : oids) {
-                byte[] octets = exts.getExtensionValue(oid);
-                String value = new String(ASN1OctetString.getInstance(octets).getOctets(), "UTF-8");
-                ret.put(oid, value);
-            }
-        }
-        return ret;
-    }
-
-    /**
-     * Return both critical and noncritical extensions and their values, parsed
-     * into UTF-8 strings.
-     *
-     * @param exts The object which contains X509 extensions.
-     * @return A map of extensions OID to their parsed string values.
-     * @throws IOException
-     */
-    public static Map<String, String> getExtensions(X509Extension exts)
-            throws IOException
-    {
-        Map<String, String> extensions = oidsToMap(exts, exts.getCriticalExtensionOIDs());
-        extensions.putAll(oidsToMap(exts, exts.getNonCriticalExtensionOIDs()));
-
-        return extensions;
-    }
-
-    /**
      * Returns the CN from an X500Principal object.
      *
      * @param principal The X500Principal object
      * @return String representation of the CN extracted from the X500Principal.
      */
     public static String getCnFromX500Principal(X500Principal principal) {
-        X500Name name = new X500Name(principal.getName());
-        return getCommonNameFromX500Name(name);
+        return getCommonNameFromX500Name(principal.getName());
+    }
+
+    /**
+     * Gets the public key object from a PKCS10CertificationRequest.
+     *
+     * @param csr A Bouncy Castle certificate request.
+     * @return The PublicKey stored in certification request.
+     * @throws IOException
+     */
+    public static PublicKey getPublicKey(PKCS10CertificationRequest csr)
+            throws IOException
+    {
+        JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
+        return converter.getPublicKey(csr.getSubjectPublicKeyInfo());
+    }
+
+    /**
+     * Given a Java key pair, return the public key.
+     *
+     * @param keyPair Java KeyPair object
+     * @return The public key half of the key pair.
+     */
+    public static PublicKey getPublicKey(KeyPair keyPair) {
+        return keyPair.getPublic();
+    }
+
+    /**
+     * Given a Java key pair, return the private key.
+     *
+     * @param keyPair Java KeyPair object.
+     * @return The private key half of the key pair.
+     */
+    public static PrivateKey getPrivateKey(KeyPair keyPair) {
+        return keyPair.getPrivate();
+    }
+
+    /**
+     * Given a list of attribute names followed by their values, construct an
+     * X.500 DN string. For example, if the list ["cn", "common", "o", org"] is
+     * passed in then the DN string "CN=common,O=org" is returned.
+     *
+     * @param rdnPairs A list of attribute and value pairs.
+     * @return A X.500 DN string constructed from the given map.
+     * @throws IllegalArgumentException If an invalid attribute name is found.
+     */
+    public static String x500Name(List<String> rdnPairs) {
+        if ((rdnPairs.size() % 2) != 0) {
+            throw new IllegalArgumentException(
+                    "The RDN pairs list must contain an even number of elements.");
+        }
+
+        X500NameBuilder builder = new X500NameBuilder(BCStyle.INSTANCE);
+
+        for (int i=0; i < rdnPairs.size(); i++) {
+            String attr = rdnPairs.get(i);
+            i++;
+            String val = rdnPairs.get(i);
+
+            builder.addRDN(BCStyle.INSTANCE.attrNameToOID(attr), val);
+        }
+
+        return builder.build().toString();
+    }
+
+    /**
+     * Create an RDN which contains the given common name.
+     *
+     * @param commonName Common name string
+     * @return The RDN form of the common name.
+     */
+    public static String x500NameCn(String commonName) {
+        return new X500NameBuilder(BCStyle.INSTANCE).addRDN(BCStyle.CN, commonName).build().toString();
     }
 }

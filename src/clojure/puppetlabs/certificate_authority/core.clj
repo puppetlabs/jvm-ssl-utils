@@ -5,14 +5,42 @@
            (javax.security.auth.x500 X500Principal)
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
-           (com.puppetlabs.certificate_authority CertificateAuthority)
-           (java.util Map))
+           (com.puppetlabs.certificate_authority CertificateAuthority
+                                                 ExtensionsUtils)
+           (java.util Map List Date)
+           (org.bouncycastle.asn1.x509 Extension))
   (:require [clojure.tools.logging :as log]
-            [clojure.walk :refer [keywordize-keys]]
+            [clojure.walk :as walk]
+            [clojure.string :as string]
             [clojure.java.io :refer [reader writer]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Predicates
+
+(defn valid-x500-name?
+  "Returns true if x is a valid X500 name string."
+  ;; TODO: Maybe using a string parsing algo is faster?
+  [x]
+  (try
+    (X500Name. x)
+    (not (nil? x))
+    (catch Exception _
+      false)))
+
+(defn extension?
+  "Returns true if the given map contains all the fields required to define an
+  extension."
+  [x]
+  (and (map? x)
+       (string? (:oid x))
+       (not (nil? (:critical x)))
+       (not (nil? (:value x)))))
+
+(defn extension-list?
+  "Returns true if the given data structure is a list that contains extensions."
+  [x]
+  (and (sequential? x)
+       (every? extension? x)))
 
 (defn keypair?
   "Returns true if x is a keypair (see `generate-key-pair`)."
@@ -29,11 +57,6 @@
   [x]
   (instance? PrivateKey x))
 
-(defn x500-name?
-  "Returns true if x is an instance of `X500Name` (see `generate-x500-name`)."
-  [x]
-  (instance? X500Name x))
-
 (defn x500-principal?
   "Returns true if x is an instance of 'X500Principal'."
   [x]
@@ -45,6 +68,7 @@
   [x]
   (instance? X509Extension x))
 
+;; TODO: (PE-4778) This library should not leak Bouncy Castle objects
 (defn certificate-request?
   "Returns true if x is an instance of `PKCS10CertificationRequest` (see `generate-certificate-request`)."
   [x]
@@ -61,7 +85,63 @@
   (instance? X509CRL x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Internal
+
+(defn clojureize
+  "Convert a Java data structure returned from a Java utility method into a
+  Clojure data structure."
+  [data-structure]
+  (cond
+    (instance? Map data-structure)
+    (-> (into {} (map (fn [[k v]] [(string/replace k #"_" "-") (clojureize v)])
+                      data-structure))
+        walk/keywordize-keys)
+
+    (instance? List data-structure)
+    (mapv clojureize data-structure)
+
+    :else
+    data-structure))
+
+(defn javaize
+  "Convert a Clojure data structure passed into a function by a user into a Java
+  data structure suitable for passing into a Java utility method."
+  [data-structure]
+  (cond
+    (map? data-structure)
+    (into {} (map (fn [[k v]]
+                    [(string/replace k #"-" "_") (javaize v)])
+                  (walk/stringify-keys data-structure)))
+
+    (sequential? data-structure)
+    (mapv javaize data-structure)
+
+    (keyword? data-structure)
+    (name data-structure)
+
+    :else
+    data-structure))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Core
+
+(defn dn
+  "Given a sequence of attribute names and value pairs, generate an X.500 DN
+  string. For example, [:cn \"common\" :o \"org\"] would return
+  \"CN=common,O=org\""
+  [rdns]
+  {:pre  [(sequential? rdns)
+          (even? (count rdns))
+          (> (count rdns) 0)]
+   :post [(valid-x500-name? %)]}
+  (CertificateAuthority/x500Name (javaize rdns)))
+
+(defn cn
+  "Given a common name, generate an X.500 RDN from it"
+  [common-name]
+  {:pre [(string? common-name)]
+   :post [(valid-x500-name? %)]}
+  (CertificateAuthority/x500NameCn common-name))
 
 (defn keylength
   "Given a key, return the length key length that was used when generating it."
@@ -85,17 +165,10 @@
       :post [(keypair? %)]}
      (CertificateAuthority/generateKeyPair key-length)))
 
-(defn generate-x500-name
-  "Given a common name, return an X500 name built from it."
-  [common-name]
-  {:pre  [(string? common-name)]
-   :post [(x500-name? %)]}
-  (CertificateAuthority/generateX500Name common-name))
-
 (defn x500-name->CN
   "Given an X500 name, return the common name from it."
   [x500-name]
-  {:pre  [(x500-name? x500-name)]
+  {:pre  [(valid-x500-name? x500-name)]
    :post [(string? %)]}
   (CertificateAuthority/getCommonNameFromX500Name x500-name))
 
@@ -104,32 +177,54 @@
   Arguments:
 
   `keypair`:      subject's public & private keys
-  `subject-name`: subject's `X500Name`
+  `subject-name`: subject's X500 distinguished name
+  `extensions`: an optional collection of `Extension` objects to add to the certificate request
 
   See `sign-certificate-request`, `obj->pem!`, and `pem->csr` to sign & read/write CSRs."
-  [keypair subject-name]
-  {:pre  [(keypair? keypair)
-          (x500-name? subject-name)]
-   :post [(certificate-request? %)]}
-  (CertificateAuthority/generateCertificateRequest keypair subject-name))
+  ([keypair subject-dn]
+   (generate-certificate-request keypair subject-dn []))
+  ([keypair subject-dn extensions]
+   {:pre  [(keypair? keypair)
+           (valid-x500-name? subject-dn)
+           (extension-list? extensions)]
+    :post [(certificate-request? %)]}
+   (CertificateAuthority/generateCertificateRequest
+     keypair subject-dn extensions)))
 
-(defn sign-certificate-request
-  "Given a certificate signing request and certificate authority information, sign the request
-  and return the signed `X509Certificate`.  Arguments:
+(defn sign-certificate
+  "Given a subject, certificate authority information and other certificate info,
+  return a signed  `X509Certificate` object.
 
-  `request`:            the certificate signing request
-  `issuer`:             the issuer's `X500Name`
-  `serial`:             an arbitrary serial number integer
-  `issuer-private-key`: the issuer's `PrivateKey`
+  Arguments:
 
-  See `generate-certificate-request`, `obj->pem!`, and `pem->certs` to create & read/write certificates."
-  [request issuer serial issuer-private-key]
-  {:pre  [(certificate-request? request)
-          (x500-name? issuer)
+  `issuer-dn`:          a string containing the issuer's DN.
+  `issuer-priv-key`:    the issuer's private key.
+  `serial`:             an arbitrary serial number integer.
+  `not-before`:         the certificate's 'not before' date.
+  `not-after`:          the certificate's 'not after' date.
+  `subject-dn`:         the subject's DN
+  `subject-pub-key`:    the subject's public key
+  `extensions`:         an optional list of X509 extensions, each of which is
+                        a map with an `oid`, `value` and `critical` flag. The
+                        value format is dependent upon the oid."
+  ([issuer-dn issuer-priv-key serial not-before not-after
+    subject-dn subject-pub-key]
+    (sign-certificate issuer-dn issuer-priv-key serial not-before not-after
+                      subject-dn subject-pub-key []))
+  ([issuer-dn issuer-priv-key serial not-before not-after
+    subject-dn subject-pub-key extensions]
+   {:pre [(valid-x500-name? issuer-dn)
+          (private-key? issuer-priv-key)
           (number? serial)
-          (private-key? issuer-private-key)]
-   :post [(certificate? %)]}
-  (CertificateAuthority/signCertificateRequest request issuer (biginteger serial) issuer-private-key))
+          (instance? Date not-before)
+          (instance? Date not-after)
+          (valid-x500-name? subject-dn)
+          (public-key? subject-pub-key)
+          (extension-list? extensions)]
+    :post [(certificate? %)]}
+   (CertificateAuthority/signCertificate
+     issuer-dn issuer-priv-key (biginteger serial) not-before not-after subject-dn
+     subject-pub-key (javaize extensions))))
 
 (defn generate-crl
   "Given the certificate authority's principal identifier and private key, create and return
@@ -401,7 +496,7 @@
               ca-cert-reader (reader ca-cert)]
     (->> (CertificateAuthority/pemsToKeyAndTrustStores cert-reader key-reader ca-cert-reader)
          (into {})
-         (keywordize-keys))))
+         (walk/keywordize-keys))))
 
 (defn get-key-manager-factory
   "Given a map containing a KeyStore and keystore password (e.g. as generated by
@@ -456,13 +551,43 @@
     (CertificateAuthority/caCertPemToSSLContext ca-cert-reader)))
 
 (defn get-extensions
-  "Given an object containing X509 extensions, retrieve a map of all critical
-  and non-critical extensions. The keys are the extension's OIDs and the values
-  are UTF-8 string representations of the binary data."
-  [exts]
-  {:pre [(x509-extension? exts)]
-   :post [(instance? Map %)]}
-  (CertificateAuthority/getExtensions exts))
+  "Given an object containing X509 extensions, retrieve a list of maps of all
+  extensions. Each map in the list contains the following keys:
+
+  `oid`      : The OID of the extension
+  `value`    : The value of the extensions
+  `critical` : True if this is a critical extensions, false if it is not."
+  [ext-container]
+  {:pre [(or (certificate? ext-container)
+             (certificate-request? ext-container))]
+   :post [(extension-list? %)]}
+  (-> (ExtensionsUtils/getExtensionList (javaize ext-container))
+      clojureize))
+
+(defn get-extension
+  "Given a X509 certificate object, CSR or a list of extensions returned by
+  `get-extensions`, return a map describing the value and criticality of the
+  extension described by its OID."
+  [ext-container oid]
+  {:pre [(or (certificate? ext-container)
+             (certificate-request? ext-container)
+             (instance? List ext-container))
+         (string? oid)]
+   :post [(extension? %)]}
+  (-> (ExtensionsUtils/getExtension (javaize ext-container) oid)
+      clojureize))
+
+(defn get-extension-value
+  "Given a X509 certificate object, CSR or a list of extensions returned by
+  `get-extensions`, return the value of an extension by its OID. If the OID
+  doesn't exist on the provided object, then nil is returned."
+  [ext-container oid]
+  {:pre [(or (certificate? ext-container)
+             (certificate-request? ext-container)
+             (instance? List ext-container))
+         (string? oid)]}
+  (-> (ExtensionsUtils/getExtensionValue (javaize ext-container) oid)
+      clojureize))
 
 (defn get-cn-from-x500-principal
   "Given an X500Principal object, retrieve the common name (CN)."
@@ -470,3 +595,19 @@
   {:pre [(x500-principal? x500-principal)]
    :post [(string? %)]}
   (CertificateAuthority/getCnFromX500Principal x500-principal))
+
+(defn get-public-key
+  "Given an object which contains a public key, extract the public key
+  and return it."
+  [key-object]
+  {:pre [(or (certificate-request? key-object)
+             (keypair? key-object))]
+   :post [(public-key? %)]}
+  (CertificateAuthority/getPublicKey key-object))
+
+(defn get-private-key
+  "Given an object which contains a private key, extract and return it."
+  [key-object]
+  {:pre [(keypair? key-object)]
+   :post [(private-key? %)]}
+  (CertificateAuthority/getPrivateKey key-object))

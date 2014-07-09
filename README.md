@@ -2,6 +2,94 @@
 
 SSL certificate management on the JVM.
 
+## Handling X.509 certificate extensions
+
+X.509 certificates and certificate requests can optionally contain a list of
+extensions which may further specify how the certificate is to be used. Each of
+the functions which either return or a accept X.509 extensions expect them to
+be a list of maps. Each map contains the following keys: 
+
+* `oid` A string containing the extension's OID.
+* `critical` A boolean which is true if the extension is marked as critical.
+* `value` A primitive value, or data structure representing the data contained
+          in the extension. The exact format of the `value` data is dependent
+          upon the OID of the extension, which are described below.
+
+### Supported extensions and their data structures
+
+Currently only a subset of the defined X.509 extensions are supported by this 
+library, more will be supported in the future. Note that in the Java API all 
+map keys are snake-cased strings, in the Clojure API all map keys are kebab-cased
+keywords.
+
+#### Subject Key Identifier: `2.5.29.14`
+
+#### Key Usage: `2.5.29.15`
+
+Key usage is defined by a map of boolean flags with the following keys:
+
+| Key                  |
+|----------------------|
+| `:digital-signature` |
+| `:non-repudiation`   |
+| `:key-encipherment`  |
+| `:data-encipherment` |
+| `:key-agreement`     |
+| `:key-cert-sign`     |
+| `:crl-sign`          |
+| `:decipher-only`     |
+| `:encipher-only`     | 
+
+#### Subject Alternative Names: `2.5.29.17` 
+
+This extensions is represented as a map where each key is name type, and the 
+value is a list of names of that type to be aliased. The following hash keys
+correspond to the listed types.
+
+| Key               | Type                                     |
+|-------------------|------------------------------------------|
+| `:rfc822-name`    | An RFC822 compliant e-mail address       |
+| `:dns-name`       | A host name which can be resolved by DNS |
+| `:directory-name` | A fully-qualified DN                     |
+| `:uri`            | A URI                                    |
+| `:ip`             | An IP address                            |
+
+For example: 
+
+```clojure 
+(let [exts [;; Subject alternative DNS names
+            {:oid      "2.5.29.17"
+             :value    {:dns-name ["aliasname1.domain.tld" 
+                                   "aliasname2.domain.tld"]}
+             :critical false}
+            ;; Issuer alternative DNS name
+            {:oid      "2.5.29.18"
+             :value    {:dns-name ["aliasname3.domain.tld"}
+             :critical false}]])        
+```
+
+#### Issuer Alternative Names: `2.5.29.18` 
+
+The format of this extension is the same as `Subject Alternative Names` above.
+
+#### Basic Constraints: `2.5.29.19`
+
+Defines basic constraints for the certificate as a map with these two keys:
+
+| Key                    | Type    | Value
+|------------------------|---------|---------------------------------------------------------
+| `:is-ca`               | boolean | True if the subject may act as a CA.
+| `:path-len-constraint` | integer | If this is a CA cert, the max certification path length.
+
+#### Authority Key Identifier: `2.5.29.35`
+
+#### Extended Key Usage: `2.5.29.37` 
+
+#### Netscape Certificate Comment: `2.16.840.1.113730.1.13`
+
+The value of this extension is a string containing a comment about the 
+certificate. 
+
 ## Running Tests
 
 ### Unit Tests
