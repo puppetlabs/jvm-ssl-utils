@@ -36,7 +36,7 @@
   [agent-ssl-paths agent-certname master-ca]
   (create-directories! agent-ssl-paths)
   (let [agent-keypair     (CertificateAuthority/generateKeyPair)
-        agent-x500-name   (str "CN=" agent-certname)
+        agent-x500-name   (CertificateAuthority/x500NameCn agent-certname)
         agent-cert-req    (CertificateAuthority/generateCertificateRequest agent-keypair agent-x500-name nil)
         agent-cert        (.signCertificateRequest master-ca agent-certname agent-cert-req)]
     (CertificateAuthority/writeToPEM (.getPublic agent-keypair) (io/writer (nth agent-ssl-paths 0)))

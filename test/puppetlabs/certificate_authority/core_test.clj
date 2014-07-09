@@ -418,12 +418,14 @@
       (is (true? (has-subject? csr subject)))
       (is (true? (has-subject? csr (str subject))))
       (is (true? (has-subject? csr "CN=subject")))
+      (is (true? (has-subject? csr (cn "subject"))))
       (is (false? (has-subject? csr "subject"))))
 
     (testing "certificate"
       (is (true? (has-subject? cert subject)))
       (is (true? (has-subject? cert (str subject))))
       (is (true? (has-subject? cert "CN=subject")))
+      (is (true? (has-subject? cert (cn "subject"))))
       (is (false? (has-subject? cert "subject")))))
 
   (deftest issued-by?-test
@@ -431,12 +433,14 @@
       (is (true? (issued-by? cert issuer)))
       (is (true? (issued-by? cert (str issuer))))
       (is (true? (issued-by? cert "CN=issuer")))
+      (is (true? (issued-by? cert (cn "issuer"))))
       (is (false? (issued-by? cert "issuer"))))
 
     (testing "certificate revocation list"
       (is (true? (issued-by? crl issuer)))
       (is (true? (issued-by? crl (str issuer))))
       (is (true? (issued-by? crl "CN=issuer")))
+      (is (true? (issued-by? crl (cn "issuer"))))
       (is (false? (issued-by? crl "issuer")))))
 
   (deftest x500-name->CN-test
