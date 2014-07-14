@@ -41,6 +41,23 @@ import java.util.Map;
  * Utilities for working with X509 extensions.
  */
 public class ExtensionsUtils {
+
+    /**
+     * Return true if the given OID is contained within the subtree of parent OID.
+     *
+     * @param parentOid The OID of the parent tree.
+     * @param oid The OID to compare.
+     * @return True if OID is a subtree
+     */
+    public static boolean isSubtreeOf(String parentOid, String oid) {
+        if (parentOid.equals(oid)) {
+            return false;
+        } else {
+            return oid.startsWith(parentOid);
+        }
+    }
+
+
     /**
      * Given a Java X509Certificate object, return a list of maps representing
      * all the X509 extensions embedded in the certificate. If no extensions

@@ -611,3 +611,11 @@
   {:pre [(keypair? key-object)]
    :post [(private-key? %)]}
   (CertificateAuthority/getPrivateKey key-object))
+
+(defn subtree-of?
+  "Given an OID and a a parent tree OID return true if the OID is within
+  the subtree of the parent OID."
+  [parent-oid oid]
+  {:pre [(string? parent-oid)
+         (string? oid)]}
+  (ExtensionsUtils/isSubtreeOf parent-oid oid))
