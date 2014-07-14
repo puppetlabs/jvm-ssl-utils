@@ -471,4 +471,15 @@
                ["1.3.6.1.4.1.34380.1.1.3" "my_ami_image"]
                ["1.3.6.1.4.1.34380.1.1.4" "342thbjkt82094y0uthhor289jnqthpc2290"]
                ["2.16.840.1.113730.1.13" "Puppet Ruby/OpenSSL Internal Certificate"]]]
-        (is (= (get-extension-value extensions oid) value))))))
+        (is (= (get-extension-value extensions oid) value)))))
+
+  (testing "Testing OID subtree status"
+    (is (subtree-of? (:parent puppet-labs-exts)
+                     (:node-uid puppet-labs-exts)))
+    (is (subtree-of? (:reg-cert-ext puppet-labs-exts)
+                     (:node-image-name puppet-labs-exts)))
+    (is (not (subtree-of? (:node-image-name puppet-labs-exts)
+                          (:reg-cert-ext puppet-labs-exts))))
+    (is (not (subtree-of? (:parent puppet-labs-exts)
+                          (:parent puppet-labs-exts))))
+    (is (not (subtree-of? "1.2.3.4" (:node-preshared-key puppet-labs-exts))))))
