@@ -6,13 +6,26 @@
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
            (com.puppetlabs.certificate_authority CertificateAuthority
-                                                 ExtensionsUtils)
+                                                 ExtensionsUtils
+                                                 PuppetExtensionOids)
            (java.util Map List Date)
            (org.bouncycastle.asn1.x509 Extension))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :as walk]
             [clojure.string :as string]
             [clojure.java.io :refer [reader writer]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Definitions
+
+(def puppet-labs-exts {:parent             (PuppetExtensionOids/parent)
+                       :cert-ext           (PuppetExtensionOids/certExt)
+                       :reg-cert-ext       (PuppetExtensionOids/regCertExt)
+                       :node-uid           (PuppetExtensionOids/nodeUid)
+                       :node-instance-id   (PuppetExtensionOids/nodeInstanceId)
+                       :node-image-name    (PuppetExtensionOids/nodeImageName)
+                       :node-preshared-key (PuppetExtensionOids/nodePresharedKey)
+                       :private-cert-ext   (PuppetExtensionOids/privateCertExt)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Predicates
