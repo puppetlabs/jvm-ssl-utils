@@ -6,7 +6,7 @@ SSL certificate management on the JVM.
 
 X.509 certificates and certificate requests can optionally contain a list of
 extensions which may further specify how the certificate is to be used. Each of
-the functions which either return or a accept X.509 extensions expect them to
+the functions which either return or accept X.509 extensions expect them to
 be a list of maps. Each map contains the following keys: 
 
 * `oid` A string containing the extension's OID.
