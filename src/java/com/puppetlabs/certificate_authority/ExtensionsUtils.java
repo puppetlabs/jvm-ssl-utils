@@ -250,18 +250,11 @@ public class ExtensionsUtils {
      * @return An extensions container extracted form the CSR.
      */
     static Extensions getExtensionsFromCSR(PKCS10CertificationRequest csr) {
-        for (Attribute attr : csr.getAttributes()) {
-            if (attr.getAttrType() == PKCSObjectIdentifiers.pkcs_9_at_extensionRequest) {
-                // TODO: All this casting shouldn't be needed.
-                ASN1Set extsAsn1 = attr.getAttrValues();
-                if (extsAsn1 != null) {
-                    DERSet derSet = (DERSet) extsAsn1.getObjectAt(0);
-                    if (derSet != null) {
-                        return (Extensions) derSet.getObjectAt(0);
-                    } else {
-                        return null;
-                    }
-                }
+        Attribute[] attrs = csr.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest);
+        for (Attribute attr : attrs) {
+            ASN1Set extsAsn1 = attr.getAttrValues();
+            if (extsAsn1 != null) {
+                return Extensions.getInstance(extsAsn1.getObjectAt(0));
             }
         }
 
