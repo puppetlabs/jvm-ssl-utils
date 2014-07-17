@@ -406,8 +406,8 @@ public class ExtensionsUtils {
         } else if (oid.equals(Extension.basicConstraints)) {
             return BasicConstraints.getInstance(data);
         } else if (oid.equals(Extension.keyUsage)) {
-            DERBitString bs = new DERBitString(data);
-            return new KeyUsage(bs.getPadBits());
+            DERBitString bs = (DERBitString) ASN1Primitive.fromByteArray(data);
+            return KeyUsage.getInstance(bs);
         } else if (oid.equals(Extension.extendedKeyUsage)) {
             return ExtendedKeyUsage.getInstance(data);
         } else if (oid.equals(MiscObjectIdentifiers.netscapeCertComment)) {
