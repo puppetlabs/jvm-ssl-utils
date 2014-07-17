@@ -1,7 +1,12 @@
 package com.puppetlabs.certificate_authority;
 
+import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.ASN1OctetString;
+import org.bouncycastle.asn1.DERIA5String;
+import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERSet;
+import org.bouncycastle.asn1.misc.MiscObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
@@ -9,7 +14,7 @@ import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
 import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
-import org.bouncycastle.cert.CertIOException;
+import org.bouncycastle.asn1.x509.X509Name;
 import org.bouncycastle.cert.X509CRLHolder;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509v2CRLBuilder;
@@ -28,8 +33,8 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.PKCS10CertificationRequestBuilder;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
+import org.bouncycastle.x509.X509V3CertificateGenerator;
 import org.joda.time.DateTime;
-import org.joda.time.Period;
 
 import javax.security.auth.x500.X500Principal;
 import javax.net.ssl.KeyManagerFactory;
@@ -41,6 +46,7 @@ import java.io.Reader;
 import java.io.Writer;
 import java.math.BigInteger;
 
+import java.security.InvalidKeyException;
 import java.security.KeyManagementException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -50,6 +56,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CRLException;
 import java.security.cert.Certificate;
@@ -174,35 +181,28 @@ public class CertificateAuthority {
                                                   String subjectDn,
                                                   PublicKey subjectPublicKey,
                                                   List<Map<String, Object>> extensions)
-            throws IOException, OperatorCreationException, CertificateException
-    {
-        SubjectPublicKeyInfo pubKeyInfo =
-                SubjectPublicKeyInfo.getInstance(subjectPublicKey.getEncoded());
-
-        X509v3CertificateBuilder builder = new X509v3CertificateBuilder(
-                new X500Name(issuerDn),
-                serialNumber,
-                notBefore, notAfter,
-                new X500Name(subjectDn),
-                pubKeyInfo);
+            throws IOException, OperatorCreationException, CertificateException, NoSuchAlgorithmException, SignatureException, InvalidKeyException {
+        X509V3CertificateGenerator certGen = new X509V3CertificateGenerator();
+        certGen.setSerialNumber(serialNumber);
+        certGen.setSubjectDN(new X509Name(subjectDn));
+        certGen.setIssuerDN(new X509Name(issuerDn));
+        certGen.setNotBefore(notBefore);
+        certGen.setNotAfter(notAfter);
+        certGen.setPublicKey(subjectPublicKey);
+        certGen.setSignatureAlgorithm("SHA256WithRSA");
 
         Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
         if (bcExtensions != null) {
             for (ASN1ObjectIdentifier oid : bcExtensions.getNonCriticalExtensionOIDs()) {
-                builder.addExtension(oid, false, bcExtensions.getExtensionParsedValue(oid));
+                certGen.addExtension(oid.getId(), false, bcExtensions.getExtension(oid).getExtnValue().getOctets());
             }
 
             for (ASN1ObjectIdentifier oid : bcExtensions.getCriticalExtensionOIDs()) {
-                builder.addExtension(oid, true, bcExtensions.getExtensionParsedValue(oid));
+                certGen.addExtension(oid.getId(), true, bcExtensions.getExtension(oid).getExtnValue().getOctets());
             }
         }
 
-        JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder("SHA256WithRSA");
-        ContentSigner signer = signerBuilder.build(issuerPrivateKey);
-
-        X509CertificateHolder holder = builder.build(signer);
-        JcaX509CertificateConverter converter = new JcaX509CertificateConverter();
-        return converter.getCertificate(holder);
+        return certGen.generate(issuerPrivateKey);
     }
 
     /**

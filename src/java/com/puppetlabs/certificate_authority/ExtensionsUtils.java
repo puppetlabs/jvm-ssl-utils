@@ -11,7 +11,6 @@ import org.bouncycastle.asn1.ASN1TaggedObject;
 import org.bouncycastle.asn1.DERBitString;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERPrintableString;
-import org.bouncycastle.asn1.DERSet;
 import org.bouncycastle.asn1.misc.MiscObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
@@ -295,22 +294,28 @@ public class ExtensionsUtils {
     static Extension parseExtensionObject(Map<String, Object> extMap)
             throws IOException
     {
-        ASN1ObjectIdentifier oid = new ASN1ObjectIdentifier((String)extMap.get("oid"));
+        String oidString = (String)extMap.get("oid");
+        ASN1ObjectIdentifier oid = new ASN1ObjectIdentifier(oidString);
+        Boolean isCritical = (Boolean) extMap.get("critical");
 
-        ASN1Object ret;
         if (oid.equals(Extension.subjectAlternativeName) ||
-            oid.equals(Extension.issuerAlternativeName))
+                oid.equals(Extension.issuerAlternativeName))
         {
             @SuppressWarnings("unchecked")
             Map<String, List<String>> val = (Map<String, List<String>>) extMap.get("value");
-            ret = mapToGeneralNames(val);
+            return new Extension(oid, isCritical, new DEROctetString(mapToGeneralNames(val)));
+        } else if (oidString.equals(PuppetExtensionOids.nodeUid) ||
+                oidString.equals(PuppetExtensionOids.nodeInstanceId) ||
+                oidString.equals(PuppetExtensionOids.nodeImageName) ||
+                oidString.equals(PuppetExtensionOids.nodePresharedKey) ||
+                oid.equals(MiscObjectIdentifiers.netscapeCertComment)) {
+            String value = (String) extMap.get("value");
+            return new Extension(oid, isCritical, new DEROctetString(value.getBytes()));
         } else {
             throw new IllegalArgumentException(
                     "Parsing an extension with an OID=" +
-                    oid.getId() + " is not yet supported.");
+                            oid.getId() + " is not yet supported.");
         }
-
-        return new Extension(oid, (Boolean)extMap.get("critical"), new DEROctetString(ret));
     }
 
 
