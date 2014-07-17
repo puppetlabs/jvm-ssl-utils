@@ -4,11 +4,13 @@ import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1Object;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1OctetString;
+import org.bouncycastle.asn1.ASN1Primitive;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.ASN1Set;
 import org.bouncycastle.asn1.ASN1String;
 import org.bouncycastle.asn1.ASN1TaggedObject;
 import org.bouncycastle.asn1.DERBitString;
+import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERPrintableString;
 import org.bouncycastle.asn1.misc.MiscObjectIdentifiers;
@@ -27,6 +29,7 @@ import org.bouncycastle.asn1.x509.SubjectKeyIdentifier;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
@@ -299,16 +302,17 @@ public class ExtensionsUtils {
         Boolean isCritical = (Boolean) extMap.get("critical");
 
         if (oid.equals(Extension.subjectAlternativeName) ||
-                oid.equals(Extension.issuerAlternativeName))
-        {
+                oid.equals(Extension.issuerAlternativeName)) {
             @SuppressWarnings("unchecked")
             Map<String, List<String>> val = (Map<String, List<String>>) extMap.get("value");
             return new Extension(oid, isCritical, new DEROctetString(mapToGeneralNames(val)));
+        } else if (oid.equals(MiscObjectIdentifiers.netscapeCertComment)) {
+            DERIA5String ia5Str = new DERIA5String((String) extMap.get("value"));
+            return new Extension(oid, isCritical, new DEROctetString(ia5Str));
         } else if (oidString.equals(PuppetExtensionOids.nodeUid) ||
                 oidString.equals(PuppetExtensionOids.nodeInstanceId) ||
                 oidString.equals(PuppetExtensionOids.nodeImageName) ||
-                oidString.equals(PuppetExtensionOids.nodePresharedKey) ||
-                oid.equals(MiscObjectIdentifiers.netscapeCertComment)) {
+                oidString.equals(PuppetExtensionOids.nodePresharedKey)) {
             String value = (String) extMap.get("value");
             return new Extension(oid, isCritical, new DEROctetString(value.getBytes()));
         } else {
@@ -407,7 +411,12 @@ public class ExtensionsUtils {
         } else if (oid.equals(Extension.extendedKeyUsage)) {
             return ExtendedKeyUsage.getInstance(data);
         } else if (oid.equals(MiscObjectIdentifiers.netscapeCertComment)) {
-            return new DERPrintableString(new String(data, "UTF8"));
+            try {
+                return ASN1Primitive.fromByteArray(data);
+            } catch (EOFException e) {
+                // Sometimes the comment field is not wrapped in an IA5String
+                return new DERPrintableString(new String(data, "UTF8"));
+            }
         } else {
             // Most extensions are a simple string value.
             return new DERPrintableString(new String(data, "UTF8"));
