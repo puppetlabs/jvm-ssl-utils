@@ -24,6 +24,11 @@ keywords.
 
 #### Subject Key Identifier: `2.5.29.14`
 
+When writing a _Subject Key Identifier_ extension, set the value of the extension
+map to an instance of the subject's `java.security.PublicKey`. When a
+_Subject Key Identifier_ extensions is read from a certificate, its value is a 
+byte array containing the SHA-1 hash of the public key.
+
 #### Key Usage: `2.5.29.15`
 
 Key usage is defined by a map of boolean flags with the following keys:
@@ -82,6 +87,17 @@ Defines basic constraints for the certificate as a map with these two keys:
 | `:path-len-constraint` | integer | If this is a CA cert, the max certification path length.
 
 #### Authority Key Identifier: `2.5.29.35`
+
+When writing this extension to a certificate the value should contain a
+`java.security.PublicKey` instance of the certificate authority's public key. 
+When this extension is read back from a certificate, it will be a map containing 
+the following keys:
+  
+| Key                    | Type        | Value
+|------------------------|-------------|-------------------------------------------------------------------
+| `:key-identifier`      | byte vector | A byte array containing the SHA-1 hash of the public key 
+| `:issuer`              | string      | A name identifying the certificate authority, nil if not specified 
+| `:serial-number`       | integer     | The issuer's certificate serial number.             
 
 #### Extended Key Usage: `2.5.29.37` 
 
