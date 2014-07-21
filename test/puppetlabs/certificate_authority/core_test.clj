@@ -2,18 +2,43 @@
   (:import java.util.Arrays
            (java.io ByteArrayOutputStream ByteArrayInputStream)
            (java.security.cert X509Certificate)
-           (java.security KeyStore SignatureException)
+           (java.security KeyStore SignatureException MessageDigest)
            (javax.security.auth.x500 X500Principal)
            (javax.net.ssl SSLContext)
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
-           (org.joda.time DateTime Period))
+           (org.joda.time DateTime Period)
+           (org.bouncycastle.asn1.x509 SubjectPublicKeyInfo))
   (:require [clojure.test :refer :all]
             [clojure.java.io :refer [resource reader]]
             [puppetlabs.certificate-authority.core :refer :all]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Utilities
+
+(defn pubkey-sha1
+  "Gets the SHA-1 digest of the raw bytes of the provided publickey."
+  [pub-key]
+  {:pre [(public-key? pub-key)]
+   :post [(vector? %)
+          (every? integer? %)]}
+  (let [bytes   (-> pub-key
+                    .getEncoded
+                    SubjectPublicKeyInfo/getInstance
+                    .getPublicKeyData
+                    .getBytes)]
+    (vec (.digest (MessageDigest/getInstance "SHA1") bytes))))
+
+(defn replace-exts
+  "Replace extensions in `exts` with the exensiosn in `new-exts`."
+  [exts new-exts]
+  {:pre [(extension-list? exts)]
+   :post [(set? %)]}
+  (let [oid-list (map #(:oid %) new-exts)
+        filter-fn (fn [ext]
+                    (not (some #(= % (:oid ext)) oid-list)))
+        filtered (filter filter-fn exts)]
+    (set (concat filtered new-exts))))
 
 (defn open-ssl-file
   [filepath]
@@ -183,15 +208,17 @@
       (is (= orig-csr parsed-csr))))
 
 (deftest signing-certificates
-  (let [subject    (cn "foo")
-        key-pair   (generate-key-pair)
-        subj-pub   (get-public-key key-pair)
-        issuer     (cn "my ca")
-        issuer-key (get-private-key (generate-key-pair))
-        not-before (generate-not-before-date)
-        not-after  (generate-not-after-date)]
+  (let [subject         (cn "foo")
+        key-pair        (generate-key-pair)
+        subj-pub        (get-public-key key-pair)
+        issuer          (cn "my ca")
+        issuer-key-pair (generate-key-pair)
+        issuer-priv     (get-private-key issuer-key-pair)
+        issuer-pub      (get-public-key issuer-key-pair)
+        not-before      (generate-not-before-date)
+        not-after       (generate-not-after-date)]
     (testing "sign certificate"
-      (let [certificate (sign-certificate issuer issuer-key 42 not-before not-after
+      (let [certificate (sign-certificate issuer issuer-priv 42 not-before not-after
                                           subject subj-pub)]
         (is (certificate? certificate))
         (is (has-subject? certificate subject))
@@ -199,13 +226,62 @@
         (is (= (.getSerialNumber certificate) 42))))
 
     (testing "signing extensions into certificate"
-      (let [sign-exts   [{:oid      "2.5.29.17"
+      (let [sign-exts   [{:oid      "1.3.6.1.4.1.34380.1.1.1"
+                          :critical false
+                          :value    "ED803750-E3C7-44F5-BB08-41A04433FE2E"}
+                         {:oid      "1.3.6.1.4.1.34380.1.1.2"
+                          :critical false
+                          :value    "1234567890"}
+                         {:oid      "1.3.6.1.4.1.34380.1.1.3"
+                          :critical false
+                          :value    "my_ami_image"}
+                         {:oid      "1.3.6.1.4.1.34380.1.1.4"
+                          :critical false
+                          :value    "342thbjkt82094y0uthhor289jnqthpc2290"}
+                         {:oid      "2.16.840.1.113730.1.13"
+                          :critical false
+                          :value    "Puppet JVM Internal Certificate"}
+                         {:oid       "2.5.29.35"
+                          :critical false
+                          :value     issuer-pub}
+                         {:oid      "2.5.29.19"
+                          :critical true
+                          :value    {:is-ca false
+                                     :path-len-constraint nil}}
+                         {:oid      "2.5.29.37"
+                          :critical true
+                          :value    ["1.3.6.1.5.5.7.3.1" "1.3.6.1.5.5.7.3.2"]}
+                         {:oid      "2.5.29.15"
+                          :critical true
+                          :value    {:key-agreement     false
+                                     :non-repudiation   false
+                                     :data-encipherment false
+                                     :key-encipherment  true
+                                     :digital-signature true
+                                     :key-cert-sign     false
+                                     :crl-sign          false
+                                     :decipher-only     false
+                                     :encipher-only     false}}
+                         {:oid      "2.5.29.14"
+                          :critical false
+                          :value    subj-pub}
+                         {:oid      "2.5.29.17"
                           :critical false
                           :value    {:dns-name ["onefish" "twofish"]}}]
-            cert-w-exts (sign-certificate issuer issuer-key 42 not-before
+            cert-w-exts (sign-certificate issuer issuer-priv 42 not-before
                                           not-after subject subj-pub sign-exts)
-            cert-exts   (get-extensions cert-w-exts)]
-        (is (= cert-exts sign-exts))))))
+            cert-exts   (get-extensions cert-w-exts)
+            expected-exts (replace-exts sign-exts
+                                        [{:oid      "2.5.29.14"
+                                          :value    (pubkey-sha1 subj-pub)
+                                          :critical false}
+                                         {:oid      "2.5.29.35"
+                                          :critical false
+                                          :value    {:issuer        nil
+                                                     :key-identifier (pubkey-sha1
+                                                                       issuer-pub)
+                                                     :serial-number nil}}])]
+        (is (= (set cert-exts) expected-exts))))))
 
 (deftest certificate-test
   (testing "read certificates from PEM stream"
@@ -449,16 +525,17 @@
 
 (deftest extensions
   (testing "Found all extensions from a certificate on disk."
-    (let [extensions (get-extensions (-> "certs/cert-with-exts.pem"
-                                              open-ssl-file
-                                              pem->cert))]
+    (let [cert       (-> "certs/cert-with-exts.pem"
+                         open-ssl-file
+                         pem->cert)
+          extensions (get-extensions cert)]
       (is (= 10 (count extensions)))
       (doseq [[oid value]
               [["2.5.29.15" {:key-agreement     false
                              :non-repudiation   false
                              :data-encipherment false
-                             :key-encipherment  false
-                             :digital-signature false
+                             :key-encipherment  true
+                             :digital-signature true
                              :key-cert-sign     false
                              :crl-sign          false
                              :decipher-only     false

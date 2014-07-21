@@ -113,6 +113,9 @@
     (instance? List data-structure)
     (mapv clojureize data-structure)
 
+    (.startsWith (str (type data-structure)) "class [")
+    (vec data-structure)
+
     :else
     data-structure))
 
