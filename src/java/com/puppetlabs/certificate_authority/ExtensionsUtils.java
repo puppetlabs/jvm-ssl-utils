@@ -44,8 +44,10 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Utilities for working with X509 extensions.
@@ -318,8 +320,8 @@ public class ExtensionsUtils {
             DERIA5String ia5Str = new DERIA5String((String) extMap.get("value"));
             return new Extension(oid, isCritical, new DEROctetString(ia5Str));
         } else if (oid.equals(Extension.keyUsage)) {
-            Map<String, Boolean> val = (Map<String, Boolean>) extMap.get("value");
-            return new Extension(oid, isCritical, new DEROctetString(mapToKeyUsage(val)));
+            Set<String> val = (Set<String>) extMap.get("value");
+            return new Extension(oid, isCritical, new DEROctetString(setToKeyUsage(val)));
         } else if (oid.equals(Extension.extendedKeyUsage)) {
             List<String> list = (List<String>) extMap.get("value");
             return new Extension(oid, isCritical, new DEROctetString(listToExtendedKeyUsage(list)));
@@ -474,7 +476,7 @@ public class ExtensionsUtils {
             return kpi.getId();
         } else if (asn1Prim instanceof KeyUsage) {
             KeyUsage ku = (KeyUsage)asn1Prim;
-            return keyUsageToMap(ku);
+            return keyUsageToSet(ku);
         } else if (asn1Prim instanceof DERBitString) {
             DERBitString bitString = (DERBitString)asn1Prim;
             return bitString.getString();
@@ -508,18 +510,20 @@ public class ExtensionsUtils {
             put("decipher_only", KeyUsage.decipherOnly);
     }};
 
-    private static Map<String, Boolean> keyUsageToMap(KeyUsage ku) {
-        HashMap<String, Boolean> ret = new HashMap<String, Boolean>();
+    private static Set<String> keyUsageToSet(KeyUsage ku) {
+        Set<String> ret = new HashSet<String>();
         for (String key : keyUsageFlags.keySet()) {
-            ret.put(key, ku.hasUsages(keyUsageFlags.get(key)));
+            if (ku.hasUsages(keyUsageFlags.get(key))) {
+                ret.add(key);
+            }
         }
         return ret;
     }
 
-    private static KeyUsage mapToKeyUsage(Map<String, Boolean> flags) {
+    private static KeyUsage setToKeyUsage(Set<String> flags) {
         int usageBitString = 0;
 
-        for (String key: flags.keySet()) {
+        for (String key: flags) {
             Integer flagBit = keyUsageFlags.get(key);
 
             if (flagBit == null) {
@@ -527,9 +531,7 @@ public class ExtensionsUtils {
                         "The provided usage key does not exist: '" + key + "'");
             }
 
-            if (flags.get(key)) {
-                usageBitString |= flagBit;
-            }
+            usageBitString |= flagBit;
         }
 
         return new KeyUsage(usageBitString);

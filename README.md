@@ -31,19 +31,20 @@ byte array containing the SHA-1 hash of the public key.
 
 #### Key Usage: `2.5.29.15`
 
-Key usage is defined by a map of boolean flags with the following keys:
+Key usage is defined by a set of keywords which indicate how the certificate is
+to be used. The following keywords are used:
 
-| Key                  |
-|----------------------|
-| `:digital-signature` |
-| `:non-repudiation`   |
-| `:key-encipherment`  |
-| `:data-encipherment` |
-| `:key-agreement`     |
-| `:key-cert-sign`     |
-| `:crl-sign`          |
-| `:decipher-only`     |
-| `:encipher-only`     | 
+| Keyword              | Meaning
+|----------------------|------------------------------------------------------
+| `:digital-signature` | The public key can be used for encrypting data.  
+| `:non-repudiation`   | The public key is used to verify digital signatures.
+| `:key-encipherment`  | The certificate will be used with a protocl that encrypts keys.
+| `:data-encipherment` | The public key is used for encrypting user data.
+| `:key-agreement`     | The sender and receiver of the public key need to derive the key without using encryption.
+| `:key-cert-sign`     | The subject public key is used to verify a signature on certificates.
+| `:crl-sign`          | The subject public key is to verify a signature on a CRL.
+| `:encipher-only`     | The public key is to be used only for enciphering data while performing key agreement. 
+| `:decipher-only`     | The public key is to be used only for deciphering data while performing key agreement. 
 
 #### Subject Alternative Names: `2.5.29.17` 
 

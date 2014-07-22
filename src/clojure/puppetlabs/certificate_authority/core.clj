@@ -8,7 +8,7 @@
            (com.puppetlabs.certificate_authority CertificateAuthority
                                                  ExtensionsUtils
                                                  PuppetExtensionOids)
-           (java.util Map List Date)
+           (java.util Map List Date Set)
            (org.bouncycastle.asn1.x509 Extension))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :as walk]
@@ -113,6 +113,9 @@
     (instance? List data-structure)
     (mapv clojureize data-structure)
 
+    (instance? Set data-structure)
+    (set (mapv #(keyword (string/replace % #"_" "-")) data-structure))
+
     (.startsWith (str (type data-structure)) "class [")
     (vec data-structure)
 
@@ -132,8 +135,11 @@
     (sequential? data-structure)
     (mapv javaize data-structure)
 
+    (set? data-structure)
+    (set (mapv javaize data-structure))
+
     (keyword? data-structure)
-    (name data-structure)
+    (string/replace (name data-structure) #"-" "_")
 
     :else
     data-structure))

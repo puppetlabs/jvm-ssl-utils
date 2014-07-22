@@ -244,7 +244,7 @@
                          {:oid       "2.5.29.35"
                           :critical false
                           :value     issuer-pub}
-                         {:oid      "2.5.29.19"
+                          {:oid      "2.5.29.19"
                           :critical true
                           :value    {:is-ca false
                                      :path-len-constraint nil}}
@@ -253,15 +253,7 @@
                           :value    ["1.3.6.1.5.5.7.3.1" "1.3.6.1.5.5.7.3.2"]}
                          {:oid      "2.5.29.15"
                           :critical true
-                          :value    {:key-agreement     false
-                                     :non-repudiation   false
-                                     :data-encipherment false
-                                     :key-encipherment  true
-                                     :digital-signature true
-                                     :key-cert-sign     false
-                                     :crl-sign          false
-                                     :decipher-only     false
-                                     :encipher-only     false}}
+                          :value    #{:key-encipherment :digital-signature}}
                          {:oid      "2.5.29.14"
                           :critical false
                           :value    subj-pub}
@@ -531,15 +523,7 @@
           extensions (get-extensions cert)]
       (is (= 10 (count extensions)))
       (doseq [[oid value]
-              [["2.5.29.15" {:key-agreement     false
-                             :non-repudiation   false
-                             :data-encipherment false
-                             :key-encipherment  true
-                             :digital-signature true
-                             :key-cert-sign     false
-                             :crl-sign          false
-                             :decipher-only     false
-                             :encipher-only     false}]
+              [["2.5.29.15" #{:key-encipherment :digital-signature}]
                ["2.5.29.19" {:is-ca               false
                              :path-len-constraint nil}]
                ["2.5.29.37" ["1.3.6.1.5.5.7.3.1" "1.3.6.1.5.5.7.3.2"]]
