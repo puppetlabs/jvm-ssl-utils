@@ -29,17 +29,6 @@
                     .getBytes)]
     (vec (.digest (MessageDigest/getInstance "SHA1") bytes))))
 
-(defn replace-exts
-  "Replace extensions in `exts` with the exensiosn in `new-exts`."
-  [exts new-exts]
-  {:pre [(extension-list? exts)]
-   :post [(set? %)]}
-  (let [oid-list (map #(:oid %) new-exts)
-        filter-fn (fn [ext]
-                    (not (some #(= % (:oid ext)) oid-list)))
-        filtered (filter filter-fn exts)]
-    (set (concat filtered new-exts))))
-
 (defn open-ssl-file
   [filepath]
   (resource (str "puppetlabs/certificate_authority/examples/ssl/" filepath)))
@@ -226,54 +215,68 @@
         (is (= (.getSerialNumber certificate) 42))))
 
     (testing "signing extensions into certificate"
-      (let [sign-exts   [{:oid      "1.3.6.1.4.1.34380.1.1.1"
-                          :critical false
-                          :value    "ED803750-E3C7-44F5-BB08-41A04433FE2E"}
-                         {:oid      "1.3.6.1.4.1.34380.1.1.2"
-                          :critical false
-                          :value    "1234567890"}
-                         {:oid      "1.3.6.1.4.1.34380.1.1.3"
-                          :critical false
-                          :value    "my_ami_image"}
-                         {:oid      "1.3.6.1.4.1.34380.1.1.4"
-                          :critical false
-                          :value    "342thbjkt82094y0uthhor289jnqthpc2290"}
-                         {:oid      "2.16.840.1.113730.1.13"
-                          :critical false
-                          :value    "Puppet JVM Internal Certificate"}
-                         {:oid       "2.5.29.35"
-                          :critical false
-                          :value     issuer-pub}
-                          {:oid      "2.5.29.19"
-                          :critical true
-                          :value    {:is-ca false
-                                     :path-len-constraint nil}}
-                         {:oid      "2.5.29.37"
-                          :critical true
-                          :value    ["1.3.6.1.5.5.7.3.1" "1.3.6.1.5.5.7.3.2"]}
-                         {:oid      "2.5.29.15"
-                          :critical true
-                          :value    #{:key-encipherment :digital-signature}}
-                         {:oid      "2.5.29.14"
-                          :critical false
-                          :value    subj-pub}
-                         {:oid      "2.5.29.17"
-                          :critical false
-                          :value    {:dns-name ["onefish" "twofish"]}}]
+      (let [sign-exts     [(puppet-node-uid
+                             "ED803750-E3C7-44F5-BB08-41A04433FE2E" false)
+                           (puppet-node-instance-id
+                             "1234567890" false)
+                           (puppet-node-image-name
+                             "my_ami_image" false)
+                           (puppet-node-preshared-key
+                             "342thbjkt82094y0uthhor289jnqthpc2290" false)
+                           (netscape-comment
+                             "Puppet JVM Internal Certificate")
+                           (authority-key-identifier
+                             issuer-pub false)
+                           (basic-constraints
+                             false nil true)
+                           (ext-key-usages
+                             ["1.3.6.1.5.5.7.3.1" "1.3.6.1.5.5.7.3.2"] true)
+                           (key-usage
+                             #{:key-encipherment :digital-signature} true)
+                           (subject-key-identifier
+                             subj-pub false)
+                           (subject-dns-alt-names
+                             ["onefish" "twofish"] false)]
+            expected-exts [{:oid      "1.3.6.1.4.1.34380.1.1.1"
+                            :critical false
+                            :value    "ED803750-E3C7-44F5-BB08-41A04433FE2E"}
+                           {:oid      "1.3.6.1.4.1.34380.1.1.2"
+                            :critical false
+                            :value    "1234567890"}
+                           {:oid      "1.3.6.1.4.1.34380.1.1.3"
+                            :critical false
+                            :value    "my_ami_image"}
+                           {:oid      "1.3.6.1.4.1.34380.1.1.4"
+                            :critical false
+                            :value    "342thbjkt82094y0uthhor289jnqthpc2290"}
+                           {:oid      "2.16.840.1.113730.1.13"
+                            :critical false
+                            :value    "Puppet JVM Internal Certificate"}
+                            {:oid      "2.5.29.19"
+                            :critical true
+                            :value    {:is-ca false
+                                       :path-len-constraint nil}}
+                           {:oid      "2.5.29.37"
+                            :critical true
+                            :value    ["1.3.6.1.5.5.7.3.1" "1.3.6.1.5.5.7.3.2"]}
+                           {:oid      "2.5.29.15"
+                            :critical true
+                            :value    #{:key-encipherment :digital-signature}}
+                           {:oid      "2.5.29.17"
+                            :critical false
+                            :value    {:dns-name ["onefish" "twofish"]}}
+                           {:oid      "2.5.29.14"
+                            :value    (pubkey-sha1 subj-pub)
+                            :critical false}
+                           {:oid      "2.5.29.35"
+                            :critical false
+                            :value    {:issuer         nil
+                                       :key-identifier (pubkey-sha1 issuer-pub)
+                                       :serial-number  nil}}]
             cert-w-exts (sign-certificate issuer issuer-priv 42 not-before
                                           not-after subject subj-pub sign-exts)
-            cert-exts   (get-extensions cert-w-exts)
-            expected-exts (replace-exts sign-exts
-                                        [{:oid      "2.5.29.14"
-                                          :value    (pubkey-sha1 subj-pub)
-                                          :critical false}
-                                         {:oid      "2.5.29.35"
-                                          :critical false
-                                          :value    {:issuer        nil
-                                                     :key-identifier (pubkey-sha1
-                                                                       issuer-pub)
-                                                     :serial-number nil}}])]
-        (is (= (set cert-exts) expected-exts))))))
+            cert-exts   (get-extensions cert-w-exts)]
+        (is (= (set cert-exts) (set expected-exts)))))))
 
 (deftest certificate-test
   (testing "read certificates from PEM stream"
