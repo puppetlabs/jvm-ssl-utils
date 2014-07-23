@@ -325,7 +325,7 @@
            (extension-list? extensions)]
     :post [(certificate-request? %)]}
    (CertificateAuthority/generateCertificateRequest
-     keypair subject-dn extensions)))
+     keypair subject-dn (javaize extensions))))
 
 (defn sign-certificate
   "Given a subject, certificate authority information and other certificate info,
