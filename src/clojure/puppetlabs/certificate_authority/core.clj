@@ -697,7 +697,8 @@
   {:pre [(or (certificate? ext-container)
              (certificate-request? ext-container))]
    :post [(extension-list? %)]}
-  (-> (ExtensionsUtils/getExtensionList (javaize ext-container))
+  (-> (or (ExtensionsUtils/getExtensionList (javaize ext-container))
+          [])
       clojureize))
 
 (defn get-extension
