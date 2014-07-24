@@ -182,7 +182,7 @@
    :value    public-key})
 
 (defn key-usage
-  "Create a `Key Usage` extension from a set of flags to emable. See the
+  "Create a `Key Usage` extension from a set of flags to enable. See the
   README.md for the keys supported."
   [flag-set critical]
   {:pre  [(set? flag-set)]
