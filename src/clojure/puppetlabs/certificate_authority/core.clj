@@ -116,7 +116,8 @@
     (instance? Set data-structure)
     (set (mapv #(keyword (string/replace % #"_" "-")) data-structure))
 
-    (.startsWith (str (type data-structure)) "class [")
+    (and ((complement nil?) data-structure)
+         (.isArray (.getClass data-structure)))
     (vec data-structure)
 
     :else
