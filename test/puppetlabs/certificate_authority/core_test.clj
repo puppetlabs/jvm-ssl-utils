@@ -538,12 +538,11 @@
         (is (= (get-extension-value extensions oid) value)))))
 
   (testing "Testing OID subtree status"
-    (is (subtree-of? (:parent puppet-labs-exts)
-                     (:node-uid puppet-labs-exts)))
-    (is (subtree-of? (:reg-cert-ext puppet-labs-exts)
-                     (:node-image-name puppet-labs-exts)))
-    (is (not (subtree-of? (:node-image-name puppet-labs-exts)
-                          (:reg-cert-ext puppet-labs-exts))))
-    (is (not (subtree-of? (:parent puppet-labs-exts)
-                          (:parent puppet-labs-exts))))
-    (is (not (subtree-of? "1.2.3.4" (:node-preshared-key puppet-labs-exts))))))
+    (is (subtree-of? "1.2.3.4"
+                     "1.2.3.4.5"))
+    (is (subtree-of? "1.2.3.4.5"
+                     "1.2.3.4.5.6"))
+    (is (not (subtree-of? "1.2.3.4"
+                          "5.6.7.8")))
+    (is (not (subtree-of? "1.2.3.4"
+                          "1.2.3.4")))))
