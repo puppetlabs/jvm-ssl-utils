@@ -102,7 +102,7 @@
     (mapv clojureize data-structure)
 
     (instance? Set data-structure)
-    (set (mapv #(keyword (string/replace % #"_" "-")) data-structure))
+    (set (map #(keyword (string/replace % #"_" "-")) data-structure))
 
     (and ((complement nil?) data-structure)
          (.isArray (.getClass data-structure)))
@@ -125,7 +125,7 @@
     (mapv javaize data-structure)
 
     (set? data-structure)
-    (set (mapv javaize data-structure))
+    (set (map javaize data-structure))
 
     (keyword? data-structure)
     (string/replace (name data-structure) #"-" "_")
