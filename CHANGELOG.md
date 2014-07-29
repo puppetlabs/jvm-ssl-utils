@@ -1,3 +1,12 @@
+## 0.3.1
+ * Added functions to create a number of common X.509 extensions to certificates and signing requests.
+    * Netscape certificate comment
+    * authority key identifier
+    * subject key identifier
+    * key usage
+    * extended key usage
+    * basic constraints 
+    
 ## 0.3.0
  * Strings are now used to represent X.500 names, instead of Bouncy Castle X500Name objects.
  * The `cn` and `dn` functions are added to facilitate creating X.500 names.
