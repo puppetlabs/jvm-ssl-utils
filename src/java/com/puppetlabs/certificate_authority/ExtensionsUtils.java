@@ -4,17 +4,21 @@ import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1Object;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1OctetString;
+import org.bouncycastle.asn1.ASN1Primitive;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.ASN1Set;
 import org.bouncycastle.asn1.ASN1String;
 import org.bouncycastle.asn1.ASN1TaggedObject;
 import org.bouncycastle.asn1.DERBitString;
+import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERPrintableString;
 import org.bouncycastle.asn1.DERSet;
 import org.bouncycastle.asn1.misc.MiscObjectIdentifiers;
+import org.bouncycastle.asn1.oiw.OIWObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x509.AuthorityKeyIdentifier;
 import org.bouncycastle.asn1.x509.BasicConstraints;
 import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
@@ -25,22 +29,48 @@ import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.asn1.x509.SubjectKeyIdentifier;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.cert.X509CertificateHolder;
+import org.bouncycastle.cert.X509ExtensionUtils;
+import org.bouncycastle.operator.DigestCalculator;
+import org.bouncycastle.operator.OperatorCreationException;
+import org.bouncycastle.operator.bc.BcDigestCalculatorProvider;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 
+import java.io.EOFException;
 import java.io.IOException;
+import java.security.PublicKey;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Utilities for working with X509 extensions.
  */
 public class ExtensionsUtils {
+
+    /**
+     * Return true if the given OID is contained within the subtree of parent OID.
+     *
+     * @param parentOid The OID of the parent tree.
+     * @param oid The OID to compare.
+     * @return True if OID is a subtree
+     */
+    public static boolean isSubtreeOf(String parentOid, String oid) {
+        if (parentOid.equals(oid)) {
+            return false;
+        } else {
+            return oid.startsWith(parentOid);
+        }
+    }
+
+
     /**
      * Given a Java X509Certificate object, return a list of maps representing
      * all the X509 extensions embedded in the certificate. If no extensions
@@ -233,16 +263,16 @@ public class ExtensionsUtils {
      * @return An extensions container extracted form the CSR.
      */
     static Extensions getExtensionsFromCSR(PKCS10CertificationRequest csr) {
-        for (Attribute attr : csr.getAttributes()) {
-            if (attr.getAttrType() == PKCSObjectIdentifiers.pkcs_9_at_extensionRequest) {
-                // TODO: All this casting shouldn't be needed.
-                ASN1Set extsAsn1 = attr.getAttrValues();
-                if (extsAsn1 != null) {
-                    DERSet derSet = (DERSet) extsAsn1.getObjectAt(0);
-                    if (derSet != null) {
-                        return (Extensions) derSet.getObjectAt(0);
-                    } else {
-                        return null;
+        Attribute[] attrs = csr.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest);
+        for (Attribute attr : attrs) {
+            ASN1Set extsAsn1 = attr.getAttrValues();
+            if (extsAsn1 != null) {
+                if (extsAsn1.getObjectAt(0) instanceof Extensions) {
+                    return Extensions.getInstance(extsAsn1.getObjectAt(0));
+                } else {
+                    DERSet set = (DERSet)extsAsn1.getObjectAt(0);
+                    if (set != null) {
+                        return Extensions.getInstance(set.getObjectAt(0));
                     }
                 }
             }
@@ -260,8 +290,7 @@ public class ExtensionsUtils {
      * @see #parseExtensionObject(java.util.Map)
      */
     static Extensions getExtensionsObjFromMap(List<Map<String,Object>> extMapsList)
-            throws IOException
-    {
+            throws IOException, OperatorCreationException {
         if ((extMapsList != null) && (extMapsList.size() > 0)) {
             List<Extension> ret = new ArrayList<Extension>();
             for (Map<String, Object> extObj : extMapsList) {
@@ -282,27 +311,49 @@ public class ExtensionsUtils {
      * @return A parsed Extension object.
      * @throws IOException
      */
+    @SuppressWarnings("unchecked")
     static Extension parseExtensionObject(Map<String, Object> extMap)
-            throws IOException
+            throws IOException, OperatorCreationException
     {
-        ASN1ObjectIdentifier oid = new ASN1ObjectIdentifier((String)extMap.get("oid"));
+        String oidString = (String)extMap.get("oid");
+        ASN1ObjectIdentifier oid = new ASN1ObjectIdentifier(oidString);
+        Boolean isCritical = (Boolean) extMap.get("critical");
 
-        ASN1Object ret;
         if (oid.equals(Extension.subjectAlternativeName) ||
-            oid.equals(Extension.issuerAlternativeName))
-        {
+                oid.equals(Extension.issuerAlternativeName)) {
             @SuppressWarnings("unchecked")
             Map<String, List<String>> val = (Map<String, List<String>>) extMap.get("value");
-            ret = mapToGeneralNames(val);
+            return new Extension(oid, isCritical, new DEROctetString(mapToGeneralNames(val)));
+        } else if (oid.equals(MiscObjectIdentifiers.netscapeCertComment)) {
+            DERIA5String ia5Str = new DERIA5String((String) extMap.get("value"));
+            return new Extension(oid, isCritical, new DEROctetString(ia5Str));
+        } else if (oid.equals(Extension.keyUsage)) {
+            Set<String> val = (Set<String>) extMap.get("value");
+            return new Extension(oid, isCritical, new DEROctetString(setToKeyUsage(val)));
+        } else if (oid.equals(Extension.extendedKeyUsage)) {
+            List<String> list = (List<String>) extMap.get("value");
+            return new Extension(oid, isCritical, new DEROctetString(listToExtendedKeyUsage(list)));
+        } else if (oid.equals(Extension.basicConstraints)) {
+            Map<String, Object> val = (Map<String, Object>) extMap.get("value");
+            return new Extension(oid, isCritical, new DEROctetString(mapToBasicConstraints(val)));
+        } else if (oid.equals(Extension.subjectKeyIdentifier)) {
+            PublicKey pubKey = (PublicKey) extMap.get("value");
+            return new Extension(oid, isCritical, new DEROctetString(publicKeyToSubjectKeyIdentifier(pubKey)));
+        } else if (oid.equals(Extension.authorityKeyIdentifier)) {
+            PublicKey pubKey = (PublicKey) extMap.get("value");
+            return new Extension(oid, isCritical, new DEROctetString(publicKeyToAuthorityKeyIdentifier(pubKey)));
+        } else if (oidString.equals(PuppetExtensionOids.nodeUid) ||
+                oidString.equals(PuppetExtensionOids.nodeInstanceId) ||
+                oidString.equals(PuppetExtensionOids.nodeImageName) ||
+                oidString.equals(PuppetExtensionOids.nodePresharedKey)) {
+            String value = (String) extMap.get("value");
+            return new Extension(oid, isCritical, new DEROctetString(value.getBytes()));
         } else {
             throw new IllegalArgumentException(
                     "Parsing an extension with an OID=" +
-                    oid.getId() + " is not yet supported.");
+                            oid.getId() + " is not yet supported.");
         }
-
-        return new Extension(oid, (Boolean)extMap.get("critical"), new DEROctetString(ret));
     }
-
 
     /**
      * Get a Bouncy Castle Extensions container from a Java X509 certificate
@@ -387,12 +438,17 @@ public class ExtensionsUtils {
         } else if (oid.equals(Extension.basicConstraints)) {
             return BasicConstraints.getInstance(data);
         } else if (oid.equals(Extension.keyUsage)) {
-            DERBitString bs = new DERBitString(data);
-            return new KeyUsage(bs.getPadBits());
+            DERBitString bs = (DERBitString) ASN1Primitive.fromByteArray(data);
+            return KeyUsage.getInstance(bs);
         } else if (oid.equals(Extension.extendedKeyUsage)) {
             return ExtendedKeyUsage.getInstance(data);
         } else if (oid.equals(MiscObjectIdentifiers.netscapeCertComment)) {
-            return new DERPrintableString(new String(data, "UTF8"));
+            try {
+                return ASN1Primitive.fromByteArray(data);
+            } catch (EOFException e) {
+                // Sometimes the comment field is not wrapped in an IA5String
+                return new DERPrintableString(new String(data, "UTF8"));
+            }
         } else {
             // Most extensions are a simple string value.
             return new DERPrintableString(new String(data, "UTF8"));
@@ -428,7 +484,7 @@ public class ExtensionsUtils {
             return kpi.getId();
         } else if (asn1Prim instanceof KeyUsage) {
             KeyUsage ku = (KeyUsage)asn1Prim;
-            return keyUsageToMap(ku);
+            return keyUsageToSet(ku);
         } else if (asn1Prim instanceof DERBitString) {
             DERBitString bitString = (DERBitString)asn1Prim;
             return bitString.getString();
@@ -449,18 +505,54 @@ public class ExtensionsUtils {
         }
     }
 
-    private static Map<String, Boolean> keyUsageToMap(KeyUsage ku) {
-        HashMap<String, Boolean> ret = new HashMap<String, Boolean>();
-        ret.put("digital_signature", ku.hasUsages(KeyUsage.digitalSignature));
-        ret.put("non_repudiation",   ku.hasUsages(KeyUsage.nonRepudiation));
-        ret.put("key_encipherment",  ku.hasUsages(KeyUsage.keyEncipherment));
-        ret.put("data_encipherment", ku.hasUsages(KeyUsage.dataEncipherment));
-        ret.put("key_agreement",     ku.hasUsages(KeyUsage.keyAgreement));
-        ret.put("key_cert_sign",     ku.hasUsages(KeyUsage.keyCertSign));
-        ret.put("crl_sign",          ku.hasUsages(KeyUsage.cRLSign));
-        ret.put("encipher_only",     ku.hasUsages(KeyUsage.encipherOnly));
-        ret.put("decipher_only",     ku.hasUsages(KeyUsage.decipherOnly));
+    private static final Map<String, Integer> keyUsageFlags =
+        new HashMap<String, Integer>() {{
+            put("digital_signature", KeyUsage.digitalSignature);
+            put("non_repudiation", KeyUsage.nonRepudiation);
+            put("key_encipherment", KeyUsage.keyEncipherment);
+            put("data_encipherment", KeyUsage.dataEncipherment);
+            put("key_agreement", KeyUsage.keyAgreement);
+            put("key_cert_sign", KeyUsage.keyCertSign);
+            put("crl_sign", KeyUsage.cRLSign);
+            put("encipher_only", KeyUsage.encipherOnly);
+            put("decipher_only", KeyUsage.decipherOnly);
+    }};
+
+    private static Set<String> keyUsageToSet(KeyUsage ku) {
+        Set<String> ret = new HashSet<String>();
+        for (String key : keyUsageFlags.keySet()) {
+            if (ku.hasUsages(keyUsageFlags.get(key))) {
+                ret.add(key);
+            }
+        }
         return ret;
+    }
+
+    private static KeyUsage setToKeyUsage(Set<String> flags) {
+        int usageBitString = 0;
+
+        for (String key: flags) {
+            Integer flagBit = keyUsageFlags.get(key);
+
+            if (flagBit == null) {
+                throw new IllegalArgumentException(
+                        "The provided usage key does not exist: '" + key + "'");
+            }
+
+            usageBitString |= flagBit;
+        }
+
+        return new KeyUsage(usageBitString);
+    }
+
+    private static ExtendedKeyUsage listToExtendedKeyUsage(List<String> oidList) {
+        List<KeyPurposeId> usages = new ArrayList<KeyPurposeId>();
+
+        for (String oid : oidList) {
+            usages.add(KeyPurposeId.getInstance(new ASN1ObjectIdentifier(oid)));
+        }
+
+        return new ExtendedKeyUsage(usages.toArray(new KeyPurposeId[usages.size()]));
     }
 
     private static List<Object> extKeyUsageToList(ExtendedKeyUsage eku)
@@ -478,6 +570,51 @@ public class ExtensionsUtils {
         ret.put("is_ca", bc.isCA());
         ret.put("path_len_constraint", bc.getPathLenConstraint());
         return ret;
+    }
+
+    private static BasicConstraints mapToBasicConstraints(Map<String, Object> bcMap) {
+        if (bcMap.keySet().size() > 2) {
+            throw new IllegalArgumentException(
+                    "There should be two keys present in the basic constrains " +
+                    "map, 'is_ca' and 'path_len_constraint'");
+        }
+
+        Boolean isCa = (Boolean) bcMap.get("is_ca");
+        if (isCa == null) {
+            throw new IllegalArgumentException("The 'is_ca' key must be present.");
+        }
+
+        if (isCa) {
+            Integer pathLenConstraint = (Integer) bcMap.get("path_len_constraint");
+            if (pathLenConstraint == null) { pathLenConstraint = 0; }
+            return new BasicConstraints(pathLenConstraint);
+        } else {
+            return new BasicConstraints(false);
+        }
+    }
+
+    private static SubjectKeyIdentifier publicKeyToSubjectKeyIdentifier(PublicKey publicKey)
+            throws OperatorCreationException
+    {
+        SubjectPublicKeyInfo pubKeyInfo =
+                SubjectPublicKeyInfo.getInstance(publicKey.getEncoded());
+
+        DigestCalculator digCalc =
+                new BcDigestCalculatorProvider().get(new AlgorithmIdentifier(OIWObjectIdentifiers.idSHA1));
+
+        X509ExtensionUtils utils = new X509ExtensionUtils(digCalc);
+        return utils.createSubjectKeyIdentifier(pubKeyInfo);
+    }
+
+    private static AuthorityKeyIdentifier publicKeyToAuthorityKeyIdentifier(PublicKey publicKey) throws OperatorCreationException {
+        SubjectPublicKeyInfo pubKeyInfo =
+                SubjectPublicKeyInfo.getInstance(publicKey.getEncoded());
+
+        DigestCalculator digCalc =
+                new BcDigestCalculatorProvider().get(new AlgorithmIdentifier(OIWObjectIdentifiers.idSHA1));
+
+        X509ExtensionUtils utils = new X509ExtensionUtils(digCalc);
+        return utils.createAuthorityKeyIdentifier(pubKeyInfo);
     }
 
     private static Map<String, Object> authorityKeyIdToMap(AuthorityKeyIdentifier akid)
@@ -594,5 +731,19 @@ public class ExtensionsUtils {
 
         }
         return new GeneralNames(ret.toArray(new GeneralName[ret.size()]));
+    }
+
+    /**
+     * Definitions for Puppet Labs extension OIDs.
+     */
+    private static interface PuppetExtensionOids {
+        static final String parent           = "1.3.6.1.4.1.34380";
+        static final String certExt          = "1.3.6.1.4.1.34380.1";
+        static final String regCertExt       = "1.3.6.1.4.1.34380.1.1";
+        static final String nodeUid          = "1.3.6.1.4.1.34380.1.1.1";
+        static final String nodeInstanceId   = "1.3.6.1.4.1.34380.1.1.2";
+        static final String nodeImageName    = "1.3.6.1.4.1.34380.1.1.3";
+        static final String nodePresharedKey = "1.3.6.1.4.1.34380.1.1.4";
+        static final String privateCertExt   = "1.3.6.1.4.1.34380.1.2";
     }
 }

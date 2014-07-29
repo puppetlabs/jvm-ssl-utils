@@ -6,8 +6,9 @@
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
            (com.puppetlabs.certificate_authority CertificateAuthority
-                                                 ExtensionsUtils)
-           (java.util Map List Date)
+                                                 ExtensionsUtils
+                                                 ExtensionsUtils$PuppetExtensionOids)
+           (java.util Map List Date Set)
            (org.bouncycastle.asn1.x509 Extension))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :as walk]
@@ -100,6 +101,13 @@
     (instance? List data-structure)
     (mapv clojureize data-structure)
 
+    (instance? Set data-structure)
+    (set (map #(keyword (string/replace % #"_" "-")) data-structure))
+
+    (and ((complement nil?) data-structure)
+         (.isArray (.getClass data-structure)))
+    (vec data-structure)
+
     :else
     data-structure))
 
@@ -116,14 +124,131 @@
     (sequential? data-structure)
     (mapv javaize data-structure)
 
+    (set? data-structure)
+    (set (map javaize data-structure))
+
     (keyword? data-structure)
-    (name data-structure)
+    (string/replace (name data-structure) #"-" "_")
 
     :else
     data-structure))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Core
+
+(defn subject-dns-alt-names
+  "Create a Subject Alternative Names extensions (OID=2.5.29.17) which contains
+  a list of DNS names as alternative names. The `critical` argument sets the
+  criticality flag of this extension."
+  [alt-names-list critical]
+  {:pre [(sequential? alt-names-list)
+         (every? string? alt-names-list)]
+   :post [(extension? %)]}
+  {:oid      "2.5.29.17"
+   :critical (boolean critical)
+   :value    {:dns-name alt-names-list}})
+
+(defn netscape-comment
+  "Create a `Netscape Certificate Comment` extension."
+  [comment]
+  {:pre  [(string? comment)]
+   :post [(extension? %)]}
+  {:oid      "2.16.840.1.113730.1.13"
+   :critical false
+   :value    comment})
+
+(defn authority-key-identifier
+  "Create an `Authority Key Identifier` extension from a `PublicKey` object. The
+  extension created by this function is intended to be passed into
+  `sign-certificate` and `generate-certificate-request`, at which time the key's
+  hash will be computed and stored in the resulting object."
+  [public-key critical]
+  {:pre [(public-key? public-key)]
+   :post [(extension? %)]}
+  {:oid      "2.5.29.35"
+   :critical (boolean critical)
+   :value    public-key})
+
+(defn subject-key-identifier
+  "Create a `Subject Key Identifier` extension from a `PublicKey` object. The
+  extension created by this function is intended to be passed into
+  `sign-certificate` and `generate-certificate-request`, at which time the key's
+  hash will be computed and stored in the resulting object."
+  [public-key critical]
+  {:pre [(public-key? public-key)]
+   :post [(extension? %)]}
+  {:oid      "2.5.29.14"
+   :critical (boolean critical)
+   :value    public-key})
+
+(defn key-usage
+  "Create a `Key Usage` extension from a set of flags to enable. See the
+  README.md for the keys supported."
+  [flag-set critical]
+  {:pre  [(set? flag-set)]
+   :post [(extension? %)]}
+  {:oid     "2.5.29.15"
+   :critical (boolean critical)
+   :value   flag-set})
+
+(defn ext-key-usages
+  "Create an `Extended Key Usages` extensions from a list of OIDs."
+  [oid-list critical]
+  {:pre [(sequential? oid-list)]
+   :post [(extension? %)]}
+  {:oid "2.5.29.37"
+   :critical (boolean critical)
+   :value oid-list})
+
+(defn basic-constraints
+  "Create a `Basic Constraints` extension. If `is-ca` is true then `max-path-len`
+  can be either nil or specify the maximum path length from the CA that is
+  supported by this certificate. If the `is-ca` flag is false, then
+  `max-path-len` will be ignored."
+  [is-ca max-path-len critical]
+  {:pre  [(or (integer? max-path-len)
+              (nil? max-path-len))]
+   :post [(extension? %)]}
+  {:oid "2.5.29.19"
+   :critical (boolean critical)
+   :value {:is-ca (boolean is-ca)
+           :path-len-constraint max-path-len}})
+
+(defn puppet-node-uid
+  "Create a `Puppet Node UID` extension."
+  [uid critical]
+  {:pre  [(string? uid)]
+   :post [(extension? %)]}
+  {:oid "1.3.6.1.4.1.34380.1.1.1"
+   :critical (boolean critical)
+   :value uid})
+
+(defn puppet-node-instance-id
+  "Create a `Puppet Node Instance ID` extension."
+  [id critical]
+  {:pre  [(string? id)]
+   :post [(extension? %)]}
+  {:oid "1.3.6.1.4.1.34380.1.1.2"
+   :critical (boolean critical)
+   :value id})
+
+(defn puppet-node-image-name
+  "Create a `Puppet Node Image Name` extension."
+  [name critical]
+  {:pre  [(string? name)]
+   :post [(extension? %)]}
+  {:oid "1.3.6.1.4.1.34380.1.1.3"
+   :critical (boolean critical)
+   :value name})
+
+(defn puppet-node-preshared-key
+  "Create a `Puppet Node Preshared Key` extension."
+  [key critical]
+  {:pre  [(string? key)]
+   :post [(extension? %)]}
+  {:oid "1.3.6.1.4.1.34380.1.1.4"
+   :critical (boolean critical)
+   :value key})
 
 (defn dn
   "Given a sequence of attribute names and value pairs, generate an X.500 DN
@@ -189,7 +314,7 @@
            (extension-list? extensions)]
     :post [(certificate-request? %)]}
    (CertificateAuthority/generateCertificateRequest
-     keypair subject-dn extensions)))
+     keypair subject-dn (javaize extensions))))
 
 (defn sign-certificate
   "Given a subject, certificate authority information and other certificate info,
@@ -561,7 +686,8 @@
   {:pre [(or (certificate? ext-container)
              (certificate-request? ext-container))]
    :post [(extension-list? %)]}
-  (-> (ExtensionsUtils/getExtensionList (javaize ext-container))
+  (-> (or (ExtensionsUtils/getExtensionList (javaize ext-container))
+          [])
       clojureize))
 
 (defn get-extension
@@ -611,3 +737,11 @@
   {:pre [(keypair? key-object)]
    :post [(private-key? %)]}
   (CertificateAuthority/getPrivateKey key-object))
+
+(defn subtree-of?
+  "Given an OID and a a parent tree OID return true if the OID is within
+  the subtree of the parent OID."
+  [parent-oid oid]
+  {:pre [(string? parent-oid)
+         (string? oid)]}
+  (ExtensionsUtils/isSubtreeOf parent-oid oid))
