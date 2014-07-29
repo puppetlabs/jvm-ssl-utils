@@ -52,8 +52,7 @@ public class PuppetMasterCertManager {
 
     public PuppetMasterCertManager(String confDir, String masterCertname)
             throws IOException, NoSuchProviderException, NoSuchAlgorithmException, CRLException,
-                   OperatorCreationException, CertificateException, KeyStoreException
-    {
+            OperatorCreationException, CertificateException, KeyStoreException, SignatureException, InvalidKeyException {
         this.sslDir = PathUtils.concat(confDir, "ssl");
         this.masterCertname = masterCertname;
 
@@ -86,8 +85,7 @@ public class PuppetMasterCertManager {
     }
 
     public X509Certificate signCertificateRequest(String certname, PKCS10CertificationRequest certRequest)
-        throws IOException, OperatorCreationException, CertificateException
-    {
+            throws IOException, OperatorCreationException, CertificateException, NoSuchAlgorithmException, SignatureException, InvalidKeyException {
         // TODO: we are just autosigning here, never saving the CSR to disk.
         X509Certificate cert = CertificateAuthority.signCertificate(
                 caX500Name,
@@ -103,9 +101,8 @@ public class PuppetMasterCertManager {
     }
 
     private void initializeCACert()
-        throws NoSuchProviderException, NoSuchAlgorithmException, IOException,
-               OperatorCreationException, CRLException, CertificateException
-    {
+            throws NoSuchProviderException, NoSuchAlgorithmException, IOException,
+            OperatorCreationException, CRLException, CertificateException, SignatureException, InvalidKeyException {
 
         if (new File(this.caPublicKeyPath).exists() &&
             new File(this.caPrivateKeyPath).exists() &&
@@ -147,8 +144,7 @@ public class PuppetMasterCertManager {
     }
 
     private void initializeMasterCert()
-        throws IOException, NoSuchProviderException, NoSuchAlgorithmException, OperatorCreationException, CertificateException
-    {
+            throws IOException, NoSuchProviderException, NoSuchAlgorithmException, OperatorCreationException, CertificateException, SignatureException, InvalidKeyException {
 
         if (new File(masterPublicKeyPath).exists() &&
             new File(masterPrivateKeyPath).exists() &&
