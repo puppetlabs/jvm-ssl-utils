@@ -24,27 +24,30 @@ keywords.
 
 #### Subject Key Identifier: `2.5.29.14`
 
-When writing a _Subject Key Identifier_ extension, set the value of the extension
-map to an instance of the subject's `java.security.PublicKey`. When a
-_Subject Key Identifier_ extensions is read from a certificate, its value is a 
-byte array containing the SHA-1 hash of the public key.
+When writing a _Subject Key Identifier_ extension, set the `value` key of the 
+extension map to an instance of the subject's `java.security.PublicKey`. When
+extension is written to the certificate or certificate request then the SHA-1
+hash of the key will be computed and written to the object.
+
+When a _Subject Key Identifier_ extensions is read from a certificate its value 
+is a byte array containing the SHA-1 hash.
 
 #### Key Usage: `2.5.29.15`
 
 Key usage is defined by a set of keywords which indicate how the certificate is
 to be used. The following keywords are used:
 
-| Keyword              | Meaning
-|----------------------|------------------------------------------------------
-| `:digital-signature` | The public key can be used for encrypting data.  
-| `:non-repudiation`   | The public key is used to verify digital signatures.
-| `:key-encipherment`  | The certificate will be used with a protocl that encrypts keys.
-| `:data-encipherment` | The public key is used for encrypting user data.
-| `:key-agreement`     | The sender and receiver of the public key need to derive the key without using encryption.
-| `:key-cert-sign`     | The subject public key is used to verify a signature on certificates.
-| `:crl-sign`          | The subject public key is to verify a signature on a CRL.
-| `:encipher-only`     | The public key is to be used only for enciphering data while performing key agreement. 
-| `:decipher-only`     | The public key is to be used only for deciphering data while performing key agreement. 
+| Keyword              | Meaning                                                                                   |
+|----------------------|-------------------------------------------------------------------------------------------|
+| `:digital-signature` | The public key can be used for encrypting data.                                           |
+| `:non-repudiation`   | The public key is used to verify digital signatures.                                      |
+| `:key-encipherment`  | The certificate will be used with a protocol that encrypts keys.                          |
+| `:data-encipherment` | The public key is used for encrypting user data.                                          |
+| `:key-agreement`     | The sender and receiver of the public key need to derive the key without using encryption.|
+| `:key-cert-sign`     | The subject public key is used to verify a signature on certificates.                     |
+| `:crl-sign`          | The subject public key is to verify a signature on a CRL.                                 |
+| `:encipher-only`     | The public key is to be used only for enciphering data while performing key agreement.    |
+| `:decipher-only`     | The public key is to be used only for deciphering data while performing key agreement.    |
 
 #### Subject Alternative Names: `2.5.29.17` 
 
@@ -82,10 +85,10 @@ The format of this extension is the same as `Subject Alternative Names` above.
 
 Defines basic constraints for the certificate as a map with these two keys:
 
-| Key                    | Type    | Value
-|------------------------|---------|---------------------------------------------------------
-| `:is-ca`               | boolean | True if the subject may act as a CA.
-| `:path-len-constraint` | integer | If this is a CA cert, the max certification path length.
+| Key                    | Type    | Value                                                   |
+|------------------------|---------|---------------------------------------------------------|
+| `:is-ca`               | boolean | True if the subject may act as a CA.                    |
+| `:path-len-constraint` | integer | If this is a CA cert, the max certification path length.|
 
 #### Authority Key Identifier: `2.5.29.35`
 
@@ -94,11 +97,13 @@ When writing this extension to a certificate the value should contain a
 When this extension is read back from a certificate, it will be a map containing 
 the following keys:
   
-| Key                    | Type        | Value
-|------------------------|-------------|-------------------------------------------------------------------
-| `:key-identifier`      | byte vector | A byte array containing the SHA-1 hash of the public key 
-| `:issuer`              | string      | A name identifying the certificate authority, nil if not specified 
-| `:serial-number`       | integer     | The issuer's certificate serial number.             
+| Key                    | Type        | Value                                                             |
+|------------------------|-------------|-------------------------------------------------------------------|
+| `:key-identifier`      | byte vector | A byte array containing the SHA-1 hash of the public key          |
+| `:issuer`              | string      | A name identifying the certificate authority, nil if not specified| 
+| `:serial-number`       | integer     | The issuer's certificate serial number.                           |
+
+This acts a lot like the `Subject Key Identifier` extension. 
 
 #### Extended Key Usage: `2.5.29.37` 
 
