@@ -13,6 +13,7 @@ import org.bouncycastle.asn1.DERBitString;
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERPrintableString;
+import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.asn1.DERSet;
 import org.bouncycastle.asn1.misc.MiscObjectIdentifiers;
 import org.bouncycastle.asn1.oiw.OIWObjectIdentifiers;
@@ -267,13 +268,12 @@ public class ExtensionsUtils {
         for (Attribute attr : attrs) {
             ASN1Set extsAsn1 = attr.getAttrValues();
             if (extsAsn1 != null) {
-                if (extsAsn1.getObjectAt(0) instanceof Extensions) {
-                    return Extensions.getInstance(extsAsn1.getObjectAt(0));
-                } else {
-                    DERSet set = (DERSet)extsAsn1.getObjectAt(0);
-                    if (set != null) {
-                        return Extensions.getInstance(set.getObjectAt(0));
-                    }
+                ASN1Encodable extObj = extsAsn1.getObjectAt(0);
+
+                if (extObj instanceof Extensions) {
+                    return (Extensions)extObj;
+                } else if (extObj instanceof DERSequence) {
+                    return Extensions.getInstance(extObj);
                 }
             }
         }

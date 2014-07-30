@@ -1,7 +1,6 @@
 package com.puppetlabs.certificate_authority;
 
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
-import org.bouncycastle.asn1.DERSet;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
@@ -136,9 +135,7 @@ public class CertificateAuthority {
 
         if ((extensions != null) && (extensions.size() > 0)) {
             Extensions parsedExts = ExtensionsUtils.getExtensionsObjFromMap(extensions);
-
-            requestBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest,
-                                        new DERSet(parsedExts));
+            requestBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest, parsedExts);
         }
 
         return requestBuilder.build(
@@ -393,7 +390,7 @@ public class CertificateAuthority {
      * @see #writeToPEM
      */
     public static List<PrivateKey> pemToPrivateKeys(Reader reader)
-        throws IOException, PEMException
+        throws IOException
     {
         List<Object> objects = pemToObjects(reader);
         List<PrivateKey> results = new ArrayList<PrivateKey>(objects.size());
