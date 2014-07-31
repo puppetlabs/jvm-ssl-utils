@@ -342,16 +342,10 @@ public class ExtensionsUtils {
         } else if (oid.equals(Extension.authorityKeyIdentifier)) {
             PublicKey pubKey = (PublicKey) extMap.get("value");
             return new Extension(oid, isCritical, new DEROctetString(publicKeyToAuthorityKeyIdentifier(pubKey)));
-        } else if (oidString.equals(PuppetExtensionOids.nodeUid) ||
-                oidString.equals(PuppetExtensionOids.nodeInstanceId) ||
-                oidString.equals(PuppetExtensionOids.nodeImageName) ||
-                oidString.equals(PuppetExtensionOids.nodePresharedKey)) {
+        } else {
+            // If the OID isn't recognized, then just parse the value as a string
             String value = (String) extMap.get("value");
             return new Extension(oid, isCritical, new DEROctetString(value.getBytes()));
-        } else {
-            throw new IllegalArgumentException(
-                    "Parsing an extension with an OID=" +
-                            oid.getId() + " is not yet supported.");
         }
     }
 
