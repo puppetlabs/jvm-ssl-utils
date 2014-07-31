@@ -1,3 +1,6 @@
+## 0.3.2
+ * Fixed bugs in how extensions are read and written to signing requests
+
 ## 0.3.1
  * Added functions to create a number of common X.509 extensions to certificates and signing requests.
     * Netscape certificate comment
