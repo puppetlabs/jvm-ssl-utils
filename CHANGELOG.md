@@ -1,3 +1,6 @@
+## 0.3.3.
+ * If an extension is read that has an unrecognized OID then it is parsed as a string.
+
 ## 0.3.2
  * Fixed bugs in how extensions are read and written to signing requests
 
