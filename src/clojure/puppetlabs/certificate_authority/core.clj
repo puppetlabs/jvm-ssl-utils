@@ -162,12 +162,30 @@
   extension created by this function is intended to be passed into
   `sign-certificate` and `generate-certificate-request`, at which time the key's
   hash will be computed and stored in the resulting object."
-  [public-key critical]
-  {:pre [(public-key? public-key)]
-   :post [(extension? %)]}
-  {:oid      "2.5.29.35"
-   :critical (boolean critical)
-   :value    public-key})
+  ([public-key critical]
+    {:pre [(public-key? public-key)]
+     :post [(extension? %)]}
+    {:oid      "2.5.29.35"
+     :critical (boolean critical)
+     :value    {:public-key public-key}})
+  ([issuer-dn serial critical]
+    {:pre [(number? serial)
+           (valid-x500-name? issuer-dn)]
+     :post [(extension? %)]}
+    {:oid      "2.5.29.35"
+     :critical (boolean critical)
+     :value    {:serial-number (biginteger serial)
+                :issuer-dn     issuer-dn}})
+  ([public-key issuer-dn serial critical]
+   {:pre [(public-key? public-key)
+          (number? serial)
+          (valid-x500-name? issuer-dn)]
+    :post [(extension? %)]}
+   {:oid      "2.5.29.35"
+    :critical (boolean critical)
+    :value    {:public-key    public-key
+               :serial-number (biginteger serial)
+               :issuer-dn     issuer-dn}}))
 
 (defn subject-key-identifier
   "Create a `Subject Key Identifier` extension from a `PublicKey` object. The
@@ -200,19 +218,31 @@
    :critical (boolean critical)
    :value oid-list})
 
-(defn basic-constraints
-  "Create a `Basic Constraints` extension. If `is-ca` is true then `max-path-len`
-  can be either nil or specify the maximum path length from the CA that is
-  supported by this certificate. If the `is-ca` flag is false, then
-  `max-path-len` will be ignored."
-  [is-ca max-path-len critical]
-  {:pre  [(or (integer? max-path-len)
-              (nil? max-path-len))]
-   :post [(extension? %)]}
+(defn basic-constraints-for-non-ca
+  "Create a `Basic Constraints` extension for a non-CA certificate."
+  [critical]
+  {:post [(extension? %)]}
   {:oid "2.5.29.19"
    :critical (boolean critical)
-   :value {:is-ca (boolean is-ca)
-           :path-len-constraint max-path-len}})
+   :value {:is-ca false}})
+
+(defn basic-constraints-for-ca
+  "Create a `Basic Constraints` extension for a CA certificate.  `max-path-len`
+  refers to the maximum number of non-self-issued intermediate certificates that
+  may follow the CA certificate in a valid certification path.  If `max-path-len`
+  is not specified, no limit will be imposed."
+  ([]
+   {:post [(extension? %)]}
+   {:oid "2.5.29.19"
+    :critical true
+    :value {:is-ca true}})
+  ([max-path-len]
+   {:pre [(instance? Integer max-path-len)]
+    :post [(extension? %)]}
+   {:oid "2.5.29.19"
+    :critical true
+    :value {:is-ca true
+            :path-len-constraint max-path-len}}))
 
 (defn puppet-node-uid
   "Create a `Puppet Node UID` extension."
