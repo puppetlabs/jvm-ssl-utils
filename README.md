@@ -90,6 +90,11 @@ Defines basic constraints for the certificate as a map with these two keys:
 | `:is-ca`               | boolean | True if the subject may act as a CA.                    |
 | `:path-len-constraint` | integer | If this is a CA cert, the max certification path length.|
 
+#### CRL Number: `2.5.29.20`
+
+The value of this extension is a `java.math.BigInteger` representing the 
+sequence number for a CRL (Certificate Revocation List). 
+
 #### Authority Key Identifier: `2.5.29.35`
 
 When writing this extension to a certificate the value should contain a
