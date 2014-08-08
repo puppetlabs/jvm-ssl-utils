@@ -22,6 +22,7 @@ import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x509.AuthorityKeyIdentifier;
 import org.bouncycastle.asn1.x509.BasicConstraints;
+import org.bouncycastle.asn1.x509.CRLNumber;
 import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.Extensions;
@@ -344,6 +345,10 @@ public class ExtensionsUtils {
             Map<String, Object> val = (Map<String, Object>) extMap.get("value");
             return new Extension(oid, isCritical,
                     new DEROctetString(mapToAuthorityKeyIdentifier(val)));
+        } else if (oid.equals(Extension.cRLNumber)) {
+            BigInteger number = (BigInteger) extMap.get("value");
+            return new Extension(oid, false, new DEROctetString(
+                    new CRLNumber(number)));
         } else {
             // If the OID isn't recognized, then just parse the value as a string
             String value = (String) extMap.get("value");
@@ -445,6 +450,8 @@ public class ExtensionsUtils {
                 // Sometimes the comment field is not wrapped in an IA5String
                 return new DERPrintableString(new String(data, "UTF8"));
             }
+        } else if (oid.equals(Extension.cRLNumber)) {
+            return CRLNumber.getInstance(data);
         } else {
             // Most extensions are a simple string value.
             return new DERPrintableString(new String(data, "UTF8"));
@@ -470,6 +477,9 @@ public class ExtensionsUtils {
             return authorityKeyIdToMap((AuthorityKeyIdentifier) asn1Prim);
         } else if (asn1Prim instanceof BasicConstraints) {
             return basicConstraintsToMap((BasicConstraints) asn1Prim);
+        } else if (asn1Prim instanceof CRLNumber) {
+            CRLNumber crlNumber = (CRLNumber) asn1Prim;
+            return crlNumber.getCRLNumber();
         } else if (asn1Prim instanceof SubjectKeyIdentifier) {
             SubjectKeyIdentifier ski = (SubjectKeyIdentifier) asn1Prim;
             return ski.getKeyIdentifier();

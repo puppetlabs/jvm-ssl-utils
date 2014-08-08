@@ -244,6 +244,15 @@
     :value {:is-ca true
             :path-len-constraint max-path-len}}))
 
+(defn crl-number
+  "Create a `CRL Number` extension"
+  [number]
+  {:pre [(number? number)]
+   :post [(extension? %)]}
+  {:oid "2.5.29.20"
+   :critical false
+   :value (biginteger number)})
+
 (defn puppet-node-uid
   "Create a `Puppet Node UID` extension."
   [uid critical]

@@ -206,7 +206,8 @@
         issuer-pub      (get-public-key issuer-key-pair)
         not-before      (generate-not-before-date)
         not-after       (generate-not-after-date)
-        serial          42]
+        serial          42
+        crl-num         23]
     (testing "sign certificate"
       (let [certificate (sign-certificate issuer issuer-priv serial not-before
                                           not-after subject subj-pub)]
@@ -236,7 +237,8 @@
                            (subject-key-identifier
                              subj-pub false)
                            (subject-dns-alt-names
-                             ["onefish" "twofish"] false)]
+                             ["onefish" "twofish"] false)
+                           (crl-number crl-num)]
             expected-exts [{:oid      "1.3.6.1.4.1.34380.1.1.1"
                             :critical false
                             :value    "ED803750-E3C7-44F5-BB08-41A04433FE2E"}
@@ -272,7 +274,10 @@
                             :critical false
                             :value    {:issuer         nil
                                        :key-identifier (pubkey-sha1 issuer-pub)
-                                       :serial-number  nil}}]
+                                       :serial-number  nil}}
+                           {:oid      "2.5.29.20"
+                            :critical false
+                            :value    (biginteger crl-num)}]
             cert-w-exts (sign-certificate issuer issuer-priv serial not-before
                                           not-after subject subj-pub sign-exts)
             cert-exts   (get-extensions cert-w-exts)]
