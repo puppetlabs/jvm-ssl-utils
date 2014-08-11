@@ -622,8 +622,7 @@ public class ExtensionsUtils {
             Map<String, Object> authKeyIdMap) throws OperatorCreationException {
         AuthorityKeyIdentifier authorityKeyId = null;
 
-        PublicKey pubKey = (PublicKey) authKeyIdMap.get
-                ("public_key");
+        PublicKey pubKey = (PublicKey) authKeyIdMap.get ("public_key");
         if (pubKey != null) {
             SubjectPublicKeyInfo authPubKeyInfo =
                     SubjectPublicKeyInfo.getInstance(

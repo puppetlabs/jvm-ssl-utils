@@ -315,7 +315,7 @@
                                         "2.5.29.35")]
         (is (= actual-ext expected-ext))))
 
-    (testing (str "signing for non-critical, non-CA basic constraints")
+    (testing "signing for non-critical, non-CA basic constraints"
       (let [sign-exts    [(basic-constraints-for-non-ca false)]
             expected-ext {:oid      "2.5.29.19"
                           :critical false
@@ -328,7 +328,7 @@
                                         "2.5.29.19")]
         (is (= actual-ext expected-ext))))
 
-    (testing (str "signing for CA basic constraints with no path constraint")
+    (testing "signing for CA basic constraints with no path constraint"
       (let [sign-exts    [(basic-constraints-for-ca)]
             expected-ext {:oid      "2.5.29.19"
                           :critical true
@@ -341,7 +341,7 @@
                                         "2.5.29.19")]
         (is (= actual-ext expected-ext))))
 
-    (testing (str "signing for CA basic constraints with a path constraint")
+    (testing "signing for CA basic constraints with a path constraint"
       (let [max-path-len (Integer. 9)
             sign-exts    [(basic-constraints-for-ca max-path-len)]
             expected-ext {:oid      "2.5.29.19"

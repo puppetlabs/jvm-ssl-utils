@@ -85,10 +85,10 @@ The format of this extension is the same as `Subject Alternative Names` above.
 
 Defines basic constraints for the certificate as a map with these two keys:
 
-| Key                    | Type    | Value                                                   |
-|------------------------|---------|---------------------------------------------------------|
-| `:is-ca`               | boolean | True if the subject may act as a CA.                    |
-| `:path-len-constraint` | integer | If this is a CA cert, the max certification path length.|
+| Key                    | Type    | Value                                                                                                                                |
+|------------------------|---------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `:is-ca`               | boolean | True if the subject may act as a CA.                                                                                                 |
+| `:path-len-constraint` | integer | If this is a CA cert, the max certification path length.  A value of nil or absence of this key indicates that no length is imposed. |
 
 #### CRL Number: `2.5.29.20`
 
@@ -97,18 +97,31 @@ sequence number for a CRL (Certificate Revocation List).
 
 #### Authority Key Identifier: `2.5.29.35`
 
-When writing this extension to a certificate the value should contain a
-`java.security.PublicKey` instance of the certificate authority's public key. 
-When this extension is read back from a certificate, it will be a map containing 
-the following keys:
-  
-| Key                    | Type        | Value                                                             |
-|------------------------|-------------|-------------------------------------------------------------------|
-| `:key-identifier`      | byte vector | A byte array containing the SHA-1 hash of the public key          |
-| `:issuer`              | string      | A name identifying the certificate authority, nil if not specified| 
-| `:serial-number`       | integer     | The issuer's certificate serial number.                           |
+When writing this extension to a certificate the value should be a map
+which contains one of the following combinations of keys (with corresponding
+values):
 
-This acts a lot like the `Subject Key Identifier` extension. 
+* `:public-key`
+* `:serial-number` and `:issuer-dn`
+* `:public-key`, `:serial-number`, and `:issuer-dn`
+
+These keys are defined as:
+
+| Key              | Type                    | Value                                    |
+|------------------|-------------------------|------------------------------------------|
+| `:public-key`    | java.security.PublicKey | CA's public key.                         |
+| `:issuer-dn`     | string                  | A Distinguished Name identifying the CA. |
+| `:serial-number` | java.math.BigInteger    | CA's serial number.                      |
+
+When this extension is read back from a certificate, it will be a map containing 
+the following keys.  Note that if the corresponding value for any key was not
+specified, it will be set to nil.
+  
+| Key                    | Type                 | Value                                                          |
+|------------------------|----------------------|----------------------------------------------------------------|
+| `:key-identifier`      | byte vector          | A byte array containing the SHA-1 hash of the CA's public key. |
+| `:issuer`              | string               | A Distinguished Name identifying the CA.                       |
+| `:serial-number`       | java.math.BigInteger | CA's serial number.                                            |
 
 #### Extended Key Usage: `2.5.29.37` 
 
