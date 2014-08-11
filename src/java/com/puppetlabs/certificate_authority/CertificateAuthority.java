@@ -6,6 +6,7 @@ import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
+import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.asn1.x509.X509Name;
@@ -147,8 +148,7 @@ public class CertificateAuthority {
      * Given certificate authority information, expiration dates, and the
      * subject's name and public key info, create a newly signed certificate.
      * If the extensions parameter is not null then all the maps in the list
-     * will be parsed into extensions and written on to the certificate. The
-     * extensions
+     * will be parsed into extensions and written on to the certificate.
      *
      * @param issuerDn A string containing the issuer's distinguished name.
      * @param issuerPrivateKey The issuer's private key
@@ -204,10 +204,35 @@ public class CertificateAuthority {
      * @param issuerPrivateKey The certificate authority's private key
      * @return A new certificate revocation list
      * @throws CRLException
+     * @throws IOException
      * @throws OperatorCreationException
      */
-    public static X509CRL generateCRL(X500Principal issuer, PrivateKey issuerPrivateKey)
-        throws CRLException, OperatorCreationException
+    public static X509CRL generateCRL(X500Principal issuer,
+                                      PrivateKey issuerPrivateKey)
+        throws CRLException, IOException, OperatorCreationException
+    {
+        return generateCRL(issuer, issuerPrivateKey, null);
+    }
+
+    /**
+     * Given the certificate authority's principal identifier, private key,
+     * and a list of extension maps, create a new certificate revocation list
+     * (CRL).  If the extensions parameter is not null then all the maps in
+     * the list will be parsed into extensions and written onto the CRL.
+     *
+     * @param issuer The certificate authority's identifier
+     * @param issuerPrivateKey The certificate authority's private key
+     * @param extensions A list of maps which contain extensions that are to be
+     *                   written to the CRL.
+     * @return A new certificate revocation list
+     * @throws CRLException
+     * @throws IOException
+     * @throws OperatorCreationException
+     */
+    public static X509CRL generateCRL(X500Principal issuer,
+                                      PrivateKey issuerPrivateKey,
+                                      List<Map<String, Object>> extensions)
+        throws CRLException, IOException, OperatorCreationException
     {
         Date issueDate = DateTime.now().toDate();
         Date nextUpdate = DateTime.now().plusYears(100).toDate();
@@ -215,6 +240,15 @@ public class CertificateAuthority {
         X509v2CRLBuilder crlGen = new JcaX509v2CRLBuilder(issuer, issueDate);
 
         crlGen.setNextUpdate(nextUpdate);
+
+        Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
+        if (bcExtensions != null) {
+            for (ASN1ObjectIdentifier oid : bcExtensions.getExtensionOIDs()) {
+                Extension extension = bcExtensions.getExtension(oid);
+                crlGen.addExtension(oid, extension.isCritical(),
+                        extension.getParsedValue());
+            }
+        }
 
         JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder("SHA256withRSA");
         ContentSigner signer = signerBuilder.build(issuerPrivateKey);

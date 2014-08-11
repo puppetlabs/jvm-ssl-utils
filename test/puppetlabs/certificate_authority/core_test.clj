@@ -396,11 +396,12 @@
       (is (= orig-cert parsed-cert)))))
 
 (deftest certificate-revocation-list
-  (let [key-pair    (generate-key-pair)
-        public-key  (get-public-key key-pair)
-        private-key (get-private-key key-pair)
-        issuer-name (cn "my ca")
-        crl         (generate-crl (X500Principal. issuer-name) private-key)]
+  (let [key-pair         (generate-key-pair)
+        public-key       (get-public-key key-pair)
+        private-key      (get-private-key key-pair)
+        issuer-name      (cn "my ca")
+        issuer-principal (X500Principal. issuer-name)
+        crl              (generate-crl issuer-principal private-key)]
 
     (testing "create CRL"
       (is (certificate-revocation-list? crl))
@@ -418,7 +419,27 @@
       (let [parsed-crl (-> crl (write-to-pem-stream crl->pem!) pem->crl)]
         (is (certificate-revocation-list? parsed-crl))
         (is (issued-by? parsed-crl issuer-name))
-        (is (= crl parsed-crl))))))
+        (is (= crl parsed-crl))))
+
+    (testing "signing extensions into CRL"
+      (let [crl-num       6
+            sign-exts     [(authority-key-identifier
+                             public-key false)
+                           (crl-number crl-num)]
+            expected-exts [{:oid      "2.5.29.35"
+                            :critical false
+                            :value    {:issuer         nil
+                                       :key-identifier (pubkey-sha1
+                                                         public-key)
+                                       :serial-number  nil}}
+                           {:oid      "2.5.29.20"
+                            :critical false
+                            :value    (biginteger crl-num)}]
+            crl-w-exts (generate-crl issuer-principal
+                                     private-key
+                                     sign-exts)
+            crl-exts   (get-extensions crl-w-exts)]
+        (is (= (set crl-exts) (set expected-exts)))))))
 
 (deftest keystore-test
   (testing "create keystore"
