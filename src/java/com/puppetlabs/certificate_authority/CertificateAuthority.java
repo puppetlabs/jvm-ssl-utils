@@ -15,6 +15,7 @@ import org.bouncycastle.cert.X509v2CRLBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CRLConverter;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v2CRLBuilder;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.PEMWriter;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.PEMKeyPair;
@@ -23,8 +24,10 @@ import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.bouncycastle.operator.jcajce.JcaContentVerifierProviderBuilder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.PKCS10CertificationRequestBuilder;
+import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
 import org.bouncycastle.x509.X509V3CertificateGenerator;
 import org.joda.time.DateTime;
@@ -39,18 +42,7 @@ import java.io.Reader;
 import java.io.Writer;
 import java.math.BigInteger;
 
-import java.security.InvalidKeyException;
-import java.security.KeyManagementException;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.SignatureException;
-import java.security.UnrecoverableKeyException;
+import java.security.*;
 import java.security.cert.CRLException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
@@ -740,4 +732,28 @@ public class CertificateAuthority {
     public static String x500NameCn(String commonName) {
         return new X500NameBuilder(BCStyle.INSTANCE).addRDN(BCStyle.CN, commonName).build().toString();
     }
+
+    /**
+     * Does the given CSR have a valid signature on it?
+     * i.e., was it signed by the private key corresponding to the public key
+     * included in the CSR?
+     *
+     * @param csr The certificate request.
+     * @return {@code true} if the CSR has a valid signature, {@code false} otherwise.
+     *
+     * @throws OperatorCreationException
+     * @throws PKCSException
+     */
+    public static boolean isSignatureValid(PKCS10CertificationRequest csr)
+            throws OperatorCreationException, PKCSException {
+        return csr.isSignatureValid(builder.build(csr.getSubjectPublicKeyInfo()));
+    }
+
+    // Implementation references:
+    //  http://www.bouncycastle.org/wiki/display/JA1/BC+Version+2+APIs#BCVersion2APIs-VerifyingaSignature
+    //  http://stackoverflow.com/questions/3711754/why-java-security-nosuchproviderexception-no-such-provider-bc
+
+    private static final JcaContentVerifierProviderBuilder builder =
+            new JcaContentVerifierProviderBuilder().setProvider(
+                    new BouncyCastleProvider());
 }

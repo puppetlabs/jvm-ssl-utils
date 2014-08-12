@@ -565,3 +565,13 @@
                           "5.6.7.8")))
     (is (not (subtree-of? "1.2.3.4"
                           "1.2.3.4")))))
+
+(deftest signature-valid?-test
+  (is (signature-valid?
+        (pem->csr (open-ssl-file "certification_requests/ca_test_client.pem"))))
+
+  (is (signature-valid?
+        (pem->csr (open-ssl-file "certification_requests/ca_test_client_with_exts.pem"))))
+
+  (is (not (signature-valid?
+        (pem->csr (open-ssl-file "certification_requests/bad_public_key.pem"))))))
