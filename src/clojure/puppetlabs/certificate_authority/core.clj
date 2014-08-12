@@ -157,6 +157,14 @@
    :critical false
    :value    comment})
 
+(defn- create-authority-key-identifier
+  [public-key issuer-dn serial critical]
+  {:oid      "2.5.29.35"
+   :critical (boolean critical)
+   :value    {:public-key    public-key
+              :serial-number (if (number? serial) (biginteger serial))
+              :issuer-dn     issuer-dn}})
+
 (defn authority-key-identifier
   "Create an `Authority Key Identifier` extension from a `PublicKey` object. The
   extension created by this function is intended to be passed into
@@ -165,27 +173,18 @@
   ([public-key critical]
     {:pre [(public-key? public-key)]
      :post [(extension? %)]}
-    {:oid      "2.5.29.35"
-     :critical (boolean critical)
-     :value    {:public-key public-key}})
+    (create-authority-key-identifier public-key nil nil critical))
   ([issuer-dn serial critical]
     {:pre [(number? serial)
            (valid-x500-name? issuer-dn)]
      :post [(extension? %)]}
-    {:oid      "2.5.29.35"
-     :critical (boolean critical)
-     :value    {:serial-number (biginteger serial)
-                :issuer-dn     issuer-dn}})
+    (create-authority-key-identifier nil issuer-dn serial critical))
   ([public-key issuer-dn serial critical]
-   {:pre [(public-key? public-key)
-          (number? serial)
-          (valid-x500-name? issuer-dn)]
-    :post [(extension? %)]}
-   {:oid      "2.5.29.35"
-    :critical (boolean critical)
-    :value    {:public-key    public-key
-               :serial-number (biginteger serial)
-               :issuer-dn     issuer-dn}}))
+    {:pre [(public-key? public-key)
+           (valid-x500-name? issuer-dn)
+           (number? serial)]
+     :post [(extension? %)]}
+    (create-authority-key-identifier public-key issuer-dn serial critical)))
 
 (defn subject-key-identifier
   "Create a `Subject Key Identifier` extension from a `PublicKey` object. The
