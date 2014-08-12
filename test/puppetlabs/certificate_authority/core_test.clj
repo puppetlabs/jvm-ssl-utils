@@ -205,14 +205,16 @@
         issuer-priv     (get-private-key issuer-key-pair)
         issuer-pub      (get-public-key issuer-key-pair)
         not-before      (generate-not-before-date)
-        not-after       (generate-not-after-date)]
+        not-after       (generate-not-after-date)
+        serial          42
+        crl-num         23]
     (testing "sign certificate"
-      (let [certificate (sign-certificate issuer issuer-priv 42 not-before not-after
-                                          subject subj-pub)]
+      (let [certificate (sign-certificate issuer issuer-priv serial not-before
+                                          not-after subject subj-pub)]
         (is (certificate? certificate))
         (is (has-subject? certificate subject))
         (is (issued-by? certificate issuer))
-        (is (= (.getSerialNumber certificate) 42))))
+        (is (= (.getSerialNumber certificate) serial))))
 
     (testing "signing extensions into certificate"
       (let [sign-exts     [(puppet-node-uid
@@ -224,11 +226,10 @@
                            (puppet-node-preshared-key
                              "342thbjkt82094y0uthhor289jnqthpc2290" false)
                            (netscape-comment
-                             "Puppet JVM Internal Certificate")
+                             "Puppet Server Internal Certificate")
                            (authority-key-identifier
                              issuer-pub false)
-                           (basic-constraints
-                             false nil true)
+                           (basic-constraints-for-non-ca true)
                            (ext-key-usages
                              ["1.3.6.1.5.5.7.3.1" "1.3.6.1.5.5.7.3.2"] true)
                            (key-usage
@@ -236,7 +237,8 @@
                            (subject-key-identifier
                              subj-pub false)
                            (subject-dns-alt-names
-                             ["onefish" "twofish"] false)]
+                             ["onefish" "twofish"] false)
+                           (crl-number crl-num)]
             expected-exts [{:oid      "1.3.6.1.4.1.34380.1.1.1"
                             :critical false
                             :value    "ED803750-E3C7-44F5-BB08-41A04433FE2E"}
@@ -251,8 +253,8 @@
                             :value    "342thbjkt82094y0uthhor289jnqthpc2290"}
                            {:oid      "2.16.840.1.113730.1.13"
                             :critical false
-                            :value    "Puppet JVM Internal Certificate"}
-                            {:oid      "2.5.29.19"
+                            :value    "Puppet Server Internal Certificate"}
+                           {:oid      "2.5.29.19"
                             :critical true
                             :value    {:is-ca false
                                        :path-len-constraint nil}}
@@ -272,11 +274,86 @@
                             :critical false
                             :value    {:issuer         nil
                                        :key-identifier (pubkey-sha1 issuer-pub)
-                                       :serial-number  nil}}]
-            cert-w-exts (sign-certificate issuer issuer-priv 42 not-before
+                                       :serial-number  nil}}
+                           {:oid      "2.5.29.20"
+                            :critical false
+                            :value    (biginteger crl-num)}]
+            cert-w-exts (sign-certificate issuer issuer-priv serial not-before
                                           not-after subject subj-pub sign-exts)
             cert-exts   (get-extensions cert-w-exts)]
-        (is (= (set cert-exts) (set expected-exts)))))))
+        (is (= (set cert-exts) (set expected-exts)))))
+
+    (testing (str "signing for authority key identifier with issuer and"
+                  "serial number")
+      (let [sign-exts    [(authority-key-identifier
+                            issuer serial true)]
+            expected-ext {:oid      "2.5.29.35"
+                          :critical true
+                          :value    {:issuer         {:directory-name [issuer]}
+                                     :key-identifier nil
+                                     :serial-number  serial}}
+            cert-w-exts  (sign-certificate issuer issuer-priv serial not-before
+                                           not-after subject subj-pub
+                                           sign-exts)
+            actual-ext   (get-extension cert-w-exts
+                                        "2.5.29.35")]
+        (is (= actual-ext expected-ext))))
+
+    (testing (str "signing for authority key identifier with public key,"
+                  "issuer, and serial number")
+      (let [sign-exts    [(authority-key-identifier
+                            issuer-pub issuer serial false)]
+            expected-ext {:oid      "2.5.29.35"
+                          :critical false
+                          :value    {:issuer         {:directory-name [issuer]}
+                                     :key-identifier (pubkey-sha1 issuer-pub)
+                                     :serial-number  serial}}
+            cert-w-exts  (sign-certificate issuer issuer-priv serial not-before
+                                           not-after subject subj-pub
+                                           sign-exts)
+            actual-ext   (get-extension cert-w-exts
+                                        "2.5.29.35")]
+        (is (= actual-ext expected-ext))))
+
+    (testing "signing for non-critical, non-CA basic constraints"
+      (let [sign-exts    [(basic-constraints-for-non-ca false)]
+            expected-ext {:oid      "2.5.29.19"
+                          :critical false
+                          :value    {:is-ca false
+                                     :path-len-constraint nil}}
+            cert-w-exts  (sign-certificate issuer issuer-priv serial not-before
+                                           not-after subject subj-pub
+                                           sign-exts)
+            actual-ext   (get-extension cert-w-exts
+                                        "2.5.29.19")]
+        (is (= actual-ext expected-ext))))
+
+    (testing "signing for CA basic constraints with no path constraint"
+      (let [sign-exts    [(basic-constraints-for-ca)]
+            expected-ext {:oid      "2.5.29.19"
+                          :critical true
+                          :value    {:is-ca true
+                                     :path-len-constraint nil}}
+            cert-w-exts  (sign-certificate issuer issuer-priv serial not-before
+                                           not-after subject subj-pub
+                                           sign-exts)
+            actual-ext   (get-extension cert-w-exts
+                                        "2.5.29.19")]
+        (is (= actual-ext expected-ext))))
+
+    (testing "signing for CA basic constraints with a path constraint"
+      (let [max-path-len (Integer. 9)
+            sign-exts    [(basic-constraints-for-ca max-path-len)]
+            expected-ext {:oid      "2.5.29.19"
+                          :critical true
+                          :value    {:is-ca true
+                                     :path-len-constraint max-path-len}}
+            cert-w-exts  (sign-certificate issuer issuer-priv serial not-before
+                                           not-after subject subj-pub
+                                           sign-exts)
+            actual-ext   (get-extension cert-w-exts
+                                        "2.5.29.19")]
+        (is (= actual-ext expected-ext))))))
 
 (deftest certificate-test
   (testing "read certificates from PEM stream"

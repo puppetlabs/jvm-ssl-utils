@@ -14,14 +14,15 @@ import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERPrintableString;
 import org.bouncycastle.asn1.DERSequence;
-import org.bouncycastle.asn1.DERSet;
 import org.bouncycastle.asn1.misc.MiscObjectIdentifiers;
 import org.bouncycastle.asn1.oiw.OIWObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
+import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x509.AuthorityKeyIdentifier;
 import org.bouncycastle.asn1.x509.BasicConstraints;
+import org.bouncycastle.asn1.x509.CRLNumber;
 import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.Extensions;
@@ -40,6 +41,7 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.security.PublicKey;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
@@ -340,8 +342,13 @@ public class ExtensionsUtils {
             PublicKey pubKey = (PublicKey) extMap.get("value");
             return new Extension(oid, isCritical, new DEROctetString(publicKeyToSubjectKeyIdentifier(pubKey)));
         } else if (oid.equals(Extension.authorityKeyIdentifier)) {
-            PublicKey pubKey = (PublicKey) extMap.get("value");
-            return new Extension(oid, isCritical, new DEROctetString(publicKeyToAuthorityKeyIdentifier(pubKey)));
+            Map<String, Object> val = (Map<String, Object>) extMap.get("value");
+            return new Extension(oid, isCritical,
+                    new DEROctetString(mapToAuthorityKeyIdentifier(val)));
+        } else if (oid.equals(Extension.cRLNumber)) {
+            BigInteger number = (BigInteger) extMap.get("value");
+            return new Extension(oid, false, new DEROctetString(
+                    new CRLNumber(number)));
         } else {
             // If the OID isn't recognized, then just parse the value as a string
             String value = (String) extMap.get("value");
@@ -443,6 +450,8 @@ public class ExtensionsUtils {
                 // Sometimes the comment field is not wrapped in an IA5String
                 return new DERPrintableString(new String(data, "UTF8"));
             }
+        } else if (oid.equals(Extension.cRLNumber)) {
+            return CRLNumber.getInstance(data);
         } else {
             // Most extensions are a simple string value.
             return new DERPrintableString(new String(data, "UTF8"));
@@ -468,6 +477,9 @@ public class ExtensionsUtils {
             return authorityKeyIdToMap((AuthorityKeyIdentifier) asn1Prim);
         } else if (asn1Prim instanceof BasicConstraints) {
             return basicConstraintsToMap((BasicConstraints) asn1Prim);
+        } else if (asn1Prim instanceof CRLNumber) {
+            CRLNumber crlNumber = (CRLNumber) asn1Prim;
+            return crlNumber.getCRLNumber();
         } else if (asn1Prim instanceof SubjectKeyIdentifier) {
             SubjectKeyIdentifier ski = (SubjectKeyIdentifier) asn1Prim;
             return ski.getKeyIdentifier();
@@ -491,8 +503,11 @@ public class ExtensionsUtils {
             ASN1String str = (ASN1String)asn1Prim;
             return str.getString();
         } else if (asn1Prim instanceof ASN1OctetString) {
-            ASN1OctetString str = (ASN1OctetString)asn1Prim;
+            ASN1OctetString str = (ASN1OctetString) asn1Prim;
             return new String(str.getOctets(), "UTF-8");
+        } else if (asn1Prim instanceof X500Name) {
+            X500Name name = (X500Name) asn1Prim;
+            return name.toString();
         } else {
             // Return the raw data if there's no clear method of decoding
             return asn1Prim.toASN1Primitive().getEncoded();
@@ -567,24 +582,27 @@ public class ExtensionsUtils {
     }
 
     private static BasicConstraints mapToBasicConstraints(Map<String, Object> bcMap) {
-        if (bcMap.keySet().size() > 2) {
-            throw new IllegalArgumentException(
-                    "There should be two keys present in the basic constrains " +
-                    "map, 'is_ca' and 'path_len_constraint'");
-        }
-
         Boolean isCa = (Boolean) bcMap.get("is_ca");
         if (isCa == null) {
-            throw new IllegalArgumentException("The 'is_ca' key must be present.");
+            throw new IllegalArgumentException(
+                    "The 'is_ca' key must be present in a basic constraint.");
         }
 
-        if (isCa) {
-            Integer pathLenConstraint = (Integer) bcMap.get("path_len_constraint");
-            if (pathLenConstraint == null) { pathLenConstraint = 0; }
-            return new BasicConstraints(pathLenConstraint);
-        } else {
-            return new BasicConstraints(false);
+        BasicConstraints bc;
+        Integer pathLenConstraint = (Integer) bcMap.get("path_len_constraint");
+        if (pathLenConstraint != null) {
+            if (!isCa) {
+                throw new IllegalArgumentException(
+                        "The 'path_len_constraint' key is not supported for " +
+                        "an 'is_ca' value of 'false'");
+            }
+            bc = new BasicConstraints(pathLenConstraint);
         }
+        else {
+            bc = new BasicConstraints(isCa);
+        }
+
+        return bc;
     }
 
     private static SubjectKeyIdentifier publicKeyToSubjectKeyIdentifier(PublicKey publicKey)
@@ -600,15 +618,64 @@ public class ExtensionsUtils {
         return utils.createSubjectKeyIdentifier(pubKeyInfo);
     }
 
-    private static AuthorityKeyIdentifier publicKeyToAuthorityKeyIdentifier(PublicKey publicKey) throws OperatorCreationException {
-        SubjectPublicKeyInfo pubKeyInfo =
-                SubjectPublicKeyInfo.getInstance(publicKey.getEncoded());
+    private static AuthorityKeyIdentifier mapToAuthorityKeyIdentifier(
+            Map<String, Object> authKeyIdMap) throws OperatorCreationException {
+        AuthorityKeyIdentifier authorityKeyId = null;
 
-        DigestCalculator digCalc =
-                new BcDigestCalculatorProvider().get(new AlgorithmIdentifier(OIWObjectIdentifiers.idSHA1));
+        PublicKey pubKey = (PublicKey) authKeyIdMap.get ("public_key");
+        if (pubKey != null) {
+            SubjectPublicKeyInfo authPubKeyInfo =
+                    SubjectPublicKeyInfo.getInstance(
+                            pubKey.getEncoded());
 
-        X509ExtensionUtils utils = new X509ExtensionUtils(digCalc);
-        return utils.createAuthorityKeyIdentifier(pubKeyInfo);
+            DigestCalculator digCalc =
+                    new BcDigestCalculatorProvider().get(
+                            new AlgorithmIdentifier(OIWObjectIdentifiers.idSHA1));
+
+            X509ExtensionUtils utils = new X509ExtensionUtils(digCalc);
+            authorityKeyId = utils.createAuthorityKeyIdentifier(authPubKeyInfo);
+        }
+
+        BigInteger serialNumber = (BigInteger) authKeyIdMap.get
+                ("serial_number");
+        if (pubKey == null && serialNumber == null) {
+            throw new IllegalArgumentException(
+                    "Neither 'public_key' nor 'serial_number' provided for " +
+                    "auth key identifier.  At least one of these must be " +
+                    "provided.");
+        }
+
+        String issuer = (String) authKeyIdMap.get ("issuer_dn");
+        if (issuer == null) {
+            if (serialNumber != null) {
+                throw new IllegalArgumentException(
+                        "'issuer' not provided for auth key identifier " +
+                        "but was expected since 'serial_number' was provided");
+            }
+        }
+        else {
+            if (serialNumber == null) {
+                throw new IllegalArgumentException(
+                        "'serial_number' not provided for auth key identifier" +
+                        "but was expected since 'issuer' was provided");
+            }
+
+            GeneralNames issuerAsGeneralNames =
+                    new GeneralNames(new GeneralName(new X500Name(issuer)));
+            if (authorityKeyId != null) {
+                authorityKeyId = new AuthorityKeyIdentifier(
+                        authorityKeyId.getKeyIdentifier(),
+                        issuerAsGeneralNames,
+                        serialNumber);
+            }
+            else {
+                authorityKeyId = new AuthorityKeyIdentifier(
+                        issuerAsGeneralNames,
+                        serialNumber);
+            }
+        }
+
+        return authorityKeyId;
     }
 
     private static Map<String, Object> authorityKeyIdToMap(AuthorityKeyIdentifier akid)
@@ -690,8 +757,7 @@ public class ExtensionsUtils {
                 if (ret.get(type) == null) {
                     ret.put(type, new ArrayList<String>());
                 }
-
-                String name = (String) asn1ObjToObj(generalName.getName().toASN1Primitive());
+                String name = (String) asn1ObjToObj(generalName.getName());
                 ret.get(type).add(name);
             }
 
