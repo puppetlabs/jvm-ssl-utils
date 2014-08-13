@@ -1,4 +1,13 @@
-## 0.3.3.
+## 0.4.0
+ * Added support for `authority-key-identifier` to specify the distinguished name and serial number of
+   the issuer.
+ * Split `basic-constraints` into `basic-constraints-for-non-ca` vs. `basic-constraints-for-ca` and allow
+   a CA to not set a `max-path-len` (as opposed to it being implicitly set to 0 if not specified).
+ * New `crl-number` function for use in generating a CRL Number extension.
+ * New `signature-valid?` function for use in determining if the CSR has a valid signature on it.
+ * Added ability to specify extensions to be added to a CRL in a call to `generate-crl`.
+
+## 0.3.3
  * If an extension is read that has an unrecognized OID then it is parsed as a string.
 
 ## 0.3.2
