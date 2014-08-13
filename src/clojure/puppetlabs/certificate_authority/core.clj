@@ -783,3 +783,10 @@
   {:pre [(string? parent-oid)
          (string? oid)]}
   (ExtensionsUtils/isSubtreeOf parent-oid oid))
+
+(defn signature-valid?
+  "Does the given CSR have a valid signature on it?  i.e., was it signed by the
+  private key corresponding to the public key included in the CSR?"
+  [csr]
+  {:pre [(certificate-request? csr)]}
+  (CertificateAuthority/isSignatureValid csr))
