@@ -108,7 +108,7 @@ public class ExtensionsUtils {
      * @param crl The X509 CRL object.
      * @return A list of maps describing each extensions in the provided CRL.
      * @throws IOException
-     * @throws CertificateEncodingException
+     * @throws CRLException
      * @see #getExtensionList(Extensions)
      */
     public static List<Map<String, Object>> getExtensionList(X509CRL crl)
@@ -154,6 +154,8 @@ public class ExtensionsUtils {
      * @param cert The Java X509 certificate object.
      * @param oid The OID of the extension to be found.
      * @return The map containing the extension value and critical flag.
+     * @throws IOException
+     * @throws CertificateEncodingException
      */
     public static Map<String, Object> getExtension(X509Certificate cert, String oid)
             throws IOException, CertificateEncodingException
@@ -170,11 +172,12 @@ public class ExtensionsUtils {
     /**
      * Given a Java X509CRL object, get a map containing the value and
      * criticality of the extensions described by the given OID. If the OID
-     * is not found in the certificate, then null is returned. If no
-     * extensions exist on the CRL, then null is returned.
+     * is not found in the CRL, then null is returned. If no extensions exist
+     * on the CRL, then null is returned.
      *
      * @param crl The X509 CRL object.
-     * @return A list of maps describing each extensions in the provided CRL.
+     * @param oid The OID of the extension to be found.
+     * @return The map containing the extension value and critical flag.
      * @throws IOException
      * @throws CRLException
      */
@@ -431,7 +434,7 @@ public class ExtensionsUtils {
      *
      * @param crl  The Java X509 CRL object.
      * @return A Bouncy Castle Extensions container object extracted from the
-     *         certificate.
+     *         CRL.
      * @throws CRLException
      * @throws IOException
      */
@@ -460,7 +463,6 @@ public class ExtensionsUtils {
      *         in the provided Extensions container.
      * @throws IOException
      */
-
     private static Map<String, Object> makeExtensionMap(Extensions exts,
                                                         ASN1ObjectIdentifier oid,
                                                         boolean critical)
