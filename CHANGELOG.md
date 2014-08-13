@@ -1,4 +1,4 @@
-## 0.3.4
+## 0.4.0
  * Added support for `authority-key-identifier` to specify the distinguished name and serial number of
    the issuer.
  * Split `basic-constraints` into `basic-constraints-for-non-ca` vs. `basic-constraints-for-ca` and allow
