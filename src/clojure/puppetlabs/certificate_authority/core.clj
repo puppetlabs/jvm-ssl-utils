@@ -390,16 +390,24 @@
      subject-pub-key (javaize extensions))))
 
 (defn generate-crl
-  "Given the certificate authority's principal identifier and private key, create and return
-  a `X509CRL` certificate revocation list (CRL).  Arguments:
+  "Given the certificate authority's principal identifier, private key, and,
+  optionally, some extensions info, create and return a `X509CRL` certificate
+  revocation list (CRL).  Arguments:
 
   `issuer`:             the issuer's `X500Principal`
-  `issuer-private-key`: the issuer's `PrivateKey`"
-  [issuer issuer-private-key]
-  {:pre  [(instance? X500Principal issuer)
-          (private-key? issuer-private-key)]
-   :post [(certificate-revocation-list? %)]}
-  (CertificateAuthority/generateCRL issuer issuer-private-key))
+  `issuer-private-key`: the issuer's `PrivateKey`
+  `extensions`:         an optional list of X509 extensions, each of which is
+                        a map with an `oid`, `value` and `critical` flag. The
+                        value format is dependent upon the oid."
+  ([issuer issuer-private-key]
+   (generate-crl issuer issuer-private-key []))
+  ([issuer issuer-private-key extensions]
+    {:pre  [(instance? X500Principal issuer)
+            (private-key? issuer-private-key)
+            (extension-list? extensions)]
+     :post [(certificate-revocation-list? %)]}
+    (CertificateAuthority/generateCRL issuer issuer-private-key
+                                      (javaize extensions))))
 
 (defn crl->pem!
   "Encodes a CRL to PEM format, and writes it to a file (or other stream).
@@ -722,19 +730,21 @@
   `critical` : True if this is a critical extensions, false if it is not."
   [ext-container]
   {:pre [(or (certificate? ext-container)
-             (certificate-request? ext-container))]
+             (certificate-request? ext-container)
+             (certificate-revocation-list? ext-container))]
    :post [(extension-list? %)]}
   (-> (or (ExtensionsUtils/getExtensionList (javaize ext-container))
           [])
       clojureize))
 
 (defn get-extension
-  "Given a X509 certificate object, CSR or a list of extensions returned by
-  `get-extensions`, return a map describing the value and criticality of the
-  extension described by its OID."
+  "Given a X509 certificate object, CRL, CSR, or a list of extensions
+  returned by `get-extensions`, return a map describing the value and
+  criticality of the extension described by its OID."
   [ext-container oid]
   {:pre [(or (certificate? ext-container)
              (certificate-request? ext-container)
+             (certificate-revocation-list? ext-container)
              (instance? List ext-container))
          (string? oid)]
    :post [(extension? %)]}
@@ -742,12 +752,13 @@
       clojureize))
 
 (defn get-extension-value
-  "Given a X509 certificate object, CSR or a list of extensions returned by
+  "Given a X509 certificate object, CRL, CSR or a list of extensions returned by
   `get-extensions`, return the value of an extension by its OID. If the OID
   doesn't exist on the provided object, then nil is returned."
   [ext-container oid]
   {:pre [(or (certificate? ext-container)
              (certificate-request? ext-container)
+             (certificate-revocation-list? ext-container)
              (instance? List ext-container))
          (string? oid)]}
   (-> (ExtensionsUtils/getExtensionValue (javaize ext-container) oid)

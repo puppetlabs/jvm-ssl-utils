@@ -32,6 +32,7 @@ import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.asn1.x509.SubjectKeyIdentifier;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.cert.X509CRLHolder;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509ExtensionUtils;
 import org.bouncycastle.operator.DigestCalculator;
@@ -43,7 +44,9 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.PublicKey;
+import java.security.cert.CRLException;
 import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -73,11 +76,10 @@ public class ExtensionsUtils {
         }
     }
 
-
     /**
      * Given a Java X509Certificate object, return a list of maps representing
      * all the X509 extensions embedded in the certificate. If no extensions
-     * exist on the certificate, the null is returned.
+     * exist on the certificate, then null is returned.
      *
      * @param cert The X509 certificate object.
      * @return A list of maps describing each extensions in the provided
@@ -90,6 +92,29 @@ public class ExtensionsUtils {
             throws IOException, CertificateEncodingException
     {
         Extensions extensions = getExtensionsFromCert(cert);
+
+        if (extensions != null) {
+            return getExtensionList(extensions);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Given a Java X509CRL object, return a list of maps representing
+     * all the X509 extensions embedded in the CRL.  If no extensions
+     * exist on the CRL, then null is returned.
+     *
+     * @param crl The X509 CRL object.
+     * @return A list of maps describing each extensions in the provided CRL.
+     * @throws IOException
+     * @throws CRLException
+     * @see #getExtensionList(Extensions)
+     */
+    public static List<Map<String, Object>> getExtensionList(X509CRL crl)
+            throws IOException, CRLException
+    {
+        Extensions extensions = getExtensionsFromCRL(crl);
 
         if (extensions != null) {
             return getExtensionList(extensions);
@@ -129,11 +154,37 @@ public class ExtensionsUtils {
      * @param cert The Java X509 certificate object.
      * @param oid The OID of the extension to be found.
      * @return The map containing the extension value and critical flag.
+     * @throws IOException
+     * @throws CertificateEncodingException
      */
     public static Map<String, Object> getExtension(X509Certificate cert, String oid)
             throws IOException, CertificateEncodingException
     {
         Extensions extensions = getExtensionsFromCert(cert);
+
+        if (extensions != null) {
+            return makeExtensionMap(extensions, new ASN1ObjectIdentifier(oid));
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Given a Java X509CRL object, get a map containing the value and
+     * criticality of the extensions described by the given OID. If the OID
+     * is not found in the CRL, then null is returned. If no extensions exist
+     * on the CRL, then null is returned.
+     *
+     * @param crl The X509 CRL object.
+     * @param oid The OID of the extension to be found.
+     * @return The map containing the extension value and critical flag.
+     * @throws IOException
+     * @throws CRLException
+     */
+    public static Map<String, Object> getExtension(X509CRL crl, String oid)
+            throws IOException, CRLException
+    {
+        Extensions extensions = getExtensionsFromCRL(crl);
 
         if (extensions != null) {
             return makeExtensionMap(extensions, new ASN1ObjectIdentifier(oid));
@@ -193,6 +244,12 @@ public class ExtensionsUtils {
         return getExtensionValue(getExtension(cert, oid));
     }
 
+    public static Object getExtensionValue(X509CRL crl, String oid)
+            throws IOException, CRLException
+    {
+        return getExtensionValue(getExtension(crl, oid));
+    }
+
     public static Object getExtensionValue(PKCS10CertificationRequest csr,
                                            String oid)
             throws IOException
@@ -213,7 +270,6 @@ public class ExtensionsUtils {
             return null;
         }
     }
-
 
     /**
      * Given a Bouncy Castle Extensions container, return a list of maps
@@ -370,6 +426,22 @@ public class ExtensionsUtils {
             throws CertificateEncodingException, IOException
     {
         return new X509CertificateHolder(cert.getEncoded()).getExtensions();
+    }
+
+    /**
+     * Get a Bouncy Castle Extensions container from a Java X509 CRL
+     * object. If no extensions are found then null is returned.
+     *
+     * @param crl  The Java X509 CRL object.
+     * @return A Bouncy Castle Extensions container object extracted from the
+     *         CRL.
+     * @throws CRLException
+     * @throws IOException
+     */
+    private static Extensions getExtensionsFromCRL(X509CRL crl)
+            throws CRLException, IOException
+    {
+        return new X509CRLHolder(crl.getEncoded()).getExtensions();
     }
 
     /**
