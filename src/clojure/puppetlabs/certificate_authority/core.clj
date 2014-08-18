@@ -6,8 +6,7 @@
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
            (com.puppetlabs.certificate_authority CertificateAuthority
-                                                 ExtensionsUtils
-                                                 ExtensionsUtils$PuppetExtensionOids)
+                                                 ExtensionsUtils)
            (java.util Map List Date Set)
            (org.bouncycastle.asn1.x509 Extension))
   (:require [clojure.tools.logging :as log]
