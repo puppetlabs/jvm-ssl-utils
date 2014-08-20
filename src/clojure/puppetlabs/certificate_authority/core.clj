@@ -79,6 +79,13 @@
   [x]
   (instance? X509Certificate x))
 
+(defn certificate-list?
+  "Returns true if the given data structure is a list that contains
+  certificates."
+  [x]
+  (and (instance? List x)
+       (every? certificate? x)))
+
 (defn certificate-revocation-list?
   "Returns true if x is an instance of `X509CRL` (see `generate-crl`)."
   [x]
@@ -602,17 +609,20 @@
   `alias`:       a String alias to associate with the private key
   `private-key`: the `PrivateKey` to add to the keystore
   `pw`:          a password to use to protect the key in the keystore
-  `cert`:        the `X509Certificate` for the private key; a private key
-                 cannot be added to a keystore without a signed certificate."
-  [keystore alias private-key pw cert]
+  `certs`:       the `X509Certificate` or a list of `X509Certificate`s for the
+                 private key; a private key cannot be added to a keystore
+                 without at least one signed certificate."
+  [keystore alias private-key pw certs]
   {:pre  [(instance? KeyStore keystore)
           (string? alias)
           (private-key? private-key)
           (string? pw)
-          (or (nil? cert)
-              (certificate? cert))]
+          (or (nil? certs)
+              (certificate? certs)
+              (certificate-list? certs))]
    :post [(instance? KeyStore %)]}
-  (CertificateAuthority/associatePrivateKey keystore alias private-key pw cert))
+  (CertificateAuthority/associatePrivateKey keystore alias private-key pw
+                                            certs))
 
 (defn assoc-private-key-from-reader!
   "Add a private key to a keystore.  Arguments:

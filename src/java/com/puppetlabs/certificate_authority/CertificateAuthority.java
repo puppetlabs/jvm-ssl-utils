@@ -56,16 +56,15 @@ import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CRLException;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
-import java.util.Date;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.UUID;
 
 public class CertificateAuthority {
@@ -528,11 +527,63 @@ public class CertificateAuthority {
      * @throws KeyStoreException
      * @see #associatePrivateKeyFromReader
      */
-    public static KeyStore associatePrivateKey(KeyStore keystore, String alias, PrivateKey privateKey,
-                                               String password, X509Certificate cert)
+    public static KeyStore associatePrivateKey(KeyStore keystore,
+                                               String alias,
+                                               PrivateKey privateKey,
+                                               String password,
+                                               X509Certificate cert)
         throws KeyStoreException
     {
-        keystore.setKeyEntry(alias, privateKey, password.toCharArray(), new Certificate[]{cert});
+        if (cert == null)
+            throw new IllegalArgumentException(
+                    "associatePrivateKey requires a value for a cert");
+
+        List<X509Certificate> certs = new ArrayList<X509Certificate>(1);
+        certs.add(cert);
+
+        associatePrivateKey(keystore, alias, privateKey, password, certs);
+        return keystore;
+    }
+
+    /**
+     * Add a private key to a keystore.
+     *
+     * @param keystore The keystore to add the private key to
+     * @param alias An alias to associate with the private key
+     * @param privateKey The private key to add to the keystore
+     * @param password To protect the key in the keystore
+     * @param certs A list of certificates for the private key.  The first
+     *              certificate in the list should be the "leaf" certificate.
+     *              Additional optional entries in the list represent the CA
+     *              certificate(s) from which the "leaf" certificate derives.
+     *              CA certificate entries should appear in hierarchical
+     *              order from the most derived intermediate CA (second in
+     *              the list, if applicable) to the root CA (last in the
+     *              list).  Note that the privateKey parameter should be the
+     *              private key associated with the first, "leaf", certificate
+     *              in the list.
+     * @return The provided keystore
+     * @throws IllegalArgumentException if certs does not contain a list with
+     *                                  at least one certificate
+     * @throws KeyStoreException
+     * @see #associatePrivateKeyFromReader
+     */
+    public static KeyStore associatePrivateKey(KeyStore keystore,
+                                               String alias,
+                                               PrivateKey privateKey,
+                                               String password,
+                                               List<X509Certificate> certs)
+            throws KeyStoreException
+    {
+        if (certs == null || certs.size() == 0)
+            throw new IllegalArgumentException(
+                    "associatePrivateKey requires at least one cert");
+
+        X509Certificate[] certsArray = new X509Certificate[certs.size()];
+        certs.toArray(certsArray);
+
+        keystore.setKeyEntry(alias, privateKey, password.toCharArray(),
+                certsArray);
         return keystore;
     }
 
@@ -551,18 +602,22 @@ public class CertificateAuthority {
      * @throws IOException
      * @see #associatePrivateKey
      */
-    public static KeyStore associatePrivateKeyFromReader(KeyStore keystore, String alias, Reader pemPrivateKey,
-                                                         String password, Reader pemCert)
+    public static KeyStore associatePrivateKeyFromReader(KeyStore keystore,
+                                                         String alias,
+                                                         Reader pemPrivateKey,
+                                                         String password,
+                                                         Reader pemCert)
         throws CertificateException, KeyStoreException, IOException
     {
         PrivateKey privateKey = pemToPrivateKey(pemPrivateKey);
         List<X509Certificate> certs = pemToCerts(pemCert);
 
-        if (certs.size() > 1)
-            throw new IllegalArgumentException("The PEM stream contains more than one certificate");
+        if (certs.size() < 1)
+            throw new IllegalArgumentException(
+                    "The PEM stream contains no certificates");
 
-        X509Certificate firstCert = certs.get(0);
-        return associatePrivateKey(keystore, alias, privateKey, password, firstCert);
+        return associatePrivateKey(keystore, alias, privateKey, password,
+                certs);
     }
 
     /**

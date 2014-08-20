@@ -441,6 +441,10 @@
             crl-exts   (get-extensions crl-w-exts)]
         (is (= (set crl-exts) (set expected-exts)))))))
 
+(defn- encoded-content-equal?
+  [expected actual]
+  (Arrays/equals (.getEncoded expected) (.getEncoded actual)))
+
 (deftest keystore-test
   (testing "create keystore"
     (is (instance? KeyStore (keystore))))
@@ -457,38 +461,85 @@
       (is (= (second expected-certs) (.getCertificate keystore "foobar-1")))))
 
   (testing "associate private keys from PEM stream"
-    (let [private-key-file (open-ssl-file "private_keys/localhost.pem")
-          cert-file        (open-ssl-file "certs/localhost.pem")
-          keystore         (keystore)
-          _                (assoc-private-key-from-reader! keystore "mykey" private-key-file "bunkpassword" cert-file)
-          keystore-key     (.getKey keystore "mykey" (char-array "bunkpassword"))]
+    (let [private-key-file     (open-ssl-file "private_keys/localhost.pem")
+          cert-file            (open-ssl-file "certs/localhost.pem")
+          keystore-val         (keystore)
+          keystore-alias       "mykey"
+          keystore-password    "bunkpassword"
+          keystore-from-reader (assoc-private-key-from-reader! keystore-val
+                                                               keystore-alias
+                                                               private-key-file
+                                                               keystore-password
+                                                               cert-file)
+          keystore-key         (.getKey keystore-val
+                                        keystore-alias
+                                        (char-array keystore-password))
+          keystore-cert        (.getCertificate keystore-val keystore-alias)
+          cert                 (pem->cert cert-file)
+          private-key          (pem->private-key private-key-file)]
+
+      (testing (str "keystore returned from same as keystore passed into "
+                    "assoc-private-key-from-reader")
+        (is (identical? keystore-val keystore-from-reader)))
 
       (testing "key read from keystore should match key read from PEM"
-        (let [private-key (pem->private-key private-key-file)]
-          (is (Arrays/equals (.getEncoded private-key) (.getEncoded keystore-key)))))
+        (is (encoded-content-equal? private-key keystore-key)))
+
+      (testing "cert read from keystore should match cert read from PEM"
+        (is (encoded-content-equal? cert keystore-cert)))
 
       (testing "PEM created from keystore should match original PEM"
         (let [stream       (ByteArrayOutputStream.)
               _            (key->pem! keystore-key stream)
               orig-pem     (.toByteArray stream)
               keystore-pem (-> private-key-file reader slurp .getBytes)]
-          (is (Arrays/equals orig-pem keystore-pem)))))
+          (is (Arrays/equals orig-pem keystore-pem))))
 
-    (testing "should fail when loading compound keys"
-      (let [key      (open-ssl-file "private_keys/multiple_pks.pem")
-            cert     (open-ssl-file "certs/localhost.pem")
-            keystore (keystore)]
-        (is (thrown-with-msg? IllegalArgumentException
-                              #"The PEM stream must contain exactly one private key"
-                              (assoc-private-key-from-reader! keystore "foo" key "foo" cert)))))
+      (testing (str "should be able to load single key and cert to keystore "
+                    "and retrieve them back")
+        (let [keystore-val        (keystore)
+              keystore-from-assoc (assoc-private-key!
+                                    keystore-val
+                                    keystore-alias
+                                    private-key
+                                    keystore-password
+                                    cert)
+              keystore-cert       (.getCertificate keystore-val keystore-alias)]
+          (is (identical? keystore-val keystore-from-assoc)
+              "Keystore returned from assoc not same as one passed in")
+          (is (encoded-content-equal? cert keystore-cert)
+              "Cert passed in differs from cert retrieved from keystore"))
 
-    (testing "should fail when multiple certs found"
-      (let [key      (open-ssl-file "private_keys/localhost.pem")
-            cert     (open-ssl-file "certs/multiple.pem")
-            keystore (keystore)]
-        (is (thrown-with-msg? IllegalArgumentException
-                              #"The PEM stream contains more than one certificate"
-                              (assoc-private-key-from-reader! keystore "foo" key "foo" cert))))))
+      (testing "should fail when loading compound keys"
+        (let [private-key-file (open-ssl-file "private_keys/multiple_pks.pem")
+              cert-file        (open-ssl-file "certs/localhost.pem")
+              keystore-val     (keystore)]
+          (is (thrown-with-msg? IllegalArgumentException
+                                #"The PEM stream must contain exactly one private key"
+                                (assoc-private-key-from-reader! keystore-val
+                                                                keystore-alias
+                                                                private-key-file
+                                                                keystore-password
+                                                                cert-file)))))
+
+      (testing (str "should be able to load cert chain from reader in "
+                    "keystore and retrieve it back")
+        (let [private-key-file (open-ssl-file "private_keys/localhost.pem")
+              cert-file        (open-ssl-file "certs/multiple.pem")
+              keystore-val     (keystore)
+              _                (assoc-private-key-from-reader! keystore-val
+                                                               keystore-alias
+                                                               private-key-file
+                                                               keystore-password
+                                                               cert-file)
+              keystore-chain   (.getCertificateChain keystore-val
+                                                     keystore-alias)
+              certs            (pem->certs cert-file)]
+          (is (= (count keystore-chain) (count certs))
+              "Number of keystore certs do not match number of certs from file")
+          (dotimes [n (count keystore-chain)]
+            (is (encoded-content-equal? (nth certs n) (nth keystore-chain n))
+                (str "Cert # " n " from file does not match keystore cert")))))))
 
   (testing "convert PEMs to keystore/truststore"
     (let [result (pems->key-and-trust-stores
@@ -499,8 +550,7 @@
       (is (= #{:keystore :keystore-pw :truststore} (-> result keys set)))
       (is (instance? KeyStore (:keystore result)))
       (is (instance? KeyStore (:truststore result)))
-      (is (string? (:keystore-pw result))))))
-
+      (is (string? (:keystore-pw result)))))))
 
 (deftest ssl-context-test
   (testing "convert PEMs to SSLContext"
@@ -575,6 +625,12 @@
     (is (false? (certificate? csr)))
     (is (false? (certificate? "foo")))
     (is (false? (certificate? nil))))
+
+  (deftest certificate-list?-test
+    (is (true? (certificate-list? [cert])))
+    (is (false? (certificate-list? cert)))
+    (is (false? (certificate-list? "foo")))
+    (is (false? (certificate-list? nil))))
 
   (deftest certificate-revocation-list?-test
     (is (true? (certificate-revocation-list? crl)))
