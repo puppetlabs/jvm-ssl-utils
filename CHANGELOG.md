@@ -1,3 +1,9 @@
+## 0.5.0
+ * Added support for loading chained certificates into a key store, involving the following API changes:
+   * New overload of the `associatePrivateKey` Java method which accepts a `List<X509Certificate>`.
+   * Removal of the restriction on the `associatePrivateKeyFromReader` Java method and
+    `assoc-private-key!` Clojure function to a single certificate.
+
 ## 0.4.0
  * Added support for `authority-key-identifier` to specify the distinguished name and serial number of
    the issuer.
