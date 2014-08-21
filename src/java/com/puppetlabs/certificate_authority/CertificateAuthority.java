@@ -6,14 +6,17 @@ import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
+import org.bouncycastle.asn1.x509.CRLNumber;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.asn1.x509.X509Name;
+import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.cert.X509CRLHolder;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509v2CRLBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CRLConverter;
+import org.bouncycastle.cert.jcajce.JcaX509CRLHolder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v2CRLBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -31,6 +34,7 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequestBuilder;
 import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
 import org.bouncycastle.x509.X509V3CertificateGenerator;
+import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
 import org.joda.time.DateTime;
 
 import javax.security.auth.x500.X500Principal;
@@ -56,6 +60,7 @@ import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CRLException;
+import java.security.cert.CRLReason;
 import java.security.cert.CertificateException;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
@@ -199,65 +204,116 @@ public class CertificateAuthority {
     }
 
     /**
-     * Given the certificate authority's principal identifier and private key,
-     * create a new certificate revocation list (CRL).
+     * Given the certificate authority's principal identifier and private
+     * & public keys, create a new certificate revocation list (CRL).
+     *
+     * The CRL will have an AuthorityKeyIdentifier extension and CRLNumber
+     * extension set to 0.
      *
      * @param issuer The certificate authority's identifier
      * @param issuerPrivateKey The certificate authority's private key
+     * @param issuerPublicKey The certificate authority's public key
      * @return A new certificate revocation list
      * @throws CRLException
      * @throws IOException
      * @throws OperatorCreationException
-     */
-    public static X509CRL generateCRL(X500Principal issuer,
-                                      PrivateKey issuerPrivateKey)
-        throws CRLException, IOException, OperatorCreationException
-    {
-        return generateCRL(issuer, issuerPrivateKey, null);
-    }
-
-    /**
-     * Given the certificate authority's principal identifier, private key,
-     * and a list of extension maps, create a new certificate revocation list
-     * (CRL).  If the extensions parameter is not null then all the maps in
-     * the list will be parsed into extensions and written onto the CRL.
-     *
-     * @param issuer The certificate authority's identifier
-     * @param issuerPrivateKey The certificate authority's private key
-     * @param extensions A list of maps which contain extensions that are to be
-     *                   written to the CRL.
-     * @return A new certificate revocation list
-     * @throws CRLException
-     * @throws IOException
-     * @throws OperatorCreationException
+     * @throws InvalidKeyException
+     * @see #revoke
+     * @see #isRevoked
      */
     public static X509CRL generateCRL(X500Principal issuer,
                                       PrivateKey issuerPrivateKey,
-                                      List<Map<String, Object>> extensions)
-        throws CRLException, IOException, OperatorCreationException
+                                      PublicKey issuerPublicKey)
+        throws CRLException, IOException, OperatorCreationException, InvalidKeyException
     {
-        Date issueDate = DateTime.now().toDate();
-        Date nextUpdate = DateTime.now().plusYears(100).toDate();
+        DateTime now = DateTime.now();
+        Date issueDate = now.toDate();
+        Date nextUpdate = now.plusYears(5).toDate();
+        X509v2CRLBuilder builder = new JcaX509v2CRLBuilder(issuer, issueDate);
+        builder.setNextUpdate(nextUpdate);
+        builder.addExtension(Extension.authorityKeyIdentifier, false,
+                             new AuthorityKeyIdentifierStructure(issuerPublicKey));
+        builder.addExtension(Extension.cRLNumber, false, new CRLNumber(BigInteger.ZERO));
+        ContentSigner signer =
+            new JcaContentSignerBuilder("SHA256withRSA").build(issuerPrivateKey);
+        return new JcaX509CRLConverter().getCRL(builder.build(signer));
+    }
 
-        X509v2CRLBuilder crlGen = new JcaX509v2CRLBuilder(issuer, issueDate);
+    /**
+     * Given a certificate revocation list and certificate,
+     * test if the certificate has been revoked.
+     *
+     * Note that if the certificate and CRL have different issuers,
+     * {@code false} will be returned even if the certificate's
+     * serial number is on the CRL (i.e. previously revoked).
+     *
+     * @param crl The certificate revocation list to check
+     * @param certificate The certificate to check
+     * @return {@code true} if the certificate is on the revocation list,
+               {@code false} otherwise.
+     * @see #revoke
+     * @see #generateCRL
+     */
+    public static boolean isRevoked(X509CRL crl, X509Certificate certificate) {
+        return crl.isRevoked(certificate);
+    }
 
-        crlGen.setNextUpdate(nextUpdate);
+    /**
+     * Given a certificate revocation list and certificate serial number,
+     * add the certificate to the revocation list and return the updated
+     * CRL. The issuer keys should be the same keys that were used when
+     * generating the CRL.
+     *
+     * The CRLNumber extension on the CRL will be incremented by 1, or
+     * the extension will be added if it doesn't already exist.
+     *
+     * The AuthorityKeyIdentifier extension will be added to the CRL if
+     * if doesn't already exist.
+     *
+     * @param crl The revocation list to add the certificate serial to
+     * @param issuerPrivateKey The certificate authority's private key
+     * @param issuerPublicKey The certificate authority's public key
+     * @param serial The serial number from the certificate to revoke
+     * @return The updated CRL containing the revoked certificate serial
+     * @throws CRLException
+     * @throws IOException
+     * @throws CertIOException
+     * @throws OperatorCreationException
+     * @throws InvalidKeyException
+     * @see #isRevoked
+     * @see #generateCRL
+     */
+    public static X509CRL revoke(X509CRL crl,
+                                 PrivateKey issuerPrivateKey,
+                                 PublicKey issuerPublicKey,
+                                 BigInteger serial)
+        throws CRLException, IOException, CertIOException,
+               OperatorCreationException, InvalidKeyException
+    {
+        // The CRL is not valid if the time of checking == the time of last_update.
+        // So to have it valid right now we need to say that it was updated one second ago.
+        DateTime now = DateTime.now();
+        Date thisUpdate = now.minusSeconds(1).toDate();
+        Date nextUpdate = now.plusYears(5).toDate();
+        X509v2CRLBuilder builder =
+            new JcaX509v2CRLBuilder(crl.getIssuerX500Principal(), thisUpdate);
+        builder.setNextUpdate(nextUpdate);
 
-        Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
-        if (bcExtensions != null) {
-            for (ASN1ObjectIdentifier oid : bcExtensions.getExtensionOIDs()) {
-                Extension extension = bcExtensions.getExtension(oid);
-                crlGen.addExtension(oid, extension.isCritical(),
-                        extension.getParsedValue());
-            }
-        }
+        // Copy over existing CRLEntrys
+        builder.addCRL(new JcaX509CRLHolder(crl));
+        builder.addCRLEntry(serial, now.toDate(), CRLReason.KEY_COMPROMISE.ordinal());
 
-        JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder("SHA256withRSA");
-        ContentSigner signer = signerBuilder.build(issuerPrivateKey);
+        BigInteger crlNumber = (BigInteger)
+            ExtensionsUtils.getExtensionValue(crl, ExtensionsUtils.CRL_NUMBER_OID);
+        crlNumber = (crlNumber == null) ? BigInteger.ZERO : crlNumber;
+        builder.addExtension(Extension.cRLNumber, false,
+                             new CRLNumber(crlNumber.add(BigInteger.ONE)));
+        builder.addExtension(Extension.authorityKeyIdentifier, false,
+                             new AuthorityKeyIdentifierStructure(issuerPublicKey));
 
-        X509CRLHolder crlHolder = crlGen.build(signer);
-        JcaX509CRLConverter converter = new JcaX509CRLConverter();
-        return converter.getCRL(crlHolder);
+        ContentSigner signer =
+            new JcaContentSignerBuilder("SHA256withRSA").build(issuerPrivateKey);
+        return new JcaX509CRLConverter().getCRL(builder.build(signer));
     }
 
     /**
@@ -295,8 +351,6 @@ public class CertificateAuthority {
             throw new IllegalArgumentException("The PEM stream contains more than one object");
         return (PKCS10CertificationRequest) pemObjects.get(0);
     }
-
-    // ---- PORTED KITCHENSINK FUNCIONS ----
 
     /**
      * Create an empty in-memory key store.
@@ -793,6 +847,16 @@ public class CertificateAuthority {
      */
     public static PrivateKey getPrivateKey(KeyPair keyPair) {
         return keyPair.getPrivate();
+    }
+
+    /**
+     * Get the serial number from a certificate.
+     *
+     * @param cert The X509Certificate
+     * @return The certificate's serial number
+     */
+    public static BigInteger getSerialNumber(X509Certificate cert) {
+        return cert.getSerialNumber();
     }
 
     /**

@@ -62,6 +62,17 @@ import java.util.Set;
 public class ExtensionsUtils {
 
     /**
+     * CRLNumber OID 2.5.29.20
+     */
+    public static final String CRL_NUMBER_OID = Extension.cRLNumber.toString();
+
+    /**
+     * AuthorityKeyIdentifier OID 2.5.29.35
+     */
+    public static final String AUTHORITY_KEY_IDENTIFIER_OID =
+        Extension.authorityKeyIdentifier.toString();
+
+    /**
      * Return true if the given OID is contained within the subtree of parent OID.
      *
      * @param parentOid The OID of the parent tree.

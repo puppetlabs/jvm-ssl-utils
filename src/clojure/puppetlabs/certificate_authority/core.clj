@@ -140,7 +140,18 @@
     data-structure))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Core
+;;; OID definitions
+
+(def crl-number-oid
+  "CRLNumber OID 2.5.29.20"
+  ExtensionsUtils/CRL_NUMBER_OID)
+
+(def authority-key-identifier-oid
+  "AuthorityKeyIdentifier OID 2.5.29.35"
+  ExtensionsUtils/AUTHORITY_KEY_IDENTIFIER_OID)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Extensions
 
 (defn subject-dns-alt-names
   "Create a Subject Alternative Names extensions (OID=2.5.29.17) which contains
@@ -165,7 +176,7 @@
 
 (defn- create-authority-key-identifier
   [public-key issuer-dn serial critical]
-  {:oid      "2.5.29.35"
+  {:oid      authority-key-identifier-oid
    :critical (boolean critical)
    :value    {:public-key    public-key
               :serial-number (if (number? serial) (biginteger serial))
@@ -254,7 +265,7 @@
   [number]
   {:pre [(number? number)]
    :post [(extension? %)]}
-  {:oid "2.5.29.20"
+  {:oid crl-number-oid
    :critical false
    :value (biginteger number)})
 
@@ -293,6 +304,9 @@
   {:oid "1.3.6.1.4.1.34380.1.1.4"
    :critical (boolean critical)
    :value key})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Core
 
 (defn dn
   "Given a sequence of attribute names and value pairs, generate an X.500 DN
@@ -396,24 +410,52 @@
      subject-pub-key (javaize extensions))))
 
 (defn generate-crl
-  "Given the certificate authority's principal identifier, private key, and,
-  optionally, some extensions info, create and return a `X509CRL` certificate
-  revocation list (CRL).  Arguments:
+  "Given the certificate authority's principal identifier and private & public
+   keys, create and return a `X509CRL` certificate revocation list (CRL).
+   The CRL will have an AuthorityKeyIdentifier and CRLNumber extensions.
 
-  `issuer`:             the issuer's `X500Principal`
-  `issuer-private-key`: the issuer's `PrivateKey`
-  `extensions`:         an optional list of X509 extensions, each of which is
-                        a map with an `oid`, `value` and `critical` flag. The
-                        value format is dependent upon the oid."
-  ([issuer issuer-private-key]
-   (generate-crl issuer issuer-private-key []))
-  ([issuer issuer-private-key extensions]
-    {:pre  [(instance? X500Principal issuer)
-            (private-key? issuer-private-key)
-            (extension-list? extensions)]
-     :post [(certificate-revocation-list? %)]}
-    (CertificateAuthority/generateCRL issuer issuer-private-key
-                                      (javaize extensions))))
+   Arguments:
+   `issuer`:             the issuer's `X500Principal`
+   `issuer-private-key`: the issuer's `PrivateKey`
+   `issuer-public-key`:  the issuer's `PublicKey`"
+  [issuer issuer-private-key issuer-public-key]
+  {:pre  [(instance? X500Principal issuer)
+          (private-key? issuer-private-key)
+          (public-key? issuer-public-key)]
+   :post [(certificate-revocation-list? %)]}
+  (CertificateAuthority/generateCRL issuer issuer-private-key issuer-public-key))
+
+(defn revoked?
+  "Given a certificate revocation list and certificate, test if the
+   certificate has been revoked.
+
+   Note that if the certificate and CRL has different issuers, false
+   will be returned even if the certificate's serial number is on the
+   CRL (i.e. previously revoked)."
+  [crl certificate]
+  {:pre [(certificate-revocation-list? crl)
+         (certificate? certificate)]}
+  (CertificateAuthority/isRevoked crl certificate))
+
+(defn revoke
+  "Given a certificate revocation list and certificate serial number,
+   revoke the certificate by adding its serial number to the list and
+   return the updated CRL. The issuer keys should be the same ones
+   that were used when generating the CRL.
+
+   The CRLNumber extension on the CRL will be incremented by 1,
+   or the extension will be added if it doesn't already exist.
+
+   The AuthorityKeyIdentifier extension will be added to the CRL
+   if it doesn't already exist."
+  [crl issuer-private-key issuer-public-key cert-serial]
+  {:pre  [(certificate-revocation-list? crl)
+          (private-key? issuer-private-key)
+          (public-key? issuer-public-key)
+          (number? cert-serial)]
+   :post [(certificate-revocation-list? %)]}
+  (CertificateAuthority/revoke crl issuer-private-key
+                               issuer-public-key cert-serial))
 
 (defn crl->pem!
   "Encodes a CRL to PEM format, and writes it to a file (or other stream).
@@ -795,6 +837,13 @@
   {:pre [(keypair? key-object)]
    :post [(private-key? %)]}
   (CertificateAuthority/getPrivateKey key-object))
+
+(defn get-serial
+  "Given an X509 certificate, return the serial number from it."
+  [cert]
+  {:pre  [(certificate? cert)]
+   :post [(instance? BigInteger %)]}
+  (CertificateAuthority/getSerialNumber cert))
 
 (defn subtree-of?
   "Given an OID and a a parent tree OID return true if the OID is within
