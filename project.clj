@@ -5,7 +5,7 @@
     :password :env/clojars_jenkins_password
     :sign-releases false })
 
-(defproject puppetlabs/certificate-authority "0.5.0-SNAPSHOT"
+(defproject puppetlabs/certificate-authority "0.5.0"
   :url "http://www.github.com/puppetlabs/jvm-certificate-authority"
 
   ;; Abort when version ranges or version conflicts are detected in
