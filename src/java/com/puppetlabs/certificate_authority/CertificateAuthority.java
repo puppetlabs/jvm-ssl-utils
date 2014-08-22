@@ -1,5 +1,8 @@
 package com.puppetlabs.certificate_authority;
 
+import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.codec.binary.Hex;
+
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
@@ -53,6 +56,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
@@ -62,6 +66,7 @@ import java.security.UnrecoverableKeyException;
 import java.security.cert.CRLException;
 import java.security.cert.CRLReason;
 import java.security.cert.CertificateException;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -909,15 +914,48 @@ public class CertificateAuthority {
      * @throws PKCSException
      */
     public static boolean isSignatureValid(PKCS10CertificationRequest csr)
-            throws OperatorCreationException, PKCSException {
+            throws OperatorCreationException, PKCSException
+    {
+        // Implementation references:
+        //  http://www.bouncycastle.org/wiki/display/JA1/BC+Version+2+APIs#BCVersion2APIs-VerifyingaSignature
+        //  http://stackoverflow.com/questions/3711754/why-java-security-nosuchproviderexception-no-such-provider-bc
+        JcaContentVerifierProviderBuilder builder =
+            new JcaContentVerifierProviderBuilder().setProvider(new BouncyCastleProvider());
         return csr.isSignatureValid(builder.build(csr.getSubjectPublicKeyInfo()));
     }
 
-    // Implementation references:
-    //  http://www.bouncycastle.org/wiki/display/JA1/BC+Version+2+APIs#BCVersion2APIs-VerifyingaSignature
-    //  http://stackoverflow.com/questions/3711754/why-java-security-nosuchproviderexception-no-such-provider-bc
+    /**
+     * Hash the certificate with the digest algorithm and encode the result as a hex string.
+     * The digest algorithm is expected to be one of SHA-1, SHA-256, or SHA-512.
+     *
+     * @param cert The certificate to hash.
+     * @param digestAlgorithm The hash algorithm to use.
+     * @return The hex string form of the hashed certificate.
+     * @throws CertificateEncodingException
+     */
+    public static String getFingerprint(X509Certificate cert, String digestAlgorithm)
+        throws CertificateEncodingException
+    {
+        return getFingerprint(cert.getEncoded(), digestAlgorithm);
+    }
 
-    private static final JcaContentVerifierProviderBuilder builder =
-            new JcaContentVerifierProviderBuilder().setProvider(
-                    new BouncyCastleProvider());
+    /**
+     * Hash the CSR with the digest algorithm and encode the result as a hex string.
+     * The digest algorithm is expected to be one of SHA-1, SHA-256, or SHA-512.
+     *
+     * @param csr The certificate signing request to hash.
+     * @param digestAlgorithm The hash algorithm to use.
+     * @return The hex string form of the hashed certificate signing request.
+     * @throws IOException
+     */
+    public static String getFingerprint(PKCS10CertificationRequest csr, String digestAlgorithm)
+        throws IOException
+    {
+        return getFingerprint(csr.getEncoded(), digestAlgorithm);
+    }
+
+    private static String getFingerprint(byte[] bytes, String digestAlgorithm) {
+        MessageDigest digest = DigestUtils.getDigest(digestAlgorithm);
+        return Hex.encodeHexString(digest.digest(bytes));
+    }
 }

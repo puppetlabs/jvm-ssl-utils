@@ -859,3 +859,14 @@
   [csr]
   {:pre [(certificate-request? csr)]}
   (CertificateAuthority/isSignatureValid csr))
+
+(defn fingerprint
+  "Given a certificate or CSR, hash the object using the digest algorithm and
+   return it as a hex string. The digest algorithm is expected to be one of
+   SHA-1, SHA-256, or SHA-512."
+  [c digest]
+  {:pre  [(or (certificate? c)
+              (certificate-request? c))
+          (string? digest)]
+   :post [(string? %)]}
+  (CertificateAuthority/getFingerprint c digest))

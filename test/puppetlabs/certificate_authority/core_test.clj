@@ -747,3 +747,18 @@
 
   (is (not (signature-valid?
         (pem->csr (open-ssl-file "certification_requests/bad_public_key.pem"))))))
+
+(deftest fingerprint-test
+  (testing "certificate"
+    (let [cert (pem->cert (open-ssl-file "certs/localhost.pem"))]
+      (are [algorithm expected] (= expected (fingerprint cert algorithm))
+           "SHA-1"   "2232c6267b24f9eaf9323cdf4ed07e31a131202d"
+           "SHA-256" "8c8438c39f6505d9766d335d66b081034a83f2a56c41704758f87fc26c76ef46"
+           "SHA-512" "2ad13f9b0aa4d0cca69ea4c1e1f1543461774c74ca99340c8b1264e5c8012402019ba0ab807e648847c29819e3c058f1b9df1a10ce4310c8a8c0d49c9b67e269")))
+
+  (testing "csr"
+    (let [csr (pem->csr (open-ssl-file "certification_requests/ca_test_client.pem"))]
+      (are [algorithm expected] (= expected (fingerprint csr algorithm))
+           "SHA-1"   "729b47a6e4386a7ac9722c2aff6211bf24717346"
+           "SHA-256" "13e691167999b6d6578b7acc646900d92337d51abe0ea8fbb5121192d7244ffd"
+           "SHA-512" "07b9936f81dfc9100e83eb2a19506faf0bf6a2e45e4e56e1e4d30682cdffc84a5a8310517e009398f11b0f9045a416eebf4d040b9badf008cf2e192706f05989"))))
