@@ -73,6 +73,12 @@ public class ExtensionsUtils {
         Extension.authorityKeyIdentifier.toString();
 
     /**
+     * SubjectAlternativeName OID 2.5.29.17
+     */
+    public static final String SUBJECT_ALTERNATIVE_NAME_OID =
+        Extension.subjectAlternativeName.toString();
+
+    /**
      * Return true if the given OID is contained within the subtree of parent OID.
      *
      * @param parentOid The OID of the parent tree.

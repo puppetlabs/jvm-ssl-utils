@@ -150,8 +150,55 @@
   "AuthorityKeyIdentifier OID 2.5.29.35"
   ExtensionsUtils/AUTHORITY_KEY_IDENTIFIER_OID)
 
+(def subject-alt-name-oid
+  "SubjectAlternativeName OID 2.5.29.17"
+  ExtensionsUtils/SUBJECT_ALTERNATIVE_NAME_OID)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Extensions
+
+(defn get-extensions
+  "Given an object containing X509 extensions, retrieve a list of maps of all
+  extensions. Each map in the list contains the following keys:
+
+  `oid`      : The OID of the extension
+  `value`    : The value of the extensions
+  `critical` : True if this is a critical extensions, false if it is not."
+  [ext-container]
+  {:pre [(or (certificate? ext-container)
+             (certificate-request? ext-container)
+             (certificate-revocation-list? ext-container))]
+   :post [(extension-list? %)]}
+  (-> (or (ExtensionsUtils/getExtensionList (javaize ext-container))
+          [])
+      clojureize))
+
+(defn get-extension
+  "Given a X509 certificate object, CRL, CSR, or a list of extensions
+  returned by `get-extensions`, return a map describing the value and
+  criticality of the extension described by its OID."
+  [ext-container oid]
+  {:pre [(or (certificate? ext-container)
+             (certificate-request? ext-container)
+             (certificate-revocation-list? ext-container)
+             (instance? List ext-container))
+         (string? oid)]
+   :post [(extension? %)]}
+  (-> (ExtensionsUtils/getExtension (javaize ext-container) oid)
+      clojureize))
+
+(defn get-extension-value
+  "Given a X509 certificate object, CRL, CSR or a list of extensions returned by
+  `get-extensions`, return the value of an extension by its OID. If the OID
+  doesn't exist on the provided object, then nil is returned."
+  [ext-container oid]
+  {:pre [(or (certificate? ext-container)
+             (certificate-request? ext-container)
+             (certificate-revocation-list? ext-container)
+             (instance? List ext-container))
+         (string? oid)]}
+  (-> (ExtensionsUtils/getExtensionValue (javaize ext-container) oid)
+      clojureize))
 
 (defn subject-dns-alt-names
   "Create a Subject Alternative Names extensions (OID=2.5.29.17) which contains
@@ -161,9 +208,20 @@
   {:pre [(sequential? alt-names-list)
          (every? string? alt-names-list)]
    :post [(extension? %)]}
-  {:oid      "2.5.29.17"
+  {:oid      subject-alt-name-oid
    :critical (boolean critical)
    :value    {:dns-name alt-names-list}})
+
+(defn get-subject-dns-alt-names
+  "Given a certificate or CSR, return the list of DNS alternative names on the
+   Subject Alternative Names extension, or nil if the extension is not present."
+  [cert-or-csr]
+  {:pre  [(or (certificate? cert-or-csr)
+              (certificate-request? cert-or-csr))]
+   :post [(or (nil? %)
+              (and (sequential? %)
+                   (every? string? %)))]}
+  (:dns-name (get-extension-value cert-or-csr subject-alt-name-oid)))
 
 (defn netscape-comment
   "Create a `Netscape Certificate Comment` extension."
@@ -429,7 +487,7 @@
   "Given a certificate revocation list and certificate, test if the
    certificate has been revoked.
 
-   Note that if the certificate and CRL has different issuers, false
+   Note that if the certificate and CRL have different issuers, false
    will be returned even if the certificate's serial number is on the
    CRL (i.e. previously revoked)."
   [crl certificate]
@@ -771,49 +829,6 @@
    :post [(instance? SSLContext %)]}
   (with-open [ca-cert-reader (reader ca-cert)]
     (CertificateAuthority/caCertPemToSSLContext ca-cert-reader)))
-
-(defn get-extensions
-  "Given an object containing X509 extensions, retrieve a list of maps of all
-  extensions. Each map in the list contains the following keys:
-
-  `oid`      : The OID of the extension
-  `value`    : The value of the extensions
-  `critical` : True if this is a critical extensions, false if it is not."
-  [ext-container]
-  {:pre [(or (certificate? ext-container)
-             (certificate-request? ext-container)
-             (certificate-revocation-list? ext-container))]
-   :post [(extension-list? %)]}
-  (-> (or (ExtensionsUtils/getExtensionList (javaize ext-container))
-          [])
-      clojureize))
-
-(defn get-extension
-  "Given a X509 certificate object, CRL, CSR, or a list of extensions
-  returned by `get-extensions`, return a map describing the value and
-  criticality of the extension described by its OID."
-  [ext-container oid]
-  {:pre [(or (certificate? ext-container)
-             (certificate-request? ext-container)
-             (certificate-revocation-list? ext-container)
-             (instance? List ext-container))
-         (string? oid)]
-   :post [(extension? %)]}
-  (-> (ExtensionsUtils/getExtension (javaize ext-container) oid)
-      clojureize))
-
-(defn get-extension-value
-  "Given a X509 certificate object, CRL, CSR or a list of extensions returned by
-  `get-extensions`, return the value of an extension by its OID. If the OID
-  doesn't exist on the provided object, then nil is returned."
-  [ext-container oid]
-  {:pre [(or (certificate? ext-container)
-             (certificate-request? ext-container)
-             (certificate-revocation-list? ext-container)
-             (instance? List ext-container))
-         (string? oid)]}
-  (-> (ExtensionsUtils/getExtensionValue (javaize ext-container) oid)
-      clojureize))
 
 (defn get-cn-from-x500-principal
   "Given an X500Principal object, retrieve the common name (CN)."

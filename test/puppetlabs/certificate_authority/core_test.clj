@@ -762,3 +762,21 @@
            "SHA-1"   "729b47a6e4386a7ac9722c2aff6211bf24717346"
            "SHA-256" "13e691167999b6d6578b7acc646900d92337d51abe0ea8fbb5121192d7244ffd"
            "SHA-512" "07b9936f81dfc9100e83eb2a19506faf0bf6a2e45e4e56e1e4d30682cdffc84a5a8310517e009398f11b0f9045a416eebf4d040b9badf008cf2e192706f05989"))))
+
+(deftest subject-dns-alt-names-test
+  (testing "certificate"
+    (let [cert (sign-certificate (cn "ca")
+                                 (get-private-key (generate-key-pair 512))
+                                 1234
+                                 (generate-not-before-date)
+                                 (generate-not-after-date)
+                                 (cn "subject")
+                                 (get-public-key (generate-key-pair 512))
+                                 [(subject-dns-alt-names ["peter" "paul" "mary"] false)])]
+      (is (= #{"peter" "paul" "mary"} (set (get-subject-dns-alt-names cert))))))
+
+  (testing "CSR"
+    (let [csr (generate-certificate-request (generate-key-pair 512)
+                                            (cn "subject")
+                                            [(subject-dns-alt-names ["moe" "curly" "larry"] false)])]
+      (is (= #{"moe" "curly" "larry"} (set (get-subject-dns-alt-names csr)))))))
