@@ -135,7 +135,7 @@ public class PuppetMasterCertManager {
 
         FileUtils.copyFile(new File(this.caCertPath), new File(getHostCertPath("ca")));
 
-        X509CRL caCrl = CertificateAuthority.generateCRL(caCert.getIssuerX500Principal(), caKeyPair.getPrivate());
+        X509CRL caCrl = CertificateAuthority.generateCRL(caCert.getIssuerX500Principal(), caKeyPair.getPrivate(), caKeyPair.getPublic());
         CertificateAuthority.writeToPEM(caCrl, new FileWriter(this.caCrlPath));
     }
 
