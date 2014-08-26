@@ -7,7 +7,7 @@
            (javax.net.ssl SSLContext)
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
-           (org.joda.time DateTime Period)
+           (org.joda.time DateTime Period DateTimeUtils)
            (org.bouncycastle.asn1.x509 SubjectPublicKeyInfo))
   (:require [clojure.test :refer :all]
             [clojure.java.io :refer [resource reader]]
@@ -214,7 +214,7 @@
         (is (certificate? certificate))
         (is (has-subject? certificate subject))
         (is (issued-by? certificate issuer))
-        (is (= (.getSerialNumber certificate) serial))))
+        (is (= serial (get-serial certificate)))))
 
     (testing "signing extensions into certificate"
       (let [sign-exts     [(puppet-node-uid
@@ -373,8 +373,8 @@
         (is (certificate? actual))
         (is (has-subject? actual (expected :subject-name)))
         (is (issued-by? actual (expected :issuer-name)))
-        (is (= (.getSerialNumber actual) (expected :serial)))
-        (is (= (.getVersion actual) (expected :version))))))
+        (is (= (expected :serial) (get-serial actual)))
+        (is (= (expected :version) (.getVersion actual))))))
 
   (testing "write certificate to PEM stream"
     (let [subject     (cn "foo")
@@ -392,23 +392,32 @@
       (is (certificate? parsed-cert))
       (is (has-subject? parsed-cert subject))
       (is (issued-by? parsed-cert issuer))
-      (is (= (.getSerialNumber parsed-cert) serial))
+      (is (= serial (get-serial parsed-cert)))
       (is (= orig-cert parsed-cert)))))
 
 (deftest certificate-revocation-list
-  (let [key-pair         (generate-key-pair)
-        public-key       (get-public-key key-pair)
-        private-key      (get-private-key key-pair)
-        issuer-name      (cn "my ca")
-        issuer-principal (X500Principal. issuer-name)
-        crl              (generate-crl issuer-principal private-key)]
+  (let [key-pair    (generate-key-pair 512)
+        public-key  (get-public-key key-pair)
+        private-key (get-private-key key-pair)
+        issuer-name (cn "Puppet CA: localhost")
+        crl         (generate-crl (X500Principal. issuer-name)
+                                  private-key public-key)]
 
     (testing "create CRL"
       (is (certificate-revocation-list? crl))
       (is (issued-by? crl issuer-name))
       (is (nil? (.verify crl public-key)))
-      (is (thrown? SignatureException
-                   (.verify crl (get-public-key (generate-key-pair))))))
+
+      (testing "AuthorityKeyIdentifier and CRLNumber extensions are included"
+        (is (= #{{:oid      "2.5.29.35"
+                  :critical false
+                  :value    {:issuer         nil
+                             :key-identifier (pubkey-sha1 public-key)
+                             :serial-number  nil}}
+                 {:oid      "2.5.29.20"
+                  :critical false
+                  :value    BigInteger/ZERO}}
+               (set (get-extensions crl))))))
 
     (testing "read CRL from PEM stream"
       (let [parsed-crl (-> "ca_crl.pem" open-ssl-file pem->crl)]
@@ -421,25 +430,31 @@
         (is (issued-by? parsed-crl issuer-name))
         (is (= crl parsed-crl))))
 
-    (testing "signing extensions into CRL"
-      (let [crl-num       6
-            sign-exts     [(authority-key-identifier
-                             public-key false)
-                           (crl-number crl-num)]
-            expected-exts [{:oid      "2.5.29.35"
-                            :critical false
-                            :value    {:issuer         nil
-                                       :key-identifier (pubkey-sha1
-                                                         public-key)
-                                       :serial-number  nil}}
-                           {:oid      "2.5.29.20"
-                            :critical false
-                            :value    (biginteger crl-num)}]
-            crl-w-exts (generate-crl issuer-principal
-                                     private-key
-                                     sign-exts)
-            crl-exts   (get-extensions crl-w-exts)]
-        (is (= (set crl-exts) (set expected-exts)))))))
+    (testing "revoking a certificate"
+      (let [cert (-> "certs/cert-with-exts.pem" open-ssl-file pem->cert)]
+        (is (= 0 (get-extension-value crl crl-number-oid)))
+        (is (false? (revoked? crl cert)))
+
+        ;; We need to advance the value of DateTime.now() so it's not the
+        ;; same value that was used when generating the CRL, otherwise it
+        ;; will look like revoke didn't properly advance the dates.
+        ;; This is a consequence of the test generating the CRL and revoking
+        ;; a certificate before the value of DateTime.now() has changed.
+        (DateTimeUtils/setCurrentMillisOffset 9999)
+        (let [updated-crl (revoke crl private-key public-key (get-serial cert))]
+          (testing "certificate is revoked"
+            (is (true? (revoked? updated-crl cert))))
+          (testing "CRLNumber extension value is incremented"
+            (is (= 1 (get-extension-value updated-crl crl-number-oid))))
+          (testing "dates are advanced"
+            (is (.after (.getThisUpdate updated-crl) (.getThisUpdate crl)))
+            (is (.after (.getNextUpdate updated-crl) (.getNextUpdate crl))))
+          (testing "issuer hasn't changed"
+            (is (= (.getIssuerX500Principal crl)
+                   (.getIssuerX500Principal updated-crl))))
+          (testing "AuthorityKeyIdentifier extension hasn't changed"
+            (is (= (get-extension crl authority-key-identifier-oid)
+                   (get-extension updated-crl authority-key-identifier-oid)))))))))
 
 (defn- encoded-content-equal?
   [expected actual]
@@ -590,15 +605,18 @@
     (is (false? (private-key? "foo")))
     (is (false? (private-key? nil)))))
 
-(let [subject (cn "subject")
-      issuer  (cn "issuer")
+(let [subject  (cn "subject")
+      issuer   (cn "issuer")
       key-pair (generate-key-pair 512)
-      csr     (generate-certificate-request key-pair subject)
-      cert    (sign-certificate issuer (get-private-key (generate-key-pair 512))
-                                42 (generate-not-before-date)
-                                (generate-not-after-date) subject
-                                (get-public-key (generate-key-pair 512)))
-      crl     (generate-crl (X500Principal. (str issuer)) (get-private-key (generate-key-pair 512)))]
+      csr      (generate-certificate-request key-pair subject)
+      cert     (sign-certificate issuer (get-private-key (generate-key-pair 512))
+                                 42 (generate-not-before-date)
+                                 (generate-not-after-date) subject
+                                 (get-public-key (generate-key-pair 512)))
+      crl-kp   (generate-key-pair 512)
+      crl      (generate-crl (X500Principal. issuer)
+                             (get-private-key crl-kp)
+                             (get-public-key crl-kp))]
 
   (deftest getting-public-key
     (let [pub-key (get-public-key csr)]
@@ -729,3 +747,36 @@
 
   (is (not (signature-valid?
         (pem->csr (open-ssl-file "certification_requests/bad_public_key.pem"))))))
+
+(deftest fingerprint-test
+  (testing "certificate"
+    (let [cert (pem->cert (open-ssl-file "certs/localhost.pem"))]
+      (are [algorithm expected] (= expected (fingerprint cert algorithm))
+           "SHA-1"   "2232c6267b24f9eaf9323cdf4ed07e31a131202d"
+           "SHA-256" "8c8438c39f6505d9766d335d66b081034a83f2a56c41704758f87fc26c76ef46"
+           "SHA-512" "2ad13f9b0aa4d0cca69ea4c1e1f1543461774c74ca99340c8b1264e5c8012402019ba0ab807e648847c29819e3c058f1b9df1a10ce4310c8a8c0d49c9b67e269")))
+
+  (testing "csr"
+    (let [csr (pem->csr (open-ssl-file "certification_requests/ca_test_client.pem"))]
+      (are [algorithm expected] (= expected (fingerprint csr algorithm))
+           "SHA-1"   "729b47a6e4386a7ac9722c2aff6211bf24717346"
+           "SHA-256" "13e691167999b6d6578b7acc646900d92337d51abe0ea8fbb5121192d7244ffd"
+           "SHA-512" "07b9936f81dfc9100e83eb2a19506faf0bf6a2e45e4e56e1e4d30682cdffc84a5a8310517e009398f11b0f9045a416eebf4d040b9badf008cf2e192706f05989"))))
+
+(deftest subject-dns-alt-names-test
+  (testing "certificate"
+    (let [cert (sign-certificate (cn "ca")
+                                 (get-private-key (generate-key-pair 512))
+                                 1234
+                                 (generate-not-before-date)
+                                 (generate-not-after-date)
+                                 (cn "subject")
+                                 (get-public-key (generate-key-pair 512))
+                                 [(subject-dns-alt-names ["peter" "paul" "mary"] false)])]
+      (is (= #{"peter" "paul" "mary"} (set (get-subject-dns-alt-names cert))))))
+
+  (testing "CSR"
+    (let [csr (generate-certificate-request (generate-key-pair 512)
+                                            (cn "subject")
+                                            [(subject-dns-alt-names ["moe" "curly" "larry"] false)])]
+      (is (= #{"moe" "curly" "larry"} (set (get-subject-dns-alt-names csr)))))))

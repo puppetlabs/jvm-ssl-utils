@@ -15,6 +15,7 @@
 
   :dependencies [[org.clojure/tools.logging "0.2.6" :exclusions [org.clojure/clojure]]
                  [org.bouncycastle/bcpkix-jdk15on "1.50"]
+                 [commons-codec "1.9"]
                  [clj-time "0.5.1"]]
 
   :source-paths ["src/clojure"]
