@@ -64,7 +64,6 @@ import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CRLException;
-import java.security.cert.CRLReason;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509CRL;
@@ -306,7 +305,8 @@ public class CertificateAuthority {
 
         // Copy over existing CRLEntrys
         builder.addCRL(new JcaX509CRLHolder(crl));
-        builder.addCRLEntry(serial, now.toDate(), CRLReason.KEY_COMPROMISE.ordinal());
+        // TODO PE-5678 Use java.security.cert.CRLReason.KEY_COMPROMISE.ordinal() instead of 1
+        builder.addCRLEntry(serial, now.toDate(), 1);
 
         BigInteger crlNumber = (BigInteger)
             ExtensionsUtils.getExtensionValue(crl, ExtensionsUtils.CRL_NUMBER_OID);
