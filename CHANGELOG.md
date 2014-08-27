@@ -1,3 +1,17 @@
+## 0.6.0
+ * Added support for revoking certificates
+   * New `revoke` function for adding a certificate to a CRL
+   * New `revoked?` function for checking whether a certificate is on a CRL
+ * Removed the extensions argument from `generate-crl`
+   * The AuthorityKeyIdentifier and CRLNumber extensions are now automatically added
+ * Added `fingerprint` for calculating the hash of a certificate or CSR
+ * Added `get-subject-dns-alt-names` to get the list of DNS alt names from a cert or CSR
+ * Added `get-serial` for pulling the serial number off a certificate
+ * Defined constants for OIDs:
+   * CRLNumber
+   * AuthorityKeyIdentifier
+   * SubjectAlternativeName
+
 ## 0.5.0
  * Added support for loading chained certificates into a key store, involving the following API changes:
    * New overload of the `associatePrivateKey` Java method which accepts a `List<X509Certificate>`.
