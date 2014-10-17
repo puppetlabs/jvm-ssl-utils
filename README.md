@@ -2,6 +2,12 @@
 
 SSL certificate management on the JVM.
 
+## Installation
+
+Add the following dependency to your `project.clj` file:
+
+[![Clojars Project](http://clojars.org/puppetlabs/certificate-authority/latest-version.svg)](http://clojars.org/puppetlabs/certificate-authority)
+
 ## Handling X.509 certificate extensions
 
 X.509 certificates and certificate requests can optionally contain a list of
