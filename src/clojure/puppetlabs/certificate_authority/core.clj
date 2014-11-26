@@ -808,10 +808,11 @@
 (defn pems->ssl-context
   "Given pems for a certificate, private key, and CA certificate, creates an
   in-memory SSLContext initialized with a KeyStore/TrustStore generated from
-  the input certs/key.
+  the input certs/key.  If an optional argument containing CRLs is provided,
+  the SSLContext is also enabled for revocation checking against the CRLs.
 
   Each argument must be an object suitable for use with clojure's `reader`, and
-  reference a PEM that contains the appropriate cert/key.
+  reference a PEM that contains the appropriate cert/key/crl list.
 
   Returns the SSLContext instance."
   ([cert private-key ca-cert]
@@ -851,6 +852,23 @@
    :post [(instance? SSLContext %)]}
   (with-open [ca-cert-reader (reader ca-cert)]
     (CertificateAuthority/caCertPemToSSLContext ca-cert-reader)))
+
+(defn ca-cert-and-crl-pems->ssl-context
+  "Given a pem for a CA certificate and one or more CRLs, creates an in-memory
+  SSLContext initialized with a TrustStore generated from the input CA cert
+  and enabled for revocation checking against the CRLs.
+
+  `ca-cert` must be an object suitable for use with clojure's `reader`, and
+  reference a PEM that contains the CA cert.
+
+  Returns the SSLContext instance."
+  [ca-cert crls]
+  {:pre  [ca-cert crls]
+   :post [(instance? SSLContext %)]}
+  (with-open [ca-cert-reader (reader ca-cert)
+              crls-reader    (reader crls)]
+    (CertificateAuthority/caCertAndCrlPemsToSSLContext ca-cert-reader
+                                                       crls-reader)))
 
 (defn get-cn-from-x500-principal
   "Given an X500Principal object, retrieve the common name (CN)."

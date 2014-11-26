@@ -596,6 +596,11 @@
   (testing "convert CA cert PEM to SSLContext"
     (let [result (ca-cert-pem->ssl-context
                    (open-ssl-file "certs/ca.pem"))]
+      (is (instance? SSLContext result))))
+  (testing "convert CA cert and crl PEMs to SSLContext"
+    (let [result (ca-cert-and-crl-pems->ssl-context
+                   (open-ssl-file "certs/ca.pem")
+                   (open-ssl-file "ca_crl.pem"))]
       (is (instance? SSLContext result)))))
 
 (let [keypair (generate-key-pair 512)
