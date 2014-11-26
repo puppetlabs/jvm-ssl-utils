@@ -424,6 +424,18 @@
         (is (certificate-revocation-list? parsed-crl))
         (is (issued-by? parsed-crl "CN=Puppet CA: localhost"))))
 
+    (testing "read CRLs from PEM stream"
+      (let [parsed-crls (-> "ca_crl_multi.pem" open-ssl-file pem->crls)]
+        (is (certificate-revocation-list? (first parsed-crls)))
+        (is (issued-by? (first parsed-crls)
+                        (str "OU=Server Operations,O=Example Org\\, LLC,"
+                             "1.2.840.113549.1.9.1="
+                             "#161074657374406578616d706c652e6f7267,"
+                             "CN=Intermediate CA (master-ca)")))
+        (is (certificate-revocation-list? (second parsed-crls)))
+        (is (issued-by? (second parsed-crls)
+                        "CN=Puppet CA: localhost"))))
+
     (testing "write CRL to PEM stream"
       (let [parsed-crl (-> crl (write-to-pem-stream crl->pem!) pem->crl)]
         (is (certificate-revocation-list? parsed-crl))
@@ -573,6 +585,13 @@
                    (open-ssl-file "certs/localhost.pem")
                    (open-ssl-file "private_keys/localhost.pem")
                    (open-ssl-file "certs/ca.pem"))]
+      (is (instance? SSLContext result))))
+  (testing "convert CA cert PEM to SSLContext"
+    (let [result (pems->ssl-context
+                   (open-ssl-file "certs/localhost.pem")
+                   (open-ssl-file "private_keys/localhost.pem")
+                   (open-ssl-file "certs/ca.pem")
+                   (open-ssl-file "ca_crl.pem"))]
       (is (instance? SSLContext result))))
   (testing "convert CA cert PEM to SSLContext"
     (let [result (ca-cert-pem->ssl-context

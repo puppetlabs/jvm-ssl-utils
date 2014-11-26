@@ -40,6 +40,7 @@ import org.bouncycastle.x509.X509V3CertificateGenerator;
 import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
 import org.joda.time.DateTime;
 
+import javax.net.ssl.CertPathTrustManagerParameters;
 import javax.security.auth.x500.X500Principal;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -50,6 +51,7 @@ import java.io.Reader;
 import java.io.Writer;
 import java.math.BigInteger;
 
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyManagementException;
 import java.security.KeyPair;
@@ -64,9 +66,13 @@ import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CRLException;
+import java.security.cert.CertStore;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateEncodingException;
+import java.security.cert.CollectionCertStoreParameters;
+import java.security.cert.PKIXBuilderParameters;
 import java.security.cert.X509CRL;
+import java.security.cert.X509CertSelector;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Date;
@@ -338,6 +344,28 @@ public class CertificateAuthority {
             throw new IllegalArgumentException("The PEM stream contains more than one object");
         JcaX509CRLConverter converter = new JcaX509CRLConverter();
         return converter.getCRL((X509CRLHolder) pemObjects.get(0));
+    }
+
+    /**
+     * Given a PEM reader, decode the contents into a list of certificate
+     * revocation lists.
+     *
+     * @param reader Reader for a PEM-encoded stream
+     * @return The list of certificate revocation list objects decoded from the
+     *         stream
+     * @throws IOException
+     * @throws CRLException
+     * @see #generateCRL
+     */
+    public static List<X509CRL> pemToCRLs(Reader reader)
+            throws IOException, CRLException
+    {
+        List<Object> pemObjects = pemToObjects(reader);
+        List<X509CRL> results = new ArrayList<X509CRL>(pemObjects.size());
+        JcaX509CRLConverter converter = new JcaX509CRLConverter();
+        for (Object o : pemObjects)
+            results.add(converter.getCRL((X509CRLHolder) o));
+        return results;
     }
 
     /**
@@ -767,17 +795,66 @@ public class CertificateAuthority {
      * @throws NoSuchAlgorithmException
      * @throws KeyManagementException
      * @throws UnrecoverableKeyException
+     * @throws CRLException
+     * @throws InvalidAlgorithmParameterException
      */
     public static SSLContext pemsToSSLContext(Reader cert, Reader privateKey, Reader caCert)
         throws KeyStoreException, CertificateException, IOException,
-               NoSuchAlgorithmException, KeyManagementException, UnrecoverableKeyException
+            NoSuchAlgorithmException, KeyManagementException,
+            UnrecoverableKeyException, CRLException,
+            InvalidAlgorithmParameterException
+    {
+        return pemsToSSLContext(cert, privateKey, caCert, null);
+    }
+
+    /**
+     * Given PEM readers for a certificate, private key, CA certificate, and,
+     * optionally, CRLs, create an in-memory SSL context initialized with a
+     * keystore/truststore generated from the provided certificates and key.
+     * If a CRLs reader is provided, certificate revocation will be enabled
+     * for the SSL context using the CRLs parsed out of the CRLs reader.
+     *
+     * @param cert Reader for PEM-encoded stream with the certificate
+     * @param privateKey Reader for PEM-encoded stream with the corresponding
+     *                   private key
+     * @param caCert Reader for PEM-encoded stream with the CA certificate
+     * @param crls Reader for stream with one or more PEM-encoded CRLs
+     * @return The configured SSLContext
+     * @throws KeyStoreException
+     * @throws CertificateException
+     * @throws IOException
+     * @throws NoSuchAlgorithmException
+     * @throws KeyManagementException
+     * @throws UnrecoverableKeyException
+     * @throws CRLException
+     * @throws InvalidAlgorithmParameterException
+     */
+    public static SSLContext pemsToSSLContext(Reader cert,
+                                              Reader privateKey,
+                                              Reader caCert,
+                                              Reader crls)
+        throws KeyStoreException, CertificateException, IOException,
+            NoSuchAlgorithmException, KeyManagementException,
+            UnrecoverableKeyException, CRLException,
+            InvalidAlgorithmParameterException
     {
         Map<String, Object> stores = pemsToKeyAndTrustStores(cert, privateKey, caCert);
         KeyStore keystore = (KeyStore) stores.get("keystore");
         String password = (String) stores.get("keystore-pw");
-        KeyStore truststore = (KeyStore) stores.get("truststore");
+        KeyStore trustStore = (KeyStore) stores.get("truststore");
         KeyManagerFactory kmf = getKeyManagerFactory(keystore, password);
-        TrustManagerFactory tmf = getTrustManagerFactory(truststore);
+        TrustManagerFactory tmf = getTrustManagerFactory(trustStore);
+
+        if (crls != null) {
+            PKIXBuilderParameters pbParams = new PKIXBuilderParameters(
+                    trustStore, new X509CertSelector());
+            pbParams.setRevocationEnabled(true);
+            List<X509CRL> crlsAsList = pemToCRLs(crls);
+            pbParams.addCertStore(CertStore.getInstance("Collection",
+                    new CollectionCertStoreParameters(crlsAsList)));
+            tmf.init(new CertPathTrustManagerParameters(pbParams));
+        }
+
         SSLContext context = SSLContext.getInstance("SSL");
         context.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
         return context;

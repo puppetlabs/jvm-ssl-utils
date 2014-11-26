@@ -7,8 +7,7 @@
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
            (com.puppetlabs.certificate_authority CertificateAuthority
                                                  ExtensionsUtils)
-           (java.util Map List Date Set)
-           (org.bouncycastle.asn1.x509 Extension))
+           (java.util Map List Date Set))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :as walk]
             [clojure.string :as string]
@@ -540,6 +539,15 @@
   (with-open [r (reader pem)]
     (CertificateAuthority/pemToCRL r)))
 
+(defn pem->crls
+  "Given the path to a PEM file (or some other object supported by clojure's
+  `reader`), decode the contents into a collection of `X509CRL` instances."
+  [pem]
+  {:pre  [(not (nil? pem))]
+   :post [(every? certificate-revocation-list? %)]}
+  (with-open [r (reader pem)]
+    (CertificateAuthority/pemToCRLs r)))
+
 (defn pem->csr
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decode the contents into a `PKCS10CertificationRequest`.
@@ -806,15 +814,29 @@
   reference a PEM that contains the appropriate cert/key.
 
   Returns the SSLContext instance."
-  [cert private-key ca-cert]
-  {:pre  [(not (nil? cert))
-          (not (nil? private-key))
-          (not (nil? ca-cert))]
-   :post [(instance? SSLContext %)]}
-  (with-open [cert-reader    (reader cert)
-              key-reader     (reader private-key)
-              ca-cert-reader (reader ca-cert)]
-    (CertificateAuthority/pemsToSSLContext cert-reader key-reader ca-cert-reader)))
+  ([cert private-key ca-cert]
+    {:pre [(not (nil? cert))
+           (not (nil? private-key))
+           (not (nil? ca-cert))]
+     :post [(instance? SSLContext %)]}
+    (pems->ssl-context cert private-key ca-cert nil))
+  ([cert private-key ca-cert crls]
+    {:pre  [(not (nil? cert))
+            (not (nil? private-key))
+            (not (nil? ca-cert))]
+     :post [(instance? SSLContext %)]}
+    (with-open [cert-reader    (reader cert)
+                key-reader     (reader private-key)
+                ca-cert-reader (reader ca-cert)]
+      (if crls
+        (with-open [crls-reader (reader crls)]
+          (CertificateAuthority/pemsToSSLContext cert-reader
+                                                 key-reader
+                                                 ca-cert-reader
+                                                 crls-reader))
+        (CertificateAuthority/pemsToSSLContext cert-reader
+                                               key-reader
+                                               ca-cert-reader)))))
 
 (defn ca-cert-pem->ssl-context
   "Given a pem for a CA certificate, creates an in-memory SSLContext initialized
