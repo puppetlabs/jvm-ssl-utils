@@ -858,8 +858,11 @@
   SSLContext initialized with a TrustStore generated from the input CA cert
   and enabled for revocation checking against the CRLs.
 
-  `ca-cert` must be an object suitable for use with clojure's `reader`, and
+  `ca-cert` must be an object suitable for use with clojure's `reader` and
   reference a PEM that contains the CA cert.
+
+  `crls` must be an object suitable for use with clojure's `reader` and
+  reference a PEM that contains one or more CRLs.
 
   Returns the SSLContext instance."
   [ca-cert crls]
