@@ -7,8 +7,7 @@
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
            (com.puppetlabs.certificate_authority CertificateAuthority
                                                  ExtensionsUtils)
-           (java.util Map List Date Set)
-           (org.bouncycastle.asn1.x509 Extension))
+           (java.util Map List Date Set))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :as walk]
             [clojure.string :as string]
@@ -540,6 +539,15 @@
   (with-open [r (reader pem)]
     (CertificateAuthority/pemToCRL r)))
 
+(defn pem->crls
+  "Given the path to a PEM file (or some other object supported by clojure's
+  `reader`), decode the contents into a collection of `X509CRL` instances."
+  [pem]
+  {:pre  [(not (nil? pem))]
+   :post [(every? certificate-revocation-list? %)]}
+  (with-open [r (reader pem)]
+    (CertificateAuthority/pemToCRLs r)))
+
 (defn pem->csr
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decode the contents into a `PKCS10CertificationRequest`.
@@ -800,21 +808,36 @@
 (defn pems->ssl-context
   "Given pems for a certificate, private key, and CA certificate, creates an
   in-memory SSLContext initialized with a KeyStore/TrustStore generated from
-  the input certs/key.
+  the input certs/key.  If an optional argument containing CRLs is provided,
+  the SSLContext is also enabled for revocation checking against the CRLs.
 
   Each argument must be an object suitable for use with clojure's `reader`, and
-  reference a PEM that contains the appropriate cert/key.
+  reference a PEM that contains the appropriate cert/key/crl list.
 
   Returns the SSLContext instance."
-  [cert private-key ca-cert]
-  {:pre  [(not (nil? cert))
-          (not (nil? private-key))
-          (not (nil? ca-cert))]
-   :post [(instance? SSLContext %)]}
-  (with-open [cert-reader    (reader cert)
-              key-reader     (reader private-key)
-              ca-cert-reader (reader ca-cert)]
-    (CertificateAuthority/pemsToSSLContext cert-reader key-reader ca-cert-reader)))
+  ([cert private-key ca-cert]
+    {:pre [(not (nil? cert))
+           (not (nil? private-key))
+           (not (nil? ca-cert))]
+     :post [(instance? SSLContext %)]}
+    (pems->ssl-context cert private-key ca-cert nil))
+  ([cert private-key ca-cert crls]
+    {:pre  [(not (nil? cert))
+            (not (nil? private-key))
+            (not (nil? ca-cert))]
+     :post [(instance? SSLContext %)]}
+    (with-open [cert-reader    (reader cert)
+                key-reader     (reader private-key)
+                ca-cert-reader (reader ca-cert)]
+      (if crls
+        (with-open [crls-reader (reader crls)]
+          (CertificateAuthority/pemsToSSLContext cert-reader
+                                                 key-reader
+                                                 ca-cert-reader
+                                                 crls-reader))
+        (CertificateAuthority/pemsToSSLContext cert-reader
+                                               key-reader
+                                               ca-cert-reader)))))
 
 (defn ca-cert-pem->ssl-context
   "Given a pem for a CA certificate, creates an in-memory SSLContext initialized
@@ -829,6 +852,26 @@
    :post [(instance? SSLContext %)]}
   (with-open [ca-cert-reader (reader ca-cert)]
     (CertificateAuthority/caCertPemToSSLContext ca-cert-reader)))
+
+(defn ca-cert-and-crl-pems->ssl-context
+  "Given a pem for a CA certificate and one or more CRLs, creates an in-memory
+  SSLContext initialized with a TrustStore generated from the input CA cert
+  and enabled for revocation checking against the CRLs.
+
+  `ca-cert` must be an object suitable for use with clojure's `reader` and
+  reference a PEM that contains the CA cert.
+
+  `crls` must be an object suitable for use with clojure's `reader` and
+  reference a PEM that contains one or more CRLs.
+
+  Returns the SSLContext instance."
+  [ca-cert crls]
+  {:pre  [ca-cert crls]
+   :post [(instance? SSLContext %)]}
+  (with-open [ca-cert-reader (reader ca-cert)
+              crls-reader    (reader crls)]
+    (CertificateAuthority/caCertAndCrlPemsToSSLContext ca-cert-reader
+                                                       crls-reader)))
 
 (defn get-cn-from-x500-principal
   "Given an X500Principal object, retrieve the common name (CN)."
