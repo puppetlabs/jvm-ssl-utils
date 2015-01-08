@@ -880,6 +880,14 @@
    :post [(string? %)]}
   (CertificateAuthority/getCnFromX500Principal x500-principal))
 
+(defn get-cn-from-x509-certificate
+  "Given an X509Certificate object, retrieve its common name (CN)."
+  [x509-certificate]
+  {:pre [(certificate? x509-certificate)]
+   :post [(string? %)]}
+  (-> (.getSubjectX500Principal x509-certificate)
+      get-cn-from-x500-principal))
+
 (defn get-public-key
   "Given an object which contains a public key, extract the public key
   and return it."
