@@ -6,7 +6,9 @@
     :sign-releases false })
 
 (defproject puppetlabs/certificate-authority "0.6.1-SNAPSHOT"
-  :url "http://www.github.com/puppetlabs/jvm-certificate-authority"
+  :url "http://www.github.com/puppetlabs/jvm-ssl-utils"
+
+  :description "This project has moved to puppetlabs/jvm-ssl-utils"
 
   ;; Abort when version ranges or version conflicts are detected in
   ;; dependencies. Also supports :warn to simply emit warnings.
