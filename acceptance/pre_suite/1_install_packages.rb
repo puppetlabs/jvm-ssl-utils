@@ -5,6 +5,6 @@ step "Install packages" do
   end
   on(vm, 'gem install rspec')
   install_package(vm, 'java-1.6.0-openjdk-devel')
-  on(vm, 'curl -k https://raw.githubusercontent.com/technomancy/leiningen/2.3.4/bin/lein -o /usr/local/bin/lein')
+  on(vm, 'curl -k https://raw.githubusercontent.com/technomancy/leiningen/2.5.1/bin/lein -o /usr/local/bin/lein')
   on(vm, 'chmod +x /usr/local/bin/lein')
 end
