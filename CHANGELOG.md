@@ -1,3 +1,6 @@
+## 0.6.1
+ * Added `get-cn-from-x509-certificate` to wrap getSubjectX500Principal and get-cn-from-x500-principal
+
 ## 0.6.0
  * Added support for revoking certificates
    * New `revoke` function for adding a certificate to a CRL
