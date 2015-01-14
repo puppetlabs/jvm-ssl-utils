@@ -172,10 +172,10 @@
 (deftest cn-from-x509-certificate-test
   (testing "cn extracted from an X509Certificate"
     (let [subject         (cn "foo")
-          key-pair        (generate-key-pair)
+          key-pair        (generate-key-pair 512)
           subj-pub        (get-public-key key-pair)
           issuer          (cn "my ca")
-          issuer-key-pair (generate-key-pair)
+          issuer-key-pair (generate-key-pair 512)
           issuer-priv     (get-private-key issuer-key-pair)
           not-before      (generate-not-before-date)
           not-after       (generate-not-after-date)
