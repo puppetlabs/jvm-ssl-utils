@@ -169,6 +169,21 @@
           cn (get-cn-from-x500-principal x500-principal)]
       (is (= "myagent" cn)))))
 
+(deftest cn-from-x509-certificate-test
+  (testing "cn extracted from an X509Certificate"
+    (let [subject         (cn "foo")
+          key-pair        (generate-key-pair)
+          subj-pub        (get-public-key key-pair)
+          issuer          (cn "my ca")
+          issuer-key-pair (generate-key-pair)
+          issuer-priv     (get-private-key issuer-key-pair)
+          not-before      (generate-not-before-date)
+          not-after       (generate-not-after-date)
+          serial          42
+          certificate (sign-certificate issuer issuer-priv serial not-before
+                                        not-after subject subj-pub)]
+      (is (= "foo" (get-cn-from-x509-certificate certificate))))))
+
 (deftest certification-request-test
   (testing "create CSR"
     (let [subject (cn "subject")
