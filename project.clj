@@ -5,7 +5,7 @@
     :password :env/clojars_jenkins_password
     :sign-releases false })
 
-(defproject puppetlabs/certificate-authority "0.6.1"
+(defproject puppetlabs/certificate-authority "0.6.2-SNAPSHOT"
   :url "http://www.github.com/puppetlabs/jvm-ssl-utils"
 
   :description "This project has moved to puppetlabs/jvm-ssl-utils"
