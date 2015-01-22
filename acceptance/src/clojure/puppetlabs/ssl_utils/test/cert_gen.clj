@@ -1,6 +1,6 @@
-(ns puppetlabs.certificate-authority.test.cert-gen
-  (:import  [com.puppetlabs.certificate_authority.test PuppetMasterCertManager])
-  (:require [puppetlabs.certificate-authority.test.puppet-agent-cert-manager :as client-ca]
+(ns puppetlabs.ssl-utils.test.cert-gen
+  (:import  [com.puppetlabs.ssl_utils.test PuppetMasterCertManager])
+  (:require [puppetlabs.ssl-utils.test.puppet-agent-cert-manager :as client-ca]
             [me.raynes.fs :as fs]
             [clojure.tools.logging :as log]))
 

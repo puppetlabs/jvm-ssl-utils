@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.puppetlabs.certificate_authority.test;
+package com.puppetlabs.ssl_utils.test;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;

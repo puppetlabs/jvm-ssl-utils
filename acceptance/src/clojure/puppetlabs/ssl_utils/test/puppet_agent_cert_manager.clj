@@ -1,9 +1,9 @@
-(ns puppetlabs.certificate-authority.test.puppet-agent-cert-manager
+(ns puppetlabs.ssl-utils.test.puppet-agent-cert-manager
   (:require [clojure.java.io :as io]
             [me.raynes.fs :as fs])
-  (:import (com.puppetlabs.certificate_authority.test PathUtils)
-           (com.puppetlabs.certificate_authority.test PuppetMasterCertManager)
-           (com.puppetlabs.certificate_authority CertificateAuthority)))
+  (:import (com.puppetlabs.ssl_utils.test PathUtils)
+           (com.puppetlabs.ssl_utils.test PuppetMasterCertManager)
+           (com.puppetlabs.ssl_utils SSLUtils)))
 
 (defn- path-concat
   [& elements]
@@ -35,13 +35,13 @@
 (defn- initialize-agent-cert!
   [agent-ssl-paths agent-certname master-ca]
   (create-directories! agent-ssl-paths)
-  (let [agent-keypair     (CertificateAuthority/generateKeyPair)
-        agent-x500-name   (CertificateAuthority/x500NameCn agent-certname)
-        agent-cert-req    (CertificateAuthority/generateCertificateRequest agent-keypair agent-x500-name nil)
+  (let [agent-keypair     (SSLUtils/generateKeyPair)
+        agent-x500-name   (SSLUtils/x500NameCn agent-certname)
+        agent-cert-req    (SSLUtils/generateCertificateRequest agent-keypair agent-x500-name nil)
         agent-cert        (.signCertificateRequest master-ca agent-certname agent-cert-req)]
-    (CertificateAuthority/writeToPEM (.getPublic agent-keypair) (io/writer (nth agent-ssl-paths 0)))
-    (CertificateAuthority/writeToPEM (.getPrivate agent-keypair) (io/writer (nth agent-ssl-paths 1)))
-    (CertificateAuthority/writeToPEM agent-cert (io/writer (nth agent-ssl-paths 2)))
+    (SSLUtils/writeToPEM (.getPublic agent-keypair) (io/writer (nth agent-ssl-paths 0)))
+    (SSLUtils/writeToPEM (.getPrivate agent-keypair) (io/writer (nth agent-ssl-paths 1)))
+    (SSLUtils/writeToPEM agent-cert (io/writer (nth agent-ssl-paths 2)))
     ;; HACK - assume the location of the ca.pem file and just directly copy it into place
     (fs/copy (io/file "./acceptance/resources/server/ssl/certs/ca.pem")
              (io/file "./acceptance/resources/client/ssl/certs/ca.pem"))))

@@ -1,4 +1,4 @@
-(ns puppetlabs.certificate-authority.test.server
+(ns puppetlabs.ssl-utils.test.server
   (:require [puppetlabs.trapperkeeper.core :as tk]
             [clojure.tools.logging :as log]))
 

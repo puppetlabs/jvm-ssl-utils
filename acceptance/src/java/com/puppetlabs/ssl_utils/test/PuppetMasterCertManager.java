@@ -1,6 +1,6 @@
-package com.puppetlabs.certificate_authority.test;
+package com.puppetlabs.ssl_utils.test;
 
-import com.puppetlabs.certificate_authority.CertificateAuthority;
+import com.puppetlabs.ssl_utils.SSLUtils;
 
 import org.apache.commons.io.FileUtils;
 import org.bouncycastle.operator.OperatorCreationException;
@@ -56,7 +56,7 @@ public class PuppetMasterCertManager {
         this.sslDir = PathUtils.concat(confDir, "ssl");
         this.masterCertname = masterCertname;
 
-        this.caX500Name = CertificateAuthority.x500NameCn("Puppet CA: " + masterCertname);
+        this.caX500Name = SSLUtils.x500NameCn("Puppet CA: " + masterCertname);
 
         this.caPublicKeyPath  = PathUtils.concat(sslDir, PATH_CA_PUBLIC_KEY);
         this.caPrivateKeyPath = PathUtils.concat(sslDir, PATH_CA_PRIVATE_KEY);
@@ -69,34 +69,34 @@ public class PuppetMasterCertManager {
 
         initializeCACert();
 
-        this.caPrivateKey = CertificateAuthority.pemToPrivateKey(new FileReader(this.caPrivateKeyPath));
+        this.caPrivateKey = SSLUtils.pemToPrivateKey(new FileReader(this.caPrivateKeyPath));
 
         initializeMasterCert();
 
         // Save pems to keystore
-        KeyStore ks = CertificateAuthority.createKeyStore();
+        KeyStore ks = SSLUtils.createKeyStore();
         String keystorePassword = "puppet";
-        X509Certificate caCert = CertificateAuthority.pemToCerts(new FileReader(this.caCertPath)).get(0);
-        X509Certificate hostCert = CertificateAuthority.pemToCerts(new FileReader(this.masterCertPath)).get(0);
-        PrivateKey hostPrivateKey = CertificateAuthority.pemToPrivateKey(new FileReader(this.masterPrivateKeyPath));
-        CertificateAuthority.associateCert(ks, "ca-cert-alias", caCert);
-        CertificateAuthority.associateCert(ks, "ca-cert-alias", hostCert);
-        CertificateAuthority.associatePrivateKey(ks, "key-alias", hostPrivateKey, keystorePassword, hostCert);
+        X509Certificate caCert = SSLUtils.pemToCerts(new FileReader(this.caCertPath)).get(0);
+        X509Certificate hostCert = SSLUtils.pemToCerts(new FileReader(this.masterCertPath)).get(0);
+        PrivateKey hostPrivateKey = SSLUtils.pemToPrivateKey(new FileReader(this.masterPrivateKeyPath));
+        SSLUtils.associateCert(ks, "ca-cert-alias", caCert);
+        SSLUtils.associateCert(ks, "ca-cert-alias", hostCert);
+        SSLUtils.associatePrivateKey(ks, "key-alias", hostPrivateKey, keystorePassword, hostCert);
     }
 
     public X509Certificate signCertificateRequest(String certname, PKCS10CertificationRequest certRequest)
             throws IOException, OperatorCreationException, CertificateException, NoSuchAlgorithmException, SignatureException, InvalidKeyException {
         // TODO: we are just autosigning here, never saving the CSR to disk.
-        X509Certificate cert = CertificateAuthority.signCertificate(
+        X509Certificate cert = SSLUtils.signCertificate(
                 caX500Name,
                 caPrivateKey,
                 nextSerial(),
                 this.notBefore, this.notAfter,
                 certRequest.getSubject().toString(),
-                CertificateAuthority.getPublicKey(certRequest),
+                SSLUtils.getPublicKey(certRequest),
                 null);
 
-        CertificateAuthority.writeToPEM(cert, new FileWriter(getHostCertPath(certname)));
+        SSLUtils.writeToPEM(cert, new FileWriter(getHostCertPath(certname)));
         return cert;
     }
 
@@ -117,26 +117,26 @@ public class PuppetMasterCertManager {
             FileUtils.forceMkdir(new File(filePath).getParentFile());
         }
 
-        KeyPair caKeyPair = CertificateAuthority.generateKeyPair();
-        CertificateAuthority.writeToPEM(caKeyPair.getPublic(), new FileWriter(this.caPublicKeyPath));
-        CertificateAuthority.writeToPEM(caKeyPair.getPrivate(), new FileWriter(this.caPrivateKeyPath));
+        KeyPair caKeyPair = SSLUtils.generateKeyPair();
+        SSLUtils.writeToPEM(caKeyPair.getPublic(), new FileWriter(this.caPublicKeyPath));
+        SSLUtils.writeToPEM(caKeyPair.getPrivate(), new FileWriter(this.caPrivateKeyPath));
 
-        PKCS10CertificationRequest caCertReq = CertificateAuthority.generateCertificateRequest(caKeyPair, this.caX500Name, null);
-        X509Certificate caCert = CertificateAuthority.signCertificate(
+        PKCS10CertificationRequest caCertReq = SSLUtils.generateCertificateRequest(caKeyPair, this.caX500Name, null);
+        X509Certificate caCert = SSLUtils.signCertificate(
                 caX500Name,
                 caKeyPair.getPrivate(),
                 nextSerial(),
                 this.notBefore,
                 this.notAfter,
                 caCertReq.getSubject().toString(),
-                CertificateAuthority.getPublicKey(caCertReq),
+                SSLUtils.getPublicKey(caCertReq),
                 null);
-        CertificateAuthority.writeToPEM(caCert, new FileWriter(this.caCertPath));
+        SSLUtils.writeToPEM(caCert, new FileWriter(this.caCertPath));
 
         FileUtils.copyFile(new File(this.caCertPath), new File(getHostCertPath("ca")));
 
-        X509CRL caCrl = CertificateAuthority.generateCRL(caCert.getIssuerX500Principal(), caKeyPair.getPrivate(), caKeyPair.getPublic());
-        CertificateAuthority.writeToPEM(caCrl, new FileWriter(this.caCrlPath));
+        X509CRL caCrl = SSLUtils.generateCRL(caCert.getIssuerX500Principal(), caKeyPair.getPrivate(), caKeyPair.getPublic());
+        SSLUtils.writeToPEM(caCrl, new FileWriter(this.caCrlPath));
     }
 
     private String getHostCertPath(String hostCertName) {
@@ -158,22 +158,22 @@ public class PuppetMasterCertManager {
             FileUtils.forceMkdir(new File(filePath).getParentFile());
         }
 
-        KeyPair masterKeyPair = CertificateAuthority.generateKeyPair();
-        CertificateAuthority.writeToPEM(masterKeyPair.getPublic(), new FileWriter(masterPublicKeyPath));
-        CertificateAuthority.writeToPEM(masterKeyPair.getPrivate(), new FileWriter(masterPrivateKeyPath));
+        KeyPair masterKeyPair = SSLUtils.generateKeyPair();
+        SSLUtils.writeToPEM(masterKeyPair.getPublic(), new FileWriter(masterPublicKeyPath));
+        SSLUtils.writeToPEM(masterKeyPair.getPrivate(), new FileWriter(masterPrivateKeyPath));
 
-        String masterX500Name = CertificateAuthority.x500NameCn(masterCertname);
+        String masterX500Name = SSLUtils.x500NameCn(masterCertname);
 
-        X509Certificate caCert = CertificateAuthority.signCertificate(
+        X509Certificate caCert = SSLUtils.signCertificate(
                 caX500Name,
                 caPrivateKey,
                 nextSerial(),
                 notBefore, notAfter,
                 masterX500Name,
-                CertificateAuthority.getPublicKey(masterKeyPair),
+                SSLUtils.getPublicKey(masterKeyPair),
                 null);
 
-        CertificateAuthority.writeToPEM(caCert, new FileWriter(masterCertPath));
+        SSLUtils.writeToPEM(caCert, new FileWriter(masterCertPath));
     }
 
     private static BigInteger nextSerial() {
