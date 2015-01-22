@@ -1,3 +1,9 @@
+## 0.7.0
+ * Renamed project to jvm-ssl-utils
+ * Renamed Clojure namespace from puppetlabs.certificate-authority to puppetlabs.ssl-utils
+ * Renamed Java package from com.puppetlabs.certificate_authority to com.puppetlabs.ssl_utils
+ * Renamed CertificateAuthority class to SSLUtils
+
 ## 0.6.1
  * Added `get-cn-from-x509-certificate` to wrap getSubjectX500Principal and get-cn-from-x500-principal
 
