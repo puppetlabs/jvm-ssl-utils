@@ -1,12 +1,12 @@
-(ns puppetlabs.certificate-authority.core
+(ns puppetlabs.ssl-utils.core
   (:import (java.security Key KeyPair PrivateKey PublicKey KeyStore)
            (java.security.cert X509Certificate X509CRL X509Extension)
            (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
            (javax.security.auth.x500 X500Principal)
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
-           (com.puppetlabs.certificate_authority CertificateAuthority
-                                                 ExtensionsUtils)
+           (com.puppetlabs.ssl_utils SSLUtils
+                                     ExtensionsUtils)
            (java.util Map List Date Set))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :as walk]
@@ -374,14 +374,14 @@
           (even? (count rdns))
           (> (count rdns) 0)]
    :post [(valid-x500-name? %)]}
-  (CertificateAuthority/x500Name (javaize rdns)))
+  (SSLUtils/x500Name (javaize rdns)))
 
 (defn cn
   "Given a common name, generate an X.500 RDN from it"
   [common-name]
   {:pre [(string? common-name)]
    :post [(valid-x500-name? %)]}
-  (CertificateAuthority/x500NameCn common-name))
+  (SSLUtils/x500NameCn common-name))
 
 (defn keylength
   "Given a key, return the length key length that was used when generating it."
@@ -393,24 +393,24 @@
 
 (def default-key-length
   "The default key length to use when generating a keypair."
-  CertificateAuthority/DEFAULT_KEY_LENGTH)
+  SSLUtils/DEFAULT_KEY_LENGTH)
 
 (defn generate-key-pair
   "Given a key length (defaults to 4096), generate a new public & private key pair."
   ([]
      {:post [(keypair? %)]}
-     (CertificateAuthority/generateKeyPair))
+     (SSLUtils/generateKeyPair))
   ([key-length]
      {:pre  [(integer? key-length)]
       :post [(keypair? %)]}
-     (CertificateAuthority/generateKeyPair key-length)))
+     (SSLUtils/generateKeyPair key-length)))
 
 (defn x500-name->CN
   "Given an X500 name, return the common name from it."
   [x500-name]
   {:pre  [(valid-x500-name? x500-name)]
    :post [(string? %)]}
-  (CertificateAuthority/getCommonNameFromX500Name x500-name))
+  (SSLUtils/getCommonNameFromX500Name x500-name))
 
 (defn generate-certificate-request
   "Given the subject's keypair and name, create and return a certificate signing request (CSR).
@@ -428,7 +428,7 @@
            (valid-x500-name? subject-dn)
            (extension-list? extensions)]
     :post [(certificate-request? %)]}
-   (CertificateAuthority/generateCertificateRequest
+   (SSLUtils/generateCertificateRequest
      keypair subject-dn (javaize extensions))))
 
 (defn sign-certificate
@@ -462,7 +462,7 @@
           (public-key? subject-pub-key)
           (extension-list? extensions)]
     :post [(certificate? %)]}
-   (CertificateAuthority/signCertificate
+   (SSLUtils/signCertificate
      issuer-dn issuer-priv-key (biginteger serial) not-before not-after subject-dn
      subject-pub-key (javaize extensions))))
 
@@ -480,7 +480,7 @@
           (private-key? issuer-private-key)
           (public-key? issuer-public-key)]
    :post [(certificate-revocation-list? %)]}
-  (CertificateAuthority/generateCRL issuer issuer-private-key issuer-public-key))
+  (SSLUtils/generateCRL issuer issuer-private-key issuer-public-key))
 
 (defn revoked?
   "Given a certificate revocation list and certificate, test if the
@@ -492,7 +492,7 @@
   [crl certificate]
   {:pre [(certificate-revocation-list? crl)
          (certificate? certificate)]}
-  (CertificateAuthority/isRevoked crl certificate))
+  (SSLUtils/isRevoked crl certificate))
 
 (defn revoke
   "Given a certificate revocation list and certificate serial number,
@@ -511,7 +511,7 @@
           (public-key? issuer-public-key)
           (number? cert-serial)]
    :post [(certificate-revocation-list? %)]}
-  (CertificateAuthority/revoke crl issuer-private-key
+  (SSLUtils/revoke crl issuer-private-key
                                issuer-public-key cert-serial))
 
 (defn crl->pem!
@@ -526,7 +526,7 @@
           (not (nil? pem))]
    :post [(nil? %)]}
   (with-open [w (writer pem)]
-    (CertificateAuthority/writeToPEM crl w)))
+    (SSLUtils/writeToPEM crl w)))
 
 (defn pem->crl
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
@@ -537,7 +537,7 @@
   {:pre  [(not (nil? pem))]
    :post [(certificate-revocation-list? %)]}
   (with-open [r (reader pem)]
-    (CertificateAuthority/pemToCRL r)))
+    (SSLUtils/pemToCRL r)))
 
 (defn pem->crls
   "Given the path to a PEM file (or some other object supported by clojure's
@@ -546,7 +546,7 @@
   {:pre  [(not (nil? pem))]
    :post [(every? certificate-revocation-list? %)]}
   (with-open [r (reader pem)]
-    (CertificateAuthority/pemToCRLs r)))
+    (SSLUtils/pemToCRLs r)))
 
 (defn pem->csr
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
@@ -557,13 +557,13 @@
   {:pre  [(not (nil? pem))]
    :post [(certificate-request? %)]}
   (with-open [r (reader pem)]
-    (CertificateAuthority/pemToCertificateRequest r)))
+    (SSLUtils/pemToCertificateRequest r)))
 
 (defn keystore
   "Create an empty in-memory Java KeyStore object."
   []
   {:post [(instance? KeyStore %)]}
-  (CertificateAuthority/createKeyStore))
+  (SSLUtils/createKeyStore))
 
 (defn pem->objs
   "Given a file path (or some other object supported by clojure's `reader`), reads
@@ -573,7 +573,7 @@
   {:pre  [(not (nil? pem))]
    :post [(coll? %)]}
   (with-open [r (reader pem)]
-    (let [objs (seq (CertificateAuthority/pemToObjects r))]
+    (let [objs (seq (SSLUtils/pemToObjects r))]
       (doseq [o objs]
         (log/debug (format "Loaded PEM object of type '%s' from '%s'" (class o) pem)))
       objs)))
@@ -591,7 +591,7 @@
           (not (nil? pem))]
    :post [(nil? %)]}
   (with-open [w (writer pem)]
-    (CertificateAuthority/writeToPEM obj w)))
+    (SSLUtils/writeToPEM obj w)))
 
 (defn pem->certs
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
@@ -600,7 +600,7 @@
   {:pre  [(not (nil? pem))]
    :post [(every? certificate? %)]}
   (with-open [r (reader pem)]
-    (CertificateAuthority/pemToCerts r)))
+    (SSLUtils/pemToCerts r)))
 
 (defn pem->cert
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
@@ -609,7 +609,7 @@
   {:pre  [(not (nil? pem))]
    :post [(certificate? %)]}
   (with-open [r (reader pem)]
-    (CertificateAuthority/pemToCert r)))
+    (SSLUtils/pemToCert r)))
 
 (defn cert->pem!
   "Encodes a certificate to PEM format, and writes it to a file (or other stream).
@@ -623,14 +623,14 @@
           (not (nil? pem))]
    :post [(nil? %)]}
   (with-open [w (writer pem)]
-    (CertificateAuthority/writeToPEM cert w)))
+    (SSLUtils/writeToPEM cert w)))
 
 (defn obj->private-key
   "Decodes the given object (read from a .pem via `pem->objs`) into an instance of `PrivateKey`."
   [obj]
   {:pre  [(not (nil? obj))]
    :post [(private-key? %)]}
-  (CertificateAuthority/objectToPrivateKey obj))
+  (SSLUtils/objectToPrivateKey obj))
 
 (defn pem->private-keys
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
@@ -639,7 +639,7 @@
   {:pre  [(not (nil? pem))]
    :post [(every? private-key? %)]}
   (with-open [r (reader pem)]
-    (CertificateAuthority/pemToPrivateKeys r)))
+    (SSLUtils/pemToPrivateKeys r)))
 
 (defn pem->private-key
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
@@ -650,7 +650,7 @@
   {:pre  [(not (nil? pem))]
    :post [(private-key? %)]}
   (with-open [r (reader pem)]
-    (CertificateAuthority/pemToPrivateKey r)))
+    (SSLUtils/pemToPrivateKey r)))
 
 (defn pem->public-key
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
@@ -661,7 +661,7 @@
   {:pre  [(not (nil? pem))]
    :post [(public-key? %)]}
   (with-open [r (reader pem)]
-    (CertificateAuthority/pemToPublicKey r)))
+    (SSLUtils/pemToPublicKey r)))
 
 (defn key->pem!
   "Encodes a public or private key to PEM format, and writes it to a file (or other
@@ -674,7 +674,7 @@
           (not (nil? pem))]
    :post [(nil? %)]}
   (with-open [w (writer pem)]
-    (CertificateAuthority/writeToPEM key w)))
+    (SSLUtils/writeToPEM key w)))
 
 (defn assoc-cert!
   "Add a certificate to a keystore.  Arguments:
@@ -687,7 +687,7 @@
           (string? alias)
           (certificate? cert)]
    :post [(instance? KeyStore %)]}
-  (CertificateAuthority/associateCert keystore alias cert))
+  (SSLUtils/associateCert keystore alias cert))
 
 (defn assoc-certs-from-reader!
   "Add all certificates from a PEM file to a keystore.  Arguments:
@@ -704,7 +704,7 @@
           (not (nil? pem))]
    :post [(instance? KeyStore %)]}
   (with-open [r (reader pem)]
-    (CertificateAuthority/associateCertsFromReader keystore prefix r)))
+    (SSLUtils/associateCertsFromReader keystore prefix r)))
 
 (def assoc-certs-from-file!
   "Alias for `assoc-certs-from-reader!` for backwards compatibility."
@@ -729,7 +729,7 @@
               (certificate? certs)
               (certificate-list? certs))]
    :post [(instance? KeyStore %)]}
-  (CertificateAuthority/associatePrivateKey keystore alias private-key pw
+  (SSLUtils/associatePrivateKey keystore alias private-key pw
                                             certs))
 
 (defn assoc-private-key-from-reader!
@@ -751,7 +751,7 @@
    :post [(instance? KeyStore %)]}
   (with-open [key-reader  (reader pem-private-key)
               cert-reader (reader pem-cert)]
-    (CertificateAuthority/associatePrivateKeyFromReader keystore alias key-reader pw cert-reader)))
+    (SSLUtils/associatePrivateKeyFromReader keystore alias key-reader pw cert-reader)))
 
 (def assoc-private-key-file!
   "Alias for `assoc-private-key-from-reader!` for backwards compatibility."
@@ -782,7 +782,7 @@
   (with-open [cert-reader    (reader cert)
               key-reader     (reader private-key)
               ca-cert-reader (reader ca-cert)]
-    (->> (CertificateAuthority/pemsToKeyAndTrustStores cert-reader key-reader ca-cert-reader)
+    (->> (SSLUtils/pemsToKeyAndTrustStores cert-reader key-reader ca-cert-reader)
          (into {})
          (walk/keywordize-keys))))
 
@@ -794,7 +794,7 @@
   {:pre  [(instance? KeyStore keystore)
           (string? keystore-pw)]
    :post [(instance? KeyManagerFactory %)]}
-  (CertificateAuthority/getKeyManagerFactory keystore keystore-pw))
+  (SSLUtils/getKeyManagerFactory keystore keystore-pw))
 
 (defn get-trust-manager-factory
   "Given a map containing a trust store (e.g. as generated by
@@ -803,7 +803,7 @@
   [{:keys [truststore]}]
   {:pre  [(instance? KeyStore truststore)]
    :post [(instance? TrustManagerFactory %)]}
-  (CertificateAuthority/getTrustManagerFactory truststore))
+  (SSLUtils/getTrustManagerFactory truststore))
 
 (defn pems->ssl-context
   "Given pems for a certificate, private key, and CA certificate, creates an
@@ -831,11 +831,11 @@
                 ca-cert-reader (reader ca-cert)]
       (if crls
         (with-open [crls-reader (reader crls)]
-          (CertificateAuthority/pemsToSSLContext cert-reader
+          (SSLUtils/pemsToSSLContext cert-reader
                                                  key-reader
                                                  ca-cert-reader
                                                  crls-reader))
-        (CertificateAuthority/pemsToSSLContext cert-reader
+        (SSLUtils/pemsToSSLContext cert-reader
                                                key-reader
                                                ca-cert-reader)))))
 
@@ -851,7 +851,7 @@
   {:pre  [ca-cert]
    :post [(instance? SSLContext %)]}
   (with-open [ca-cert-reader (reader ca-cert)]
-    (CertificateAuthority/caCertPemToSSLContext ca-cert-reader)))
+    (SSLUtils/caCertPemToSSLContext ca-cert-reader)))
 
 (defn ca-cert-and-crl-pems->ssl-context
   "Given a pem for a CA certificate and one or more CRLs, creates an in-memory
@@ -870,7 +870,7 @@
    :post [(instance? SSLContext %)]}
   (with-open [ca-cert-reader (reader ca-cert)
               crls-reader    (reader crls)]
-    (CertificateAuthority/caCertAndCrlPemsToSSLContext ca-cert-reader
+    (SSLUtils/caCertAndCrlPemsToSSLContext ca-cert-reader
                                                        crls-reader)))
 
 (defn get-cn-from-x500-principal
@@ -878,7 +878,7 @@
   [x500-principal]
   {:pre [(x500-principal? x500-principal)]
    :post [(string? %)]}
-  (CertificateAuthority/getCnFromX500Principal x500-principal))
+  (SSLUtils/getCnFromX500Principal x500-principal))
 
 (defn get-cn-from-x509-certificate
   "Given an X509Certificate object, retrieve its common name (CN)."
@@ -895,21 +895,21 @@
   {:pre [(or (certificate-request? key-object)
              (keypair? key-object))]
    :post [(public-key? %)]}
-  (CertificateAuthority/getPublicKey key-object))
+  (SSLUtils/getPublicKey key-object))
 
 (defn get-private-key
   "Given an object which contains a private key, extract and return it."
   [key-object]
   {:pre [(keypair? key-object)]
    :post [(private-key? %)]}
-  (CertificateAuthority/getPrivateKey key-object))
+  (SSLUtils/getPrivateKey key-object))
 
 (defn get-serial
   "Given an X509 certificate, return the serial number from it."
   [cert]
   {:pre  [(certificate? cert)]
    :post [(instance? BigInteger %)]}
-  (CertificateAuthority/getSerialNumber cert))
+  (SSLUtils/getSerialNumber cert))
 
 (defn subtree-of?
   "Given an OID and a a parent tree OID return true if the OID is within
@@ -924,7 +924,7 @@
   private key corresponding to the public key included in the CSR?"
   [csr]
   {:pre [(certificate-request? csr)]}
-  (CertificateAuthority/isSignatureValid csr))
+  (SSLUtils/isSignatureValid csr))
 
 (defn fingerprint
   "Given a certificate or CSR, hash the object using the digest algorithm and
@@ -935,4 +935,4 @@
               (certificate-request? c))
           (string? digest)]
    :post [(string? %)]}
-  (CertificateAuthority/getFingerprint c digest))
+  (SSLUtils/getFingerprint c digest))

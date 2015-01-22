@@ -5,10 +5,10 @@
     :password :env/clojars_jenkins_password
     :sign-releases false })
 
-(defproject puppetlabs/certificate-authority "0.6.2-SNAPSHOT"
+(defproject puppetlabs/ssl-utils "0.6.2-SNAPSHOT"
   :url "http://www.github.com/puppetlabs/jvm-ssl-utils"
 
-  :description "This project has moved to puppetlabs/jvm-ssl-utils"
+  :description "SSL certificate management on the JVM."
 
   ;; Abort when version ranges or version conflicts are detected in
   ;; dependencies. Also supports :warn to simply emit warnings.
@@ -46,9 +46,9 @@
                                               "--config" "acceptance/resources/config.ini"
                                               "--bootstrap-config" "acceptance/resources/bootstrap.cfg"]
 
-                                    "generate" ["run" "-m" "puppetlabs.certificate-authority.test.cert-gen" "generate"]
+                                    "generate" ["run" "-m" "puppetlabs.ssl-utils.test.cert-gen" "generate"]
 
-                                    "clean" ["run" "-m" "puppetlabs.certificate-authority.test.cert-gen" "clean"]}}}
+                                    "clean" ["run" "-m" "puppetlabs.ssl-utils.test.cert-gen" "clean"]}}}
   :plugins [[lein-release "1.0.5"]]
   :lein-release {:scm         :git
                  :deploy-via  :lein-deploy}

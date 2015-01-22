@@ -1,4 +1,4 @@
-(ns puppetlabs.certificate-authority.core-test
+(ns puppetlabs.ssl-utils.core-test
   (:import java.util.Arrays
            (java.io ByteArrayOutputStream ByteArrayInputStream)
            (java.security.cert X509Certificate)
@@ -11,7 +11,7 @@
            (org.bouncycastle.asn1.x509 SubjectPublicKeyInfo))
   (:require [clojure.test :refer :all]
             [clojure.java.io :refer [resource reader]]
-            [puppetlabs.certificate-authority.core :refer :all]))
+            [puppetlabs.ssl-utils.core :refer :all]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Utilities
@@ -31,7 +31,7 @@
 
 (defn open-ssl-file
   [filepath]
-  (resource (str "puppetlabs/certificate_authority/examples/ssl/" filepath)))
+  (resource (str "puppetlabs/ssl_utils/examples/ssl/" filepath)))
 
 (defn write-to-pem-stream
   ([object] (write-to-pem-stream object obj->pem!))

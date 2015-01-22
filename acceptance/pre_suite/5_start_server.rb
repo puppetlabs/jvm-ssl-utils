@@ -1,9 +1,9 @@
-step "Start certificate-authority test server" do
+step "Start ssl-utils test server" do
   vm = hosts.first
 
   server_log = '/tmp/jvm-ca-server-log.out'
   command = 'service iptables stop && ' +
-            'cd /tmp/jvm-certificate-authority && ' +
+            'cd /tmp/jvm-ssl-utils && ' +
             "bash -c \"LEIN_ROOT=true lein with-profile +acceptance server > #{server_log} &\""
   on(vm, command)
 

@@ -1,4 +1,4 @@
-step "Install jvm-certificate-authority" do
+step "Install jvm-ssl-utils" do
   vm = hosts.first
 
   sshdir = File.join ENV['HOME'], '.ssh'
@@ -12,11 +12,11 @@ step "Install jvm-certificate-authority" do
 
   repo_owner = ENV['REPO_OWNER'] || 'puppetlabs'
   revision = ENV['REVISION'] || 'master'
-  install_from_git(vm, '/tmp', {:path => "https://github.com/#{repo_owner}/jvm-certificate-authority.git",
-                                :name => 'jvm-certificate-authority',
+  install_from_git(vm, '/tmp', {:path => "https://github.com/#{repo_owner}/jvm-ssl-utils.git",
+                                :name => 'jvm-ssl-utils',
                                 :rev => revision})
 
   # Invoke lein deps to force it to download all the dependencies now
   # rather than when we start the server and have to wait longer
-  on(vm, 'cd /tmp/jvm-certificate-authority && LEIN_ROOT=true lein with-profile +acceptance deps')
+  on(vm, 'cd /tmp/jvm-ssl-utils && LEIN_ROOT=true lein with-profile +acceptance deps')
 end
