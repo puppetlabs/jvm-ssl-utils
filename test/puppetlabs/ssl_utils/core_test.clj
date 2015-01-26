@@ -458,7 +458,7 @@
         (is (= crl parsed-crl))))
 
     (testing "revoking a certificate"
-      (let [cert (-> "certs/cert-with-exts.pem" open-ssl-file pem->cert)]
+      (let [cert (-> "certs/cert_with_exts.pem" open-ssl-file pem->cert)]
         (is (= 0 (get-extension-value crl crl-number-oid)))
         (is (false? (revoked? crl cert)))
 
@@ -731,7 +731,7 @@
 
 (deftest extensions
   (testing "Found all extensions from a certificate on disk."
-    (let [cert       (-> "certs/cert-with-exts.pem"
+    (let [cert       (-> "certs/cert_with_exts.pem"
                          open-ssl-file
                          pem->cert)
           extensions (get-extensions cert)]
@@ -749,7 +749,7 @@
         (is (= (get-extension-value extensions oid) value)))))
 
   (testing "Reading cert extensions from an older version of Puppet works"
-    (let [cert (-> "certs/cert-with-old-exts.pem"
+    (let [cert (-> "certs/cert_with_old_exts.pem"
                    open-ssl-file
                    pem->cert)
           exts (get-extensions cert)]
