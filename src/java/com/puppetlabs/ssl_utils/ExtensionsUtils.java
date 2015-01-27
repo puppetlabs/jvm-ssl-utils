@@ -88,10 +88,18 @@ public class ExtensionsUtils {
      * @return True if OID is a subtree
      */
     public static boolean isSubtreeOf(String parentOid, String oid) {
-        if (parentOid.equals(oid)) {
+        String[] parentParts = parentOid.split("\\.");
+        String[] oidParts = oid.split("\\.");
+
+        if (parentParts.length >= oidParts.length) {
             return false;
         } else {
-            return oid.startsWith(parentOid);
+            for (int i=0; i < parentParts.length; i++) {
+                if (!parentParts[i].equals(oidParts[i])) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 

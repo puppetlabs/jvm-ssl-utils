@@ -811,7 +811,9 @@
     (is (not (subtree-of? "1.2.3.4"
                           "5.6.7.8")))
     (is (not (subtree-of? "1.2.3.4"
-                          "1.2.3.4")))))
+                          "1.2.3.4")))
+    (is (not (subtree-of? "1.2.3"
+                          "1.2.34")))))
 
 (deftest signature-valid?-test
   (is (signature-valid?
