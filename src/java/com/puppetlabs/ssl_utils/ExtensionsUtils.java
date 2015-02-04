@@ -14,6 +14,7 @@ import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERPrintableString;
 import org.bouncycastle.asn1.DERSequence;
+import org.bouncycastle.asn1.DERUTF8String;
 import org.bouncycastle.asn1.misc.MiscObjectIdentifiers;
 import org.bouncycastle.asn1.oiw.OIWObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.Attribute;
@@ -43,6 +44,7 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import java.io.EOFException;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.charset.Charset;
 import java.security.PublicKey;
 import java.security.cert.CRLException;
 import java.security.cert.CertificateEncodingException;
@@ -86,10 +88,18 @@ public class ExtensionsUtils {
      * @return True if OID is a subtree
      */
     public static boolean isSubtreeOf(String parentOid, String oid) {
-        if (parentOid.equals(oid)) {
+        String[] parentParts = parentOid.split("\\.");
+        String[] oidParts = oid.split("\\.");
+
+        if (parentParts.length >= oidParts.length) {
             return false;
         } else {
-            return oid.startsWith(parentOid);
+            for (int i=0; i < parentParts.length; i++) {
+                if (!parentParts[i].equals(oidParts[i])) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 
@@ -425,7 +435,8 @@ public class ExtensionsUtils {
         } else {
             // If the OID isn't recognized, then just parse the value as a string
             String value = (String) extMap.get("value");
-            return new Extension(oid, isCritical, new DEROctetString(value.getBytes()));
+            return new Extension(oid, isCritical, new DEROctetString(
+                    new DERUTF8String(value)));
         }
     }
 
@@ -536,14 +547,21 @@ public class ExtensionsUtils {
             try {
                 return ASN1Primitive.fromByteArray(data);
             } catch (EOFException e) {
-                // Sometimes the comment field is not wrapped in an IA5String
-                return new DERPrintableString(new String(data, "UTF8"));
+                // Sometimes the comment field is not properly wrapped in an IA5String
+                return new DERIA5String(new String(data, Charset.forName("US-ASCII")));
             }
         } else if (oid.equals(Extension.cRLNumber)) {
             return CRLNumber.getInstance(data);
         } else {
-            // Most extensions are a simple string value.
-            return new DERPrintableString(new String(data, "UTF8"));
+            try {
+                // If the oid is unknown, attempt to parse it as a UTF8 String
+                return DERUTF8String.getInstance(data);
+            } catch (Exception e) {
+                // This is required to maintain backwards compatibility with
+                // the erroneous method that Puppet previously used to sign
+                // trusted facts into the cert.
+                return new DERUTF8String(new String(data, Charset.forName("US-ASCII")));
+            }
         }
     }
 
