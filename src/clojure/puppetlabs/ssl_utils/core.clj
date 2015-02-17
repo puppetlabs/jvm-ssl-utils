@@ -873,6 +873,56 @@
     (SSLUtils/caCertAndCrlPemsToSSLContext ca-cert-reader
                                                        crls-reader)))
 
+(defn generate-ssl-context
+  "Given a map of options, extracts the SSL Options and attempts to create an SSLContext.
+
+   This function grabs five keys from a map, all of which are optional: :ssl-context, :ssl-key,
+   :ssl-ca-cert, :ssl-cert, and :ssl-ca-crl. The value stored at :ssl-context, if present, should
+   be an instance of an SSLContext object. The other keys should be objects suitable for use with
+   clojure's `reader` and reference PEMs that contain the proper cert/key/crl list.
+
+   If the :ssl-context key is present, returns the value stored at that key.
+
+   Otherwise, if the :ssl-cert, :ssl-key, and :ssl-ca-cert keys are all present, returns an
+   SSLContext constructed from those pems.
+
+   Otherwise, if the :ssl-ca-cert and :ssl-ca-crl keys are present, returns an SSLContext
+   constructed from those pems.
+
+   Otherwise, if the :ssl-ca-cert key is present, returns an SSLContext constructed from the
+   ca-cert pem.
+
+   If none of the :ssl-cert, :ssl-key, :ssl-ca-cert, :ssl-ca-crl, or :ssl-context keys are present,
+   returns nil.
+
+   If the :ssl-context and :ssl-ca-cert keys are both missing, an exception will be thrown."
+  [options]
+  {:pre [(map? options)]
+   :post [(or (nil? %) (instance? SSLContext %))]}
+  (let [ssl-opts (select-keys options [:ssl-cert :ssl-key :ssl-ca-cert :ssl-ca-crls :ssl-context])
+        from-context?           (contains? ssl-opts :ssl-context)
+        from-pems?              (every? ssl-opts [:ssl-cert :ssl-key :ssl-ca-cert])
+        from-cert-and-crl-pems? (every? ssl-opts [:ssl-ca-cert :ssl-ca-crls])
+        from-ca-cert-pem?       (contains? ssl-opts :ssl-ca-cert)
+        no-ssl-config?          (empty? ssl-opts)]
+    (cond
+      from-context? (:ssl-context ssl-opts)
+      from-pems?    (pems->ssl-context
+                      (:ssl-cert ssl-opts)
+                      (:ssl-key ssl-opts)
+                      (:ssl-ca-cert ssl-opts)
+                      (:ssl-ca-crls ssl-opts))
+      from-cert-and-crl-pems? (ca-cert-and-crl-pems->ssl-context
+                                (:ssl-ca-cert ssl-opts)
+                                (:ssl-ca-crls ssl-opts))
+      from-ca-cert-pem?       (ca-cert-pem->ssl-context
+                                (:ssl-ca-cert ssl-opts))
+      no-ssl-config?          nil
+      :else                   (throw
+                                (IllegalArgumentException.
+                                  "Error: Attempted to configure SSL, but only partial SSL configuration
+                                   provided.")))))
+
 (defn get-cn-from-x500-principal
   "Given an X500Principal object, retrieve the common name (CN)."
   [x500-principal]

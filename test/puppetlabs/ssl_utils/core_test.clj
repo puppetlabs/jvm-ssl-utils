@@ -618,6 +618,43 @@
                    (open-ssl-file "ca_crl.pem"))]
       (is (instance? SSLContext result)))))
 
+(deftest generate-ssl-context-test
+  (let [ssl-context (SSLContext/getDefault)
+        ssl-cert    (open-ssl-file "certs/localhost.pem")
+        ssl-key     (open-ssl-file "private_keys/localhost.pem")
+        ssl-ca-cert (open-ssl-file "certs/ca.pem")
+        ssl-ca-crls (open-ssl-file "ca_crl.pem")
+        ssl-opts    {:ssl-context ssl-context
+                     :ssl-cert    ssl-cert
+                     :ssl-key     ssl-key
+                     :ssl-ca-cert ssl-ca-cert
+                     :ssl-ca-crls ssl-ca-crls}]
+    (testing "providing an ssl-context option returns the provided SSLContext"
+      (let [result (generate-ssl-context ssl-opts)]
+        (is (= ssl-context result))))
+
+    (testing "providing :ssl-key, :ssl-cert, and :ssl-ca-cert will cause an SSLContext
+              to be configured from PEMs"
+      (let [result (generate-ssl-context (dissoc ssl-opts :ssl-context :ssl-ca-crls))]
+        (is (instance? SSLContext result))))
+
+    (testing "providing :ssl-ca-cert and :ssl-ca-crls will cause an SSLContext to be configured
+              from CA Cert and crl PEMs"
+      (let [result (generate-ssl-context (dissoc ssl-opts :ssl-context :ssl-key))]
+        (is (instance? SSLContext result))))
+
+    (testing "providing :ssl-ca-cert will cause an SSLContext to be configured from CA cert PEM"
+      (let [result (generate-ssl-context (dissoc ssl-opts :ssl-context :ssl-key :ssl-ca-crls))]
+        (is (instance? SSLContext result))))
+
+    (testing "providing no SSL options will result in no SSLContext being returned"
+      (let [result (generate-ssl-context {})]
+        (is (nil? result))))
+
+    (testing "providing an incomplete SSL configuration will cause an exception to be thrown"
+      (is (thrown? IllegalArgumentException
+                   (generate-ssl-context (dissoc ssl-opts :ssl-context :ssl-ca-cert)))))))
+
 (let [keypair (generate-key-pair 512)
       public (get-public-key keypair)
       private (get-private-key keypair)]
