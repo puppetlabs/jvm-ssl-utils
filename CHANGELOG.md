@@ -1,3 +1,11 @@
+## 0.8.0
+ * Added `generate-ssl-context`, a function which, when given a map of options,
+   extracts any relevant SSL options and, if any are present, uses them to
+   configure an SSLContext.
+ * Change signing of X.509 extensions to adhere to the RFC 5280 standard
+ * Fix bug in isSubtreeOf wherein extra trailing digits could incorrectly
+   be treated as valid.
+
 ## 0.7.0
  * Renamed project to jvm-ssl-utils
  * Renamed Clojure namespace from puppetlabs.certificate-authority to puppetlabs.ssl-utils
