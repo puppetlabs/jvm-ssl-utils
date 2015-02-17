@@ -619,12 +619,11 @@
       (is (instance? SSLContext result)))))
 
 (deftest generate-ssl-context-test
-  (let [base-path   "test-resources/puppetlabs/ssl_utils/examples/ssl/"
-        ssl-context (SSLContext/getDefault)
-        ssl-cert    (str base-path "certs/localhost.pem")
-        ssl-key     (str base-path "private_keys/localhost.pem")
-        ssl-ca-cert (str base-path "certs/ca.pem")
-        ssl-ca-crls (str base-path "ca_crl.pem")
+  (let [ssl-context (SSLContext/getDefault)
+        ssl-cert    (open-ssl-file "certs/localhost.pem")
+        ssl-key     (open-ssl-file "private_keys/localhost.pem")
+        ssl-ca-cert (open-ssl-file "certs/ca.pem")
+        ssl-ca-crls (open-ssl-file "ca_crl.pem")
         ssl-opts    {:ssl-context ssl-context
                      :ssl-cert    ssl-cert
                      :ssl-key     ssl-key
