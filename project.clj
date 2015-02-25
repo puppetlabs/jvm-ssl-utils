@@ -34,21 +34,8 @@
 
              :sources-jar {:java-source-paths ^:replace []
                            :jar-exclusions ^:replace []
-                           :source-paths ^:replace ["src/clojure" "src/java"]}
+                           :source-paths ^:replace ["src/clojure" "src/java"]}}
 
-             :acceptance {:dependencies [[puppetlabs/trapperkeeper "0.3.2"]
-                                         [puppetlabs/trapperkeeper-webserver-jetty7 "0.3.2"]
-                                         [me.raynes/fs "1.4.3"]]
-                          :main puppetlabs.trapperkeeper.main
-                          :source-paths ["acceptance/src/clojure"]
-                          :java-source-paths ["acceptance/src/java"]
-                          :aliases {"server" ["trampoline" "run"
-                                              "--config" "acceptance/resources/config.ini"
-                                              "--bootstrap-config" "acceptance/resources/bootstrap.cfg"]
-
-                                    "generate" ["run" "-m" "puppetlabs.ssl-utils.test.cert-gen" "generate"]
-
-                                    "clean" ["run" "-m" "puppetlabs.ssl-utils.test.cert-gen" "clean"]}}}
   :plugins [[lein-release "1.0.5"]]
   :lein-release {:scm         :git
                  :deploy-via  :lein-deploy}
