@@ -18,7 +18,7 @@
   :dependencies [[org.clojure/tools.logging "0.2.6" :exclusions [org.clojure/clojure]]
                  [org.bouncycastle/bcpkix-jdk15on "1.50"]
                  [commons-codec "1.9"]
-                 [clj-time "0.5.1"]]
+                 [clj-time "0.7.0"]]
 
   :source-paths ["src/clojure"]
   :java-source-paths ["src/java"]
@@ -29,7 +29,7 @@
   ;; depend on this source jar using a :classifier in their :dependencies.
   :classifiers [["sources" :sources-jar]]
 
-  :profiles {:dev {:dependencies [[org.clojure/clojure "1.5.1"]]
+  :profiles {:dev {:dependencies [[org.clojure/clojure "1.6.0"]]
                    :resource-paths ["test-resources"]}
 
              :sources-jar {:java-source-paths ^:replace []
