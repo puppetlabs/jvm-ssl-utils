@@ -44,7 +44,7 @@
    :post [(validity-date-range? %)]}
   (let [now        (time/now)
         not-before (time/minus now (time/days 1))
-        not-after  (time/plus now (time/secs ca-ttl))]
+        not-after  (time/plus now (time/seconds ca-ttl))]
     {:not-before (.toDate not-before)
      :not-after  (.toDate not-after)}))
 
