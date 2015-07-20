@@ -48,28 +48,47 @@
     {:not-before (.toDate not-before)
      :not-after  (.toDate not-after)}))
 
-(def key-length 4096)
+(def default-keylength
+  "The default bit length to use when generating keys.
+   Note that all API functions accept an `options' map which may
+   have a :keylength for specifying this value."
+  4096)
 
-;; TODO Add final optional `options' map for :key-length
 (defn gen-keys
-  [certname]
-  {:pre [(string? certname)]
-   :post [(ssl-keys? %)]}
-  (let [keypair     (ssl-utils/generate-key-pair key-length)]
-    {:public-key (ssl-utils/get-public-key keypair)
-     :private-key (ssl-utils/get-private-key keypair)
-     :x500-name (ssl-utils/cn certname)
-     :certname certname}))
+  "Generate public and private keys and the X500 name for the given `certname'.
+   An optional map may be provided to specify:
 
-;; TODO Add final optional `options' map for :extensions
+   * :keylength  Bit length to use for the public/private keys;
+                 defaults to 4096."
+  ([certname] (gen-keys certname {}))
+  ([certname options]
+   {:pre [(string? certname)
+          (map? options)]
+    :post [(ssl-keys? %)]}
+   (let [keylength (get options :keylength default-keylength)
+         keypair (ssl-utils/generate-key-pair keylength)]
+     {:public-key (ssl-utils/get-public-key keypair)
+      :private-key (ssl-utils/get-private-key keypair)
+      :x500-name (ssl-utils/cn certname)
+      :certname certname})))
+
 (defn gen-cert*
-  [ca-keys host-keys serial]
-  {:pre [(ssl-keys? ca-keys)
-         (ssl-keys? host-keys)
-         (integer? serial)]
-   :post [(ssl-utils/certificate? %)]}
-  (let [validity (cert-validity-dates (* 5 60 60 24 365))]
-    (ssl-utils/sign-certificate
+  "Internal helper function to generate a certificate; see `gen-cert' for the
+   public version of this function.
+   An optional map may be provided to specify:
+
+   * :extensions  List of certificate extensions to include on the certificate;
+                  defaults to []."
+  ([ca-keys host-keys serial] (gen-cert* ca-keys host-keys serial {}))
+  ([ca-keys host-keys serial options]
+   {:pre [(ssl-keys? ca-keys)
+          (ssl-keys? host-keys)
+          (integer? serial)
+          (map? options)]
+    :post [(ssl-utils/certificate? %)]}
+   (let [validity (cert-validity-dates (* 5 60 60 24 365))
+         extensions (get options :extensions [])]
+     (ssl-utils/sign-certificate
       (:x500-name ca-keys)
       (:private-key ca-keys)
       serial
@@ -77,26 +96,41 @@
       (:not-after validity)
       (:x500-name host-keys)
       (:public-key host-keys)
-      [])))
+      extensions))))
 
-;; TODO Add final optional `options' map for :key-length and :extensions
 (defn gen-cert
-  [certname ca-cert serial]
-  {:pre [(string? certname)
-         (ssl-cert? ca-cert)
-         (integer? serial)]
-   :post [(ssl-cert? %)]}
-  (let [cert-keys (gen-keys certname)]
-    (assoc cert-keys :cert (gen-cert* ca-cert cert-keys serial))))
+  "Generate a certificate. An optional map may be provided to specify:
 
-;; TODO Add final optional `options' map for :key-length and :extensions
+   * :keylength   Bit length to use for the public/private keys;
+                  defaults to 4096.
+   * :extensions  List of certificate extensions to include on the certificate;
+                  defaults to []."
+  ([certname ca-cert serial] (gen-cert certname ca-cert serial {}))
+  ([certname ca-cert serial options]
+   {:pre [(string? certname)
+          (ssl-cert? ca-cert)
+          (integer? serial)
+          (map? options)]
+    :post [(ssl-cert? %)]}
+   (let [cert-keys (gen-keys certname options)]
+     (assoc cert-keys :cert (gen-cert* ca-cert cert-keys serial options)))))
+
 (defn gen-self-signed-cert
-  [certname serial]
-  {:pre [(string? certname)
-         (integer? serial)]
-   :post [(ssl-cert? %)]}
-  (let [cert-keys (gen-keys certname)]
-    (assoc cert-keys :cert (gen-cert* cert-keys cert-keys serial))))
+  "Generate a self-signed certificate.
+   An optional map may be provided to specify:
+
+   * :keylength   Bit length to use for the public/private keys;
+                  defaults to 4096.
+   * :extensions  List of certificate extensions to include on the certificate;
+                  defaults to []."
+  ([certname serial] (gen-self-signed-cert certname serial {}))
+  ([certname serial options]
+   {:pre [(string? certname)
+          (integer? serial)
+          (map? options)]
+    :post [(ssl-cert? %)]}
+   (let [cert-keys (gen-keys certname options)]
+     (assoc cert-keys :cert (gen-cert* cert-keys cert-keys serial options)))))
 
 (defn gen-crl
   [ca-cert]
@@ -106,4 +140,3 @@
     (.getIssuerX500Principal (:cert ca-cert))
     (:private-key ca-cert)
     (:public-key ca-cert)))
-
