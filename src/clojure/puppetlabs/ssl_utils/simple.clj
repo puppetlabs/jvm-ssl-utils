@@ -16,7 +16,7 @@
 
 (defn ssl-keys?
   "Returns true if the given map contains all the fields required to define an
-  SSL keypair and associated cetname info."
+  SSL keypair and associated certname info."
   [x]
   (and (map? x)
     (ssl-utils/public-key? (:public-key x))
@@ -50,6 +50,7 @@
 
 (def key-length 4096)
 
+;; TODO Add final optional `options' map for :key-length
 (defn gen-keys
   [certname]
   {:pre [(string? certname)]
@@ -60,6 +61,7 @@
      :x500-name (ssl-utils/cn certname)
      :certname certname}))
 
+;; TODO Add final optional `options' map for :extensions
 (defn gen-cert*
   [ca-keys host-keys serial]
   {:pre [(ssl-keys? ca-keys)
@@ -77,6 +79,7 @@
       (:public-key host-keys)
       [])))
 
+;; TODO Add final optional `options' map for :key-length and :extensions
 (defn gen-cert
   [certname ca-cert serial]
   {:pre [(string? certname)
@@ -84,11 +87,9 @@
          (integer? serial)]
    :post [(ssl-cert? %)]}
   (let [cert-keys (gen-keys certname)]
-    (assoc cert-keys :cert (gen-cert*
-                             (dissoc ca-cert :cert)
-                             cert-keys
-                             serial))))
+    (assoc cert-keys :cert (gen-cert* ca-cert cert-keys serial))))
 
+;; TODO Add final optional `options' map for :key-length and :extensions
 (defn gen-self-signed-cert
   [certname serial]
   {:pre [(string? certname)
