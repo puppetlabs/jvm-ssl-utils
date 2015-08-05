@@ -2,9 +2,14 @@
   (:require [clojure.test :refer :all]
             [puppetlabs.ssl-utils.simple-test :as simple-test]
             [puppetlabs.ssl-utils.core :as ssl-utils]
-            [puppetlabs.ssl-utils.simple :as simple]))
+            [puppetlabs.ssl-utils.simple :as simple])
+  (:import (java.net InetAddress)))
 
 (deftest general-names
+  (testing "InetAddress.toString() returns proper string form."
+    (let [addr (InetAddress/getByAddress (byte-array [192 168 2 1]))]
+      (= "/192.168.2.1" (.toString addr))))
+
   (testing "Can encode and decode all General Names types"
     (let [gns {:rfc822-name ["foo@bar.com"]
                :dns-name ["localhost.localdomain"]

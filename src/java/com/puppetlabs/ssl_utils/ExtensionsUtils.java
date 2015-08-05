@@ -43,6 +43,8 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import java.io.EOFException;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.security.PublicKey;
 import java.security.cert.CRLException;
@@ -852,19 +854,9 @@ public class ExtensionsUtils {
      * @param ip IP address encoded in an octet string.
      * @return A string representing the given IP address.
      */
-    public static String octetStringToIpString(ASN1OctetString ip) {
-        StringBuilder str = new StringBuilder();
-
-        byte[] octets = ip.getOctets();
-        for (int i=0; i < octets.length; i++) {
-            int byteVal = (octets[i] >= 0) ? octets[i] : (octets[i] + 256);
-            str.append(Integer.toString(byteVal));
-            if (i != (octets.length - 1)) {
-                str.append(".");
-            }
-        }
-
-        return str.toString();
+    public static String octetStringToIpString(ASN1OctetString ip)
+            throws UnknownHostException {
+        return InetAddress.getByAddress(ip.getOctets()).toString().split("/")[1];
     }
 
     /**
