@@ -12,7 +12,6 @@ import org.bouncycastle.asn1.ASN1TaggedObject;
 import org.bouncycastle.asn1.DERBitString;
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
-import org.bouncycastle.asn1.DERPrintableString;
 import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.asn1.DERUTF8String;
 import org.bouncycastle.asn1.misc.MiscObjectIdentifiers;
@@ -44,6 +43,8 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import java.io.EOFException;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.security.PublicKey;
 import java.security.cert.CRLException;
@@ -580,6 +581,8 @@ public class ExtensionsUtils {
     {
         if (asn1Prim instanceof GeneralNames) {
             return generalNamesToMap((GeneralNames) asn1Prim);
+        } else if (asn1Prim instanceof ASN1ObjectIdentifier) {
+            return ((ASN1ObjectIdentifier)asn1Prim).getId();
         } else if (asn1Prim instanceof AuthorityKeyIdentifier) {
             return authorityKeyIdToMap((AuthorityKeyIdentifier) asn1Prim);
         } else if (asn1Prim instanceof BasicConstraints) {
@@ -845,6 +848,18 @@ public class ExtensionsUtils {
     }
 
     /**
+     * Convert the value of an IP address which is encoded in an
+     * ASN1OctetString to a string.
+     *
+     * @param ip IP address encoded in an octet string.
+     * @return A string representing the given IP address.
+     */
+    public static String octetStringToIpString(ASN1OctetString ip)
+            throws UnknownHostException {
+        return InetAddress.getByAddress(ip.getOctets()).toString().split("/")[1];
+    }
+
+    /**
      * Convert a Bouncy Castle GeneralNames object into a Java map where the key
      * is the type of name defined, and the value is a list of names of that type.
      *
@@ -864,7 +879,17 @@ public class ExtensionsUtils {
                 if (ret.get(type) == null) {
                     ret.put(type, new ArrayList<String>());
                 }
-                String name = (String) asn1ObjToObj(generalName.getName());
+
+                String name;
+                switch (generalName.getTagNo()) {
+                    case GeneralName.iPAddress:
+                        name = octetStringToIpString((ASN1OctetString)generalName.getName());
+                        break;
+                    default:
+                        name = asn1ObjToObj(generalName.getName()).toString();
+                        break;
+                }
+
                 ret.get(type).add(name);
             }
 
