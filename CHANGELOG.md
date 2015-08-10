@@ -1,3 +1,10 @@
+## 0.8.1
+ * Fixed problems decoding General Names extensions with values of the type
+   "other names."
+ * IP addresses General Names are now properly decoded.
+ * Introduced new convenience functions for accomplishing common tasks in the
+   `puppetlabs.ssl-utils.simple` namespace.
+
 ## 0.8.0
  * Added `generate-ssl-context`, a function which, when given a map of options,
    extracts any relevant SSL options and, if any are present, uses them to
