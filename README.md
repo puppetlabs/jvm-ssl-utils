@@ -1,5 +1,7 @@
 # jvm-ssl-utils
 
+[![Build Status](https://travis-ci.org/puppetlabs/jvm-ssl-utils.png?branch=master)](https://travis-ci.org/puppetlabs/jvm-ssl-utils)
+
 SSL certificate management on the JVM.
 
 ## Installation
