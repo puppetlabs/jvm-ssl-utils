@@ -763,8 +763,10 @@
       (is (false? (issued-by? crl "issuer")))))
 
   (deftest x500-name->CN-test
-    (testing "getting CN from DN works"
-      (is (= "subject" (x500-name->CN subject))))))
+    (testing "get proper CN from DN when CN available"
+      (is (= "subject" (x500-name->CN subject))))
+    (testing "get empty string for CN when no CN in DN"
+      (is (= "" (x500-name->CN (dn [:l "Nowheresville"])))))))
 
 (deftest extensions
   (testing "Found all extensions from a certificate on disk."

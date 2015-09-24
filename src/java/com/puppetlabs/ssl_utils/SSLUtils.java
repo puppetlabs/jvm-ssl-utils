@@ -7,6 +7,8 @@ import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.asn1.x500.AttributeTypeAndValue;
+import org.bouncycastle.asn1.x500.RDN;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
@@ -130,10 +132,18 @@ public class SSLUtils {
      * Given an X500Name, return the common name from it.
      *
      * @param x500Name The X500 name string to extract from
-     * @return The common name from the X500Name
+     * @return The common name from the X500Name.  Empty string if none available.
      */
     public static String getCommonNameFromX500Name(String x500Name) {
-        return new X500Name(x500Name).getRDNs(BCStyle.CN)[0].getFirst().getValue().toString();
+        RDN[] rdns = new X500Name(x500Name).getRDNs(BCStyle.CN);
+        String commonName = "";
+        if (rdns.length > 0) {
+            AttributeTypeAndValue attributeInfo = rdns[0].getFirst();
+            if (attributeInfo != null) {
+                commonName = attributeInfo.getValue().toString();
+            }
+        }
+        return commonName;
     }
 
     /**
