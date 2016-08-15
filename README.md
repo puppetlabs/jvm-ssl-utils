@@ -155,6 +155,6 @@ a best-effort basis, until the previous major version is no longer maintained.
 
 ## Maintainence
 
-Maintainers: Jeremy Barlow <jeremy.barlow@puppet.com>, Nathaniel Smith <nathaniel@puppet.com>
+Maintainers: Jeremy Barlow <jeremy.barlow@puppet.com>, Justin Stoller <justin@puppet.com>
 
 Tickets: https://tickets.puppetlabs.com/browse/SERVER
