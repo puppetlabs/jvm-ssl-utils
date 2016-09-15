@@ -153,8 +153,3 @@ Bugfixes and ongoing development will occur in minor releases for the current
 major version. Security fixes will be backported to a previous major version on
 a best-effort basis, until the previous major version is no longer maintained.
 
-## Maintenance
-
-Maintainers: Jeremy Barlow <jeremy.barlow@puppet.com>, Justin Stoller <justin@puppet.com>
-
-Tickets: https://tickets.puppetlabs.com/browse/SERVER
