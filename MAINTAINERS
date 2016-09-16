@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "file_format": "This MAINTAINERS file format is described at http://pup.pt/maintainers",
+  "issues": "https://tickets.puppetlabs.com/browse/TK",
+  "people": [
+    {
+      "github": "camlow325",
+      "email": "jeremy.barlow@puppet.com",
+      "name": "Jeremy Barlow"
+    },
+    {
+      "github": "nwolfe",
+      "email": "nate.wolfe@puppet.com",
+      "name": "Nate Wolfe"
+    },
+    {
+      "github": "justinstoller",
+      "email": "justin@puppet.com",
+      "name": "Justin Stoller"
+    },
+    {
+      "github": "cprice404",
+      "email": "chris@puppet.com",
+      "name": "Chris Price"
+    }
+  ]
+}
