@@ -11,3 +11,4 @@ log
 .vagrant
 .bundle
 bundle
+/resources/locales.clj

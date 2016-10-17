@@ -11,7 +11,8 @@
   (:require [clojure.tools.logging :as log]
             [clojure.walk :as walk]
             [clojure.string :as string]
-            [clojure.java.io :refer [reader writer]]))
+            [clojure.java.io :refer [reader writer]]
+            [puppetlabs.i18n.core :as i18n]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Predicates
@@ -575,7 +576,8 @@
   (with-open [r (reader pem)]
     (let [objs (seq (SSLUtils/pemToObjects r))]
       (doseq [o objs]
-        (log/debug (format "Loaded PEM object of type '%s' from '%s'" (class o) pem)))
+        (log/debug (i18n/trs "Loaded PEM object of type ''{0}'' from ''{1}''"
+                             (class o) pem)))
       objs)))
 
 (defn obj->pem!
