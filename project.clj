@@ -18,7 +18,8 @@
   :dependencies [[org.clojure/tools.logging "0.2.6" :exclusions [org.clojure/clojure]]
                  [org.bouncycastle/bcpkix-jdk15on "1.50"]
                  [commons-codec "1.9"]
-                 [clj-time "0.7.0"]]
+                 [clj-time "0.7.0"]
+                 [puppetlabs/i18n "0.4.3"]]
 
   :source-paths ["src/clojure"]
   :java-source-paths ["src/java"]
@@ -36,7 +37,7 @@
                            :jar-exclusions ^:replace []
                            :source-paths ^:replace ["src/clojure" "src/java"]}}
 
-  :plugins [[lein-release "1.0.5"]]
+  :plugins [[puppetlabs/i18n "0.4.3"]]
   :lein-release {:scm         :git
                  :deploy-via  :lein-deploy}
   :deploy-repositories [["releases" ~(deploy-info "https://clojars.org/repo")]
