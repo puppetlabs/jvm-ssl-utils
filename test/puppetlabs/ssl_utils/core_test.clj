@@ -2,7 +2,7 @@
   (:import java.util.Arrays
            (java.io ByteArrayOutputStream ByteArrayInputStream)
            (java.security.cert X509Certificate)
-           (java.security KeyStore SignatureException MessageDigest)
+           (java.security KeyStore MessageDigest)
            (javax.security.auth.x500 X500Principal)
            (javax.net.ssl SSLContext)
            (org.bouncycastle.asn1.x500 X500Name)
@@ -11,7 +11,8 @@
            (org.bouncycastle.asn1.x509 SubjectPublicKeyInfo))
   (:require [clojure.test :refer :all]
             [clojure.java.io :refer [resource reader]]
-            [puppetlabs.ssl-utils.core :refer :all]))
+            [puppetlabs.ssl-utils.core :refer :all]
+            [puppetlabs.ssl-utils.simple :as simple]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Utilities
@@ -171,18 +172,24 @@
 
 (deftest cn-from-x509-certificate-test
   (testing "cn extracted from an X509Certificate"
-    (let [subject         (cn "foo")
-          key-pair        (generate-key-pair 512)
-          subj-pub        (get-public-key key-pair)
-          issuer          (cn "my ca")
-          issuer-key-pair (generate-key-pair 512)
-          issuer-priv     (get-private-key issuer-key-pair)
-          not-before      (generate-not-before-date)
-          not-after       (generate-not-after-date)
-          serial          42
-          certificate (sign-certificate issuer issuer-priv serial not-before
-                                        not-after subject subj-pub)]
-      (is (= "foo" (get-cn-from-x509-certificate certificate))))))
+    (let [subject (cn "foo")
+          certificate (:cert (simple/gen-self-signed-cert subject
+                                                          42
+                                                          {:keylength 512}))]
+      (is (= subject (get-cn-from-x509-certificate certificate))))))
+
+(deftest subject-from-x509-certificate-test
+  (testing "subject extracted from an X509Certificate"
+    (let [subject "CN=myagent,OU=Users,OU=Department A,DC=mydomain,DC=com"
+          key-pair (generate-key-pair 512)
+          certificate (sign-certificate subject
+                                        (get-private-key key-pair)
+                                        42
+                                        (generate-not-before-date)
+                                        (generate-not-after-date)
+                                        subject
+                                        (get-public-key key-pair))]
+      (is (= subject (get-subject-from-x509-certificate certificate))))))
 
 (deftest certification-request-test
   (testing "create CSR"

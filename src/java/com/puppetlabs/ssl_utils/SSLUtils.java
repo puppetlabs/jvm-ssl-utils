@@ -3,7 +3,6 @@ package com.puppetlabs.ssl_utils;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.codec.binary.Hex;
 
-import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
@@ -17,7 +16,6 @@ import org.bouncycastle.asn1.x509.CRLNumber;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
-import org.bouncycastle.asn1.x509.X509Name;
 import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.cert.X509CRLHolder;
 import org.bouncycastle.cert.X509CertificateHolder;
@@ -45,7 +43,6 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.PKCS10CertificationRequestBuilder;
 import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
-import org.bouncycastle.x509.X509V3CertificateGenerator;
 import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
 import org.joda.time.DateTime;
 
@@ -135,7 +132,7 @@ public class SSLUtils {
      * @return The common name from the X500Name.  Empty string if none available.
      */
     public static String getCommonNameFromX500Name(String x500Name) {
-        RDN[] rdns = new X500Name(x500Name).getRDNs(BCStyle.CN);
+        RDN[] rdns = new X500Name(BCStyle.INSTANCE, x500Name).getRDNs(BCStyle.CN);
         String commonName = "";
         if (rdns.length > 0) {
             AttributeTypeAndValue attributeInfo = rdns[0].getFirst();
@@ -166,7 +163,7 @@ public class SSLUtils {
         // TODO: the puppet code sets a property "version=0" on the request object
         // here; can't figure out how to do that at the moment.  Not sure if it's needed.
         PKCS10CertificationRequestBuilder requestBuilder =
-                new JcaPKCS10CertificationRequestBuilder(new X500Name(subjectDN), keyPair.getPublic());
+                new JcaPKCS10CertificationRequestBuilder(new X500Name(BCStyle.INSTANCE, subjectDN), keyPair.getPublic());
 
         if ((extensions != null) && (extensions.size() > 0)) {
             Extensions parsedExts = ExtensionsUtils.getExtensionsObjFromMap(extensions);
@@ -210,11 +207,11 @@ public class SSLUtils {
                    NoSuchAlgorithmException, SignatureException, InvalidKeyException
     {
         X509v3CertificateBuilder certBuilder = new X509v3CertificateBuilder(
-                new X500Name(issuerDn),
+                new X500Name(BCStyle.INSTANCE, issuerDn),
                 serialNumber,
                 notBefore,
                 notAfter,
-                new X500Name(subjectDn),
+                new X500Name(BCStyle.INSTANCE, subjectDn),
                 SubjectPublicKeyInfo.getInstance(subjectPublicKey.getEncoded()));
 
         Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
@@ -996,6 +993,18 @@ public class SSLUtils {
      */
     public static String getCnFromX500Principal(X500Principal principal) {
         return getCommonNameFromX500Name(principal.getName());
+    }
+
+    /**
+     * Returns the Subject from an X509Certificate object.
+     *
+     * @param certificate The X509Certificate object
+     * @return String representation of the Subject extracted from the X509Certificate.
+     */
+    public static String getSubjectFromX509Certificate(X509Certificate certificate) {
+        byte[] encodedName = certificate.getSubjectX500Principal().getEncoded();
+        X500Name x500Name = X500Name.getInstance(encodedName);
+        return BCStyle.INSTANCE.toString(x500Name);
     }
 
     /**
