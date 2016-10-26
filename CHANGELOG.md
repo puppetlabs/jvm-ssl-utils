@@ -1,3 +1,7 @@
+## 0.8.2
+ * Adds `get-subject-from-x509-certificate` and `SSLUtils.getSubjectFromX509Certificate`
+   helper methods.
+
 ## 0.8.1
  * Fixed problems decoding General Names extensions with values of the type
    "other names."
