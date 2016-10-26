@@ -7,7 +7,8 @@
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
            (com.puppetlabs.ssl_utils SSLUtils
                                      ExtensionsUtils)
-           (java.util Map List Date Set))
+           (java.util Map List Date Set)
+           (org.bouncycastle.asn1.x500.style BCStyle))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :as walk]
             [clojure.string :as string]
@@ -22,7 +23,7 @@
   ;; TODO: Maybe using a string parsing algo is faster?
   [x]
   (try
-    (X500Name. x)
+    (X500Name. BCStyle/INSTANCE x)
     (not (nil? x))
     (catch Exception _
       false)))
@@ -939,6 +940,13 @@
    :post [(string? %)]}
   (-> (.getSubjectX500Principal x509-certificate)
       get-cn-from-x500-principal))
+
+(defn get-subject-from-x509-certificate
+  "Given an X509Certificate object, retrieve its subject."
+  [x509-certificate]
+  {:pre [(certificate? x509-certificate)]
+   :post [(string? %)]}
+  (SSLUtils/getSubjectFromX509Certificate x509-certificate))
 
 (defn get-public-key
   "Given an object which contains a public key, extract the public key
