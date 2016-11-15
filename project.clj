@@ -16,7 +16,7 @@
   :pedantic? :abort
 
   :dependencies [[org.clojure/tools.logging "0.2.6" :exclusions [org.clojure/clojure]]
-                 [org.bouncycastle/bcpkix-jdk15on "1.50"]
+                 [org.bouncycastle/bcpkix-jdk15on "1.55"]
                  [commons-codec "1.9"]
                  [clj-time "0.7.0"]
                  [puppetlabs/i18n "0.4.3"]]
