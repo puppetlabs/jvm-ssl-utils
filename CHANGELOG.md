@@ -1,3 +1,6 @@
+## 0.8.3 (2016-11-16)
+ * Bumps bouncycastle dependency to latest version (1.55)
+
 ## 0.8.2
  * Adds `get-subject-from-x509-certificate` and `SSLUtils.getSubjectFromX509Certificate`
    helper methods.
