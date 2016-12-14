@@ -8,7 +8,9 @@
            (com.puppetlabs.ssl_utils SSLUtils
                                      ExtensionsUtils)
            (java.util Map List Date Set)
-           (org.bouncycastle.asn1.x500.style BCStyle))
+           (org.bouncycastle.asn1.x500.style BCStyle)
+           (java.io InputStream File Reader BufferedReader Writer OutputStream BufferedWriter)
+           (java.net URI URL Socket))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :as walk]
             [clojure.string :as string]
@@ -130,6 +132,12 @@
 
 (def Something
   (schema/pred #(not (nil? %))))
+
+(def ReaderSchema
+  (schema/cond-pre Reader BufferedReader InputStream File URI URL Socket byte[] char[] String))
+
+(def WriterSchema
+  (schema/cond-pre Writer BufferedWriter OutputStream File URI URL Socket byte[] char[] String))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Internal
@@ -498,7 +506,7 @@
    `pem`: the file path to write the PEM output to
           (or some other object supported by clojure's `writer`)"
   [crl :- X509CRL
-   pem :- Something]
+   pem :- WriterSchema]
   (with-open [w (writer pem)]
     (SSLUtils/writeToPEM crl w)))
 
@@ -507,14 +515,14 @@
    decode the contents into a `X509CRL`.
 
    See `crl->pem!` to PEM-encode a certificate revocation list."
-  [pem :- Something]
+  [pem :- ReaderSchema]
   (with-open [r (reader pem)]
     (SSLUtils/pemToCRL r)))
 
 (schema/defn ^:always-validate pem->crls :- [X509CRL]
   "Given the path to a PEM file (or some other object supported by clojure's
   `reader`), decode the contents into a collection of `X509CRL` instances."
-  [pem :- Something]
+  [pem :- ReaderSchema]
   (with-open [r (reader pem)]
     (SSLUtils/pemToCRLs r)))
 
@@ -523,7 +531,7 @@
   decode the contents into a `PKCS10CertificationRequest`.
 
   See `obj->pem!` to PEM-encode a certificate signing request."
-  [pem :- Something]
+  [pem :- ReaderSchema]
   (with-open [r (reader pem)]
     (SSLUtils/pemToCertificateRequest r)))
 
@@ -536,7 +544,7 @@
   "Given a file path (or some other object supported by clojure's `reader`), reads
   PEM-encoded objects and returns a collection of objects of the corresponding
   type from `java.security`."
-  [pem :- Something]
+  [pem :- ReaderSchema]
   (with-open [r (reader pem)]
     (let [objs (seq (SSLUtils/pemToObjects r))]
       (doseq [o objs]
@@ -553,21 +561,21 @@
 
   `pem`: the file path to write the PEM output to (or some other object supported by clojure's `writer`)"
   [obj :- Something
-   pem :- Something]
+   pem :- WriterSchema]
   (with-open [w (writer pem)]
     (SSLUtils/writeToPEM obj w)))
 
 (schema/defn ^:always-validate pem->certs :- [X509Certificate]
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decodes the contents into a collection of `X509Certificate` instances."
-  [pem :- Something]
+  [pem :- ReaderSchema]
   (with-open [r (reader pem)]
     (SSLUtils/pemToCerts r)))
 
 (schema/defn ^:always-validate pem->cert :- X509Certificate
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decodes the contents into an `X509Certificate`."
-  [pem :- Something]
+  [pem :- ReaderSchema]
   (with-open [r (reader pem)]
     (SSLUtils/pemToCert r)))
 
@@ -579,7 +587,7 @@
    `pem`: the file path to write the PEM output to
           (or some other object supported by clojure's `writer`)"
   [cert :- X509Certificate
-   pem :- Something]
+   pem :- WriterSchema]
   (with-open [w (writer pem)]
     (SSLUtils/writeToPEM cert w)))
 
@@ -591,7 +599,7 @@
 (schema/defn ^:always-validate pem->private-keys :- [PrivateKey]
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decodes the contents into a collection of `PrivateKey` instances."
-  [pem :- Something]
+  [pem :- ReaderSchema]
   (with-open [r (reader pem)]
     (SSLUtils/pemToPrivateKeys r)))
 
@@ -600,7 +608,7 @@
   decode the contents into a `PrivateKey` instance. Throws an exception if multiple keys
   are found in the PEM.
   See `key->pem!` and `pem->private-keys` to write/read keys."
-  [pem :- Something]
+  [pem :- ReaderSchema]
   (with-open [r (reader pem)]
     (SSLUtils/pemToPrivateKey r)))
 
@@ -609,7 +617,7 @@
    decode the contents into a `PublicKey` instance. Throws an exception if multiple
    keys are found in the PEM.
    See `key->pem!` to write public keys."
-  [pem :- Something]
+  [pem :- ReaderSchema]
   (with-open [r (reader pem)]
     (SSLUtils/pemToPublicKey r)))
 
@@ -620,7 +628,7 @@
   `key`: the key to encode and write; usually an instance of `PrivateKey` or `PublicKey`
   `pem`: the file path to write the PEM output to (or some other object supported by clojure's `writer`)"
   [key :- Key
-   pem :- Something]
+   pem :- WriterSchema]
   (with-open [w (writer pem)]
     (SSLUtils/writeToPEM key w)))
 
@@ -646,7 +654,7 @@
               (or some other object supported by clojure's `reader`)"
   [keystore :- KeyStore
    prefix :- schema/Str
-   pem :- Something]
+   pem :- ReaderSchema]
   (with-open [r (reader pem)]
     (SSLUtils/associateCertsFromReader keystore prefix r)))
 
@@ -685,9 +693,9 @@
                      to a keystore without a signed certificate."
   [keystore :- KeyStore
    alias :- schema/Str
-   pem-private-key :- Something
+   pem-private-key :- ReaderSchema
    pw :- schema/Str
-   pem-cert :- Something]
+   pem-cert :- ReaderSchema]
   (with-open [key-reader  (reader pem-private-key)
               cert-reader (reader pem-cert)]
     (SSLUtils/associatePrivateKeyFromReader keystore alias key-reader pw cert-reader)))
@@ -714,9 +722,9 @@
   `:keystore`    - an instance of KeyStore initialized with the cert and private key
   `:keystore-pw` - a string containing a dynamically generated password for the KeyStore
   `:truststore`  - an instance of KeyStore containing the CA cert."
-  [cert :- Something
-   private-key :- Something
-   ca-cert :- Something]
+  [cert :- ReaderSchema
+   private-key :- ReaderSchema
+   ca-cert :- ReaderSchema]
   (with-open [cert-reader    (reader cert)
               key-reader     (reader private-key)
               ca-cert-reader (reader ca-cert)]
@@ -750,10 +758,10 @@
   Returns the SSLContext instance."
   ([cert private-key ca-cert]
     (pems->ssl-context cert private-key ca-cert nil))
-  ([cert :- Something
-    private-key :- Something
-    ca-cert :- Something
-    crls :- schema/Any]
+  ([cert :- ReaderSchema
+    private-key :- ReaderSchema
+    ca-cert :- ReaderSchema
+    crls :- (schema/maybe ReaderSchema)]
     (with-open [cert-reader    (reader cert)
                 key-reader     (reader private-key)
                 ca-cert-reader (reader ca-cert)]
@@ -775,7 +783,7 @@
   reference a PEM that contains the CA cert.
 
   Returns the SSLContext instance."
-  [ca-cert :- Something]
+  [ca-cert :- ReaderSchema]
   (with-open [ca-cert-reader (reader ca-cert)]
     (SSLUtils/caCertPemToSSLContext ca-cert-reader)))
 
@@ -791,8 +799,8 @@
   reference a PEM that contains one or more CRLs.
 
   Returns the SSLContext instance."
-  [ca-cert :- Something
-   crls :- Something]
+  [ca-cert :- ReaderSchema
+   crls :- ReaderSchema]
   (with-open [ca-cert-reader (reader ca-cert)
               crls-reader    (reader crls)]
     (SSLUtils/caCertAndCrlPemsToSSLContext ca-cert-reader
@@ -821,7 +829,7 @@
    returns nil.
 
    If the :ssl-context and :ssl-ca-cert keys are both missing, an exception will be thrown."
-  [options]
+  [options :- SSLContextOptions]
   (let [ssl-opts (select-keys options [:ssl-cert :ssl-key :ssl-ca-cert :ssl-ca-crls :ssl-context])
         from-context?           (contains? ssl-opts :ssl-context)
         from-pems?              (every? ssl-opts [:ssl-cert :ssl-key :ssl-ca-cert])
