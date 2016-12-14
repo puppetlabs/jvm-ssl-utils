@@ -8,7 +8,8 @@
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
            (org.joda.time DateTime Period DateTimeUtils)
-           (org.bouncycastle.asn1.x509 SubjectPublicKeyInfo))
+           (org.bouncycastle.asn1.x509 SubjectPublicKeyInfo)
+           (clojure.lang ExceptionInfo))
   (:require [clojure.test :refer :all]
             [clojure.java.io :refer [resource reader]]
             [puppetlabs.ssl-utils.core :refer :all]
@@ -708,8 +709,8 @@
   (deftest valid-x500-name?-test
     (is (= "CN=common name" (dn [:cn "common name"])))
     (is (= "CN=cn,O=org" (dn [:cn "cn" :o "org"])))
-    (is (thrown? AssertionError (dn [])))
-    (is (thrown? AssertionError (dn [:cn :cn "cn"])))
+    (is (thrown? ExceptionInfo (dn [])))
+    (is (thrown? ExceptionInfo (dn [:cn :cn "cn"])))
     (is (true?  (valid-x500-name? subject)))
     (is (false? (valid-x500-name? "subject")))
     (is (false? (valid-x500-name? nil))))

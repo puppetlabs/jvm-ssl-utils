@@ -23,7 +23,8 @@
                  [org.bouncycastle/bcpkix-jdk15on "1.55"]
                  [commons-codec]
                  [clj-time]
-                 [puppetlabs/i18n]]
+                 [puppetlabs/i18n]
+                 [prismatic/schema]]
 
   :source-paths ["src/clojure"]
   :java-source-paths ["src/java"]
