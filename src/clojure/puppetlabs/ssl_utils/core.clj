@@ -19,7 +19,8 @@
             [schema.core :as schema]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Predicates
+;;; Predicates - no longer used internally now that there are schemas
+;;;              (except valid-x500-name?)
 
 (defn valid-x500-name?
   "Returns true if x is a valid X500 name string."
@@ -117,6 +118,7 @@
   (schema/cond-pre PublicKey PrivateKey))
 
 (def ExtensionContainer
+  "A schema for all the things that can hold and SSL extension."
   (schema/cond-pre
    X509Certificate
    PKCS10CertificationRequest
@@ -124,12 +126,15 @@
    List))
 
 (def Readerable
+  "Schema for anything that can be handed off to clojure's reader function."
   (schema/cond-pre Reader BufferedReader InputStream File URI URL Socket byte[] char[] String))
 
 (def Writerable
+  "Schema for anything that can be handed off to clojure's writer function."
   (schema/cond-pre Writer BufferedWriter OutputStream File URI URL Socket byte[] char[] String))
 
 (def SSLContextOptions
+  "Schema for the options map that generate-ssl-context requires."
   {(schema/optional-key :ssl-cert) Readerable
    (schema/optional-key :ssl-key) Readerable
    (schema/optional-key :ssl-ca-cert) Readerable
