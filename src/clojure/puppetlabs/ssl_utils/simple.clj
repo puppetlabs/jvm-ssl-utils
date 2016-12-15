@@ -21,17 +21,11 @@
   (assoc SSLKeyPair
     :cert X509Certificate))
 
-(def SSLExtensions
-  "A schema for the optional extensions that can be used in the certificate functions."
-  {(schema/optional-key :extensions) [schema/Any]})
-
-(def KeyLengthOption
-  "A schema for the optional keylength that can be used in the key functions."
-  {(schema/optional-key :keylength) schema/Int})
-
 (def SSLOptions
-  "A schema for the SSL Options that can be used with the generation functions."
-  (merge SSLExtensions KeyLengthOption))
+  "A schema for the SSL Options that can be used with the cert and key
+  generation functions."
+  {(schema/optional-key :extensions) [Object]
+   (schema/optional-key :keylength) schema/Int})
 
 (def SSLValidDateRange
   "A schema for the map representing a valid date range for an SSL certificate."
@@ -112,7 +106,9 @@
    * :extensions  List of certificate extensions to include on the certificate;
                   defaults to []."
   ([ca-keys host-keys serial] (gen-cert* ca-keys host-keys serial {}))
-  ([ca-keys :- (schema/either SSLKeyPair SSLCert)
+  ([ca-keys :- (schema/conditional
+                (fn [cert] (some #(= :cert %) (keys cert))) SSLCert
+                :else SSLKeyPair)
     host-keys :- SSLKeyPair
     serial :- schema/Int
     options :- SSLOptions]

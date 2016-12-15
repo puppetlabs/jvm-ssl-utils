@@ -101,14 +101,14 @@
 (def ValidX500Name
   (schema/pred valid-x500-name?))
 
-(def Extension
+(def SSLExtension
   "A map containing all the fields required to define an extension."
   {:oid schema/Str
-   :critical (schema/pred #(not (nil? %)))
-   :value (schema/pred #(not (nil? %)))})
+   :critical schema/Bool
+   :value Object})
 
-(def ExtensionList
-  [Extension])
+(def SSLExtensionList
+  [SSLExtension])
 
 (def CertOrCSR
   (schema/cond-pre X509Certificate PKCS10CertificationRequest))
@@ -123,21 +123,18 @@
    X509CRL
    List))
 
-(def SSLContextOptions
-  {(schema/optional-key :ssl-cert) schema/Any
-   (schema/optional-key :ssl-key) schema/Any
-   (schema/optional-key :ssl-ca-cert) schema/Any
-   (schema/optional-key :ssl-ca-crls) schema/Any
-   (schema/optional-key :ssl-context) SSLContext})
-
-(def Something
-  (schema/pred #(not (nil? %))))
-
-(def ReaderSchema
+(def Readerable
   (schema/cond-pre Reader BufferedReader InputStream File URI URL Socket byte[] char[] String))
 
-(def WriterSchema
+(def Writerable
   (schema/cond-pre Writer BufferedWriter OutputStream File URI URL Socket byte[] char[] String))
+
+(def SSLContextOptions
+  {(schema/optional-key :ssl-cert) Readerable
+   (schema/optional-key :ssl-key) Readerable
+   (schema/optional-key :ssl-ca-cert) Readerable
+   (schema/optional-key :ssl-ca-crls) Readerable
+   (schema/optional-key :ssl-context) SSLContext})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Internal
@@ -205,7 +202,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Extensions
 
-(schema/defn ^:always-validate get-extensions :- ExtensionList
+(schema/defn ^:always-validate get-extensions :- SSLExtensionList
   "Given an object containing X509 extensions, retrieve a list of maps of all
   extensions. Each map in the list contains the following keys:
 
@@ -217,7 +214,7 @@
           [])
       clojureize))
 
-(schema/defn ^:always-validate get-extension :- Extension
+(schema/defn ^:always-validate get-extension :- SSLExtension
   "Given a X509 certificate object, CRL, CSR, or a list of extensions
   returned by `get-extensions`, return a map describing the value and
   criticality of the extension described by its OID."
@@ -226,7 +223,7 @@
   (-> (ExtensionsUtils/getExtension (javaize ext-container) oid)
       clojureize))
 
-(schema/defn ^:always-validate get-extension-value
+(schema/defn ^:always-validate get-extension-value :- schema/Any
   "Given a X509 certificate object, CRL, CSR or a list of extensions returned by
   `get-extensions`, return the value of an extension by its OID. If the OID
   doesn't exist on the provided object, then nil is returned."
@@ -235,12 +232,12 @@
   (-> (ExtensionsUtils/getExtensionValue (javaize ext-container) oid)
       clojureize))
 
-(schema/defn ^:always-validate subject-dns-alt-names :- Extension
+(schema/defn ^:always-validate subject-dns-alt-names :- SSLExtension
   "Create a Subject Alternative Names extensions (OID=2.5.29.17) which contains
   a list of DNS names as alternative names. The `critical` argument sets the
   criticality flag of this extension."
   [alt-names-list :- [schema/Str]
-   critical :- Something]
+   critical :- Object]
   {:oid      subject-alt-name-oid
    :critical (boolean critical)
    :value    {:dns-name alt-names-list}})
@@ -251,7 +248,7 @@
   [cert-or-csr :- CertOrCSR]
   (:dns-name (get-extension-value cert-or-csr subject-alt-name-oid)))
 
-(schema/defn ^:always-validate netscape-comment :- Extension
+(schema/defn ^:always-validate netscape-comment :- SSLExtension
   "Create a `Netscape Certificate Comment` extension."
   [comment :- schema/Str]
   {:oid      "2.16.840.1.113730.1.13"
@@ -266,7 +263,7 @@
               :serial-number (if (number? serial) (biginteger serial))
               :issuer-dn     issuer-dn}})
 
-(schema/defn ^:always-validate authority-key-identifier :- Extension
+(schema/defn ^:always-validate authority-key-identifier :- SSLExtension
   "Create an `Authority Key Identifier` extension from a `PublicKey` object. The
   extension created by this function is intended to be passed into
   `sign-certificate` and `generate-certificate-request`, at which time the key's
@@ -278,45 +275,45 @@
   ([public-key :- PublicKey
     issuer-dn :- ValidX500Name
     serial :- schema/Int
-    critical :- Something]
+    critical :- Object]
     (create-authority-key-identifier public-key issuer-dn serial critical)))
 
-(schema/defn ^:always-validate subject-key-identifier :- Extension
+(schema/defn ^:always-validate subject-key-identifier :- SSLExtension
   "Create a `Subject Key Identifier` extension from a `PublicKey` object. The
   extension created by this function is intended to be passed into
   `sign-certificate` and `generate-certificate-request`, at which time the key's
   hash will be computed and stored in the resulting object."
   [public-key :- PublicKey
-   critical :- Something]
+   critical :- Object]
   {:oid      "2.5.29.14"
    :critical (boolean critical)
    :value    public-key})
 
-(schema/defn ^:always-validate key-usage :- Extension
+(schema/defn ^:always-validate key-usage :- SSLExtension
   "Create a `Key Usage` extension from a set of flags to enable. See the
   README.md for the keys supported."
-  [flag-set :- #{Something}
-   critical :- Something]
+  [flag-set :- #{Object}
+   critical :- Object]
   {:oid     "2.5.29.15"
    :critical (boolean critical)
    :value   flag-set})
 
-(schema/defn ^:always-validate ext-key-usages :- Extension
+(schema/defn ^:always-validate ext-key-usages :- SSLExtension
   "Create an `Extended Key Usages` extensions from a list of OIDs."
   [oid-list :- [schema/Str]
-   critical :- Something]
+   critical :- Object]
   {:oid "2.5.29.37"
    :critical (boolean critical)
    :value oid-list})
 
-(schema/defn ^:always-validate basic-constraints-for-non-ca :- Extension
+(schema/defn ^:always-validate basic-constraints-for-non-ca :- SSLExtension
   "Create a `Basic Constraints` extension for a non-CA certificate."
-  [critical :- Something]
+  [critical :- Object]
   {:oid "2.5.29.19"
    :critical (boolean critical)
    :value {:is-ca false}})
 
-(schema/defn ^:always-validate basic-constraints-for-ca :- Extension
+(schema/defn ^:always-validate basic-constraints-for-ca :- SSLExtension
   "Create a `Basic Constraints` extension for a CA certificate.  `max-path-len`
   refers to the maximum number of non-self-issued intermediate certificates that
   may follow the CA certificate in a valid certification path.  If `max-path-len`
@@ -331,41 +328,41 @@
     :value {:is-ca true
             :path-len-constraint max-path-len}}))
 
-(schema/defn ^:always-validate crl-number :- Extension
+(schema/defn ^:always-validate crl-number :- SSLExtension
   "Create a `CRL Number` extension"
   [number :- schema/Int]
   {:oid crl-number-oid
    :critical false
    :value (biginteger number)})
 
-(schema/defn ^:always-validate puppet-node-uid :- Extension
+(schema/defn ^:always-validate puppet-node-uid :- SSLExtension
   "Create a `Puppet Node UID` extension."
   [uid :- schema/Str
-   critical :- Something]
+   critical :- Object]
   {:oid "1.3.6.1.4.1.34380.1.1.1"
    :critical (boolean critical)
    :value uid})
 
-(schema/defn ^:always-validate puppet-node-instance-id :- Extension
+(schema/defn ^:always-validate puppet-node-instance-id :- SSLExtension
   "Create a `Puppet Node Instance ID` extension."
   [id :- schema/Str
-   critical :- Something]
+   critical :- Object]
   {:oid "1.3.6.1.4.1.34380.1.1.2"
    :critical (boolean critical)
    :value id})
 
-(schema/defn ^:always-validate puppet-node-image-name :- Extension
+(schema/defn ^:always-validate puppet-node-image-name :- SSLExtension
   "Create a `Puppet Node Image Name` extension."
   [name :- schema/Str
-   critical :- Something]
+   critical :- Object]
   {:oid "1.3.6.1.4.1.34380.1.1.3"
    :critical (boolean critical)
    :value name})
 
-(schema/defn ^:always-validate puppet-node-preshared-key :- Extension
+(schema/defn ^:always-validate puppet-node-preshared-key :- SSLExtension
   "Create a `Puppet Node Preshared Key` extension."
   [key :- schema/Str
-   critical :- Something]
+   critical :- Object]
   {:oid "1.3.6.1.4.1.34380.1.1.4"
    :critical (boolean critical)
    :value key})
@@ -419,7 +416,7 @@
    (generate-certificate-request keypair subject-dn []))
   ([keypair :- KeyPair
     subject-dn :- ValidX500Name
-    extensions :- ExtensionList]
+    extensions :- SSLExtensionList]
    (SSLUtils/generateCertificateRequest
      keypair subject-dn (javaize extensions))))
 
@@ -450,7 +447,7 @@
     not-after :- Date
     subject-dn :- ValidX500Name
     subject-pub-key :- PublicKey
-    extensions :- ExtensionList]
+    extensions :- SSLExtensionList]
    (SSLUtils/signCertificate
      issuer-dn issuer-priv-key (biginteger serial) not-before not-after subject-dn
      subject-pub-key (javaize extensions))))
@@ -506,7 +503,7 @@
    `pem`: the file path to write the PEM output to
           (or some other object supported by clojure's `writer`)"
   [crl :- X509CRL
-   pem :- WriterSchema]
+   pem :- Writerable]
   (with-open [w (writer pem)]
     (SSLUtils/writeToPEM crl w)))
 
@@ -515,14 +512,14 @@
    decode the contents into a `X509CRL`.
 
    See `crl->pem!` to PEM-encode a certificate revocation list."
-  [pem :- ReaderSchema]
+  [pem :- Readerable]
   (with-open [r (reader pem)]
     (SSLUtils/pemToCRL r)))
 
 (schema/defn ^:always-validate pem->crls :- [X509CRL]
   "Given the path to a PEM file (or some other object supported by clojure's
   `reader`), decode the contents into a collection of `X509CRL` instances."
-  [pem :- ReaderSchema]
+  [pem :- Readerable]
   (with-open [r (reader pem)]
     (SSLUtils/pemToCRLs r)))
 
@@ -531,7 +528,7 @@
   decode the contents into a `PKCS10CertificationRequest`.
 
   See `obj->pem!` to PEM-encode a certificate signing request."
-  [pem :- ReaderSchema]
+  [pem :- Readerable]
   (with-open [r (reader pem)]
     (SSLUtils/pemToCertificateRequest r)))
 
@@ -540,11 +537,11 @@
   []
   (SSLUtils/createKeyStore))
 
-(schema/defn ^:always-validate pem->objs :- [Something]
+(schema/defn ^:always-validate pem->objs :- [Object]
   "Given a file path (or some other object supported by clojure's `reader`), reads
   PEM-encoded objects and returns a collection of objects of the corresponding
   type from `java.security`."
-  [pem :- ReaderSchema]
+  [pem :- Readerable]
   (with-open [r (reader pem)]
     (let [objs (seq (SSLUtils/pemToObjects r))]
       (doseq [o objs]
@@ -560,22 +557,22 @@
          packages.
 
   `pem`: the file path to write the PEM output to (or some other object supported by clojure's `writer`)"
-  [obj :- Something
-   pem :- WriterSchema]
+  [obj :- Object
+   pem :- Writerable]
   (with-open [w (writer pem)]
     (SSLUtils/writeToPEM obj w)))
 
 (schema/defn ^:always-validate pem->certs :- [X509Certificate]
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decodes the contents into a collection of `X509Certificate` instances."
-  [pem :- ReaderSchema]
+  [pem :- Readerable]
   (with-open [r (reader pem)]
     (SSLUtils/pemToCerts r)))
 
 (schema/defn ^:always-validate pem->cert :- X509Certificate
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decodes the contents into an `X509Certificate`."
-  [pem :- ReaderSchema]
+  [pem :- Readerable]
   (with-open [r (reader pem)]
     (SSLUtils/pemToCert r)))
 
@@ -587,19 +584,19 @@
    `pem`: the file path to write the PEM output to
           (or some other object supported by clojure's `writer`)"
   [cert :- X509Certificate
-   pem :- WriterSchema]
+   pem :- Writerable]
   (with-open [w (writer pem)]
     (SSLUtils/writeToPEM cert w)))
 
 (schema/defn ^:always-validate obj->private-key :- PrivateKey
   "Decodes the given object (read from a .pem via `pem->objs`) into an instance of `PrivateKey`."
-  [obj :- Something]
+  [obj :- Object]
   (SSLUtils/objectToPrivateKey obj))
 
 (schema/defn ^:always-validate pem->private-keys :- [PrivateKey]
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decodes the contents into a collection of `PrivateKey` instances."
-  [pem :- ReaderSchema]
+  [pem :- Readerable]
   (with-open [r (reader pem)]
     (SSLUtils/pemToPrivateKeys r)))
 
@@ -608,7 +605,7 @@
   decode the contents into a `PrivateKey` instance. Throws an exception if multiple keys
   are found in the PEM.
   See `key->pem!` and `pem->private-keys` to write/read keys."
-  [pem :- ReaderSchema]
+  [pem :- Readerable]
   (with-open [r (reader pem)]
     (SSLUtils/pemToPrivateKey r)))
 
@@ -617,7 +614,7 @@
    decode the contents into a `PublicKey` instance. Throws an exception if multiple
    keys are found in the PEM.
    See `key->pem!` to write public keys."
-  [pem :- ReaderSchema]
+  [pem :- Readerable]
   (with-open [r (reader pem)]
     (SSLUtils/pemToPublicKey r)))
 
@@ -628,7 +625,7 @@
   `key`: the key to encode and write; usually an instance of `PrivateKey` or `PublicKey`
   `pem`: the file path to write the PEM output to (or some other object supported by clojure's `writer`)"
   [key :- Key
-   pem :- WriterSchema]
+   pem :- Writerable]
   (with-open [w (writer pem)]
     (SSLUtils/writeToPEM key w)))
 
@@ -654,7 +651,7 @@
               (or some other object supported by clojure's `reader`)"
   [keystore :- KeyStore
    prefix :- schema/Str
-   pem :- ReaderSchema]
+   pem :- Readerable]
   (with-open [r (reader pem)]
     (SSLUtils/associateCertsFromReader keystore prefix r)))
 
@@ -693,9 +690,9 @@
                      to a keystore without a signed certificate."
   [keystore :- KeyStore
    alias :- schema/Str
-   pem-private-key :- ReaderSchema
+   pem-private-key :- Readerable
    pw :- schema/Str
-   pem-cert :- ReaderSchema]
+   pem-cert :- Readerable]
   (with-open [key-reader  (reader pem-private-key)
               cert-reader (reader pem-cert)]
     (SSLUtils/associatePrivateKeyFromReader keystore alias key-reader pw cert-reader)))
@@ -722,9 +719,9 @@
   `:keystore`    - an instance of KeyStore initialized with the cert and private key
   `:keystore-pw` - a string containing a dynamically generated password for the KeyStore
   `:truststore`  - an instance of KeyStore containing the CA cert."
-  [cert :- ReaderSchema
-   private-key :- ReaderSchema
-   ca-cert :- ReaderSchema]
+  [cert :- Readerable
+   private-key :- Readerable
+   ca-cert :- Readerable]
   (with-open [cert-reader    (reader cert)
               key-reader     (reader private-key)
               ca-cert-reader (reader ca-cert)]
@@ -758,10 +755,10 @@
   Returns the SSLContext instance."
   ([cert private-key ca-cert]
     (pems->ssl-context cert private-key ca-cert nil))
-  ([cert :- ReaderSchema
-    private-key :- ReaderSchema
-    ca-cert :- ReaderSchema
-    crls :- (schema/maybe ReaderSchema)]
+  ([cert :- Readerable
+    private-key :- Readerable
+    ca-cert :- Readerable
+    crls :- (schema/maybe Readerable)]
     (with-open [cert-reader    (reader cert)
                 key-reader     (reader private-key)
                 ca-cert-reader (reader ca-cert)]
@@ -783,7 +780,7 @@
   reference a PEM that contains the CA cert.
 
   Returns the SSLContext instance."
-  [ca-cert :- ReaderSchema]
+  [ca-cert :- Readerable]
   (with-open [ca-cert-reader (reader ca-cert)]
     (SSLUtils/caCertPemToSSLContext ca-cert-reader)))
 
@@ -799,8 +796,8 @@
   reference a PEM that contains one or more CRLs.
 
   Returns the SSLContext instance."
-  [ca-cert :- ReaderSchema
-   crls :- ReaderSchema]
+  [ca-cert :- Readerable
+   crls :- Readerable]
   (with-open [ca-cert-reader (reader ca-cert)
               crls-reader    (reader crls)]
     (SSLUtils/caCertAndCrlPemsToSSLContext ca-cert-reader
@@ -881,7 +878,7 @@
   [key-object :- KeyPair]
   (SSLUtils/getPrivateKey key-object))
 
-(schema/defn ^:always-validate get-serial :- schema/Int
+(schema/defn ^:always-validate get-serial :- BigInteger
   "Given an X509 certificate, return the serial number from it."
   [cert :- X509Certificate]
   (SSLUtils/getSerialNumber cert))
