@@ -10,16 +10,21 @@
 
   :description "SSL certificate management on the JVM."
 
+  :min-lein-version "2.7.1"
+
+  :parent-project {:coords [puppetlabs/clj-parent "0.2.5"]
+                   :inherit [:managed-dependencies]}
+
   ;; Abort when version ranges or version conflicts are detected in
   ;; dependencies. Also supports :warn to simply emit warnings.
-  ;; requires lein 2.2.0+.
   :pedantic? :abort
 
-  :dependencies [[org.clojure/tools.logging "0.2.6" :exclusions [org.clojure/clojure]]
+  :dependencies [[org.clojure/tools.logging]
                  [org.bouncycastle/bcpkix-jdk15on "1.55"]
-                 [commons-codec "1.9"]
-                 [clj-time "0.7.0"]
-                 [puppetlabs/i18n "0.4.3"]]
+                 [commons-codec]
+                 [clj-time]
+                 [puppetlabs/i18n]
+                 [prismatic/schema]]
 
   :source-paths ["src/clojure"]
   :java-source-paths ["src/java"]
@@ -30,14 +35,15 @@
   ;; depend on this source jar using a :classifier in their :dependencies.
   :classifiers [["sources" :sources-jar]]
 
-  :profiles {:dev {:dependencies [[org.clojure/clojure "1.6.0"]]
+  :profiles {:dev {:dependencies [[org.clojure/clojure]]
                    :resource-paths ["test-resources"]}
 
              :sources-jar {:java-source-paths ^:replace []
                            :jar-exclusions ^:replace []
                            :source-paths ^:replace ["src/clojure" "src/java"]}}
 
-  :plugins [[puppetlabs/i18n "0.4.3"]]
+  :plugins [[lein-parent "0.3.1"]
+            [puppetlabs/i18n "0.4.3"]]
   :lein-release {:scm         :git
                  :deploy-via  :lein-deploy}
   :deploy-repositories [["releases" ~(deploy-info "https://clojars.org/repo")]
