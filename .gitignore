@@ -12,3 +12,4 @@ log
 .bundle
 bundle
 /resources/locales.clj
+/dev-resources/i18n/bin
