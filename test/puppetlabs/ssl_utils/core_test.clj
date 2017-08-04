@@ -1,6 +1,6 @@
 (ns puppetlabs.ssl-utils.core-test
   (:import java.util.Arrays
-           (java.io ByteArrayOutputStream ByteArrayInputStream)
+           (java.io ByteArrayOutputStream ByteArrayInputStream StringReader)
            (java.security.cert X509Certificate)
            (java.security KeyStore MessageDigest)
            (javax.security.auth.x500 X500Principal)
@@ -398,6 +398,31 @@
         (is (issued-by? actual (expected :issuer-name)))
         (is (= (expected :serial) (get-serial actual)))
         (is (= (expected :version) (.getVersion actual))))))
+  (testing "read CA certificate from PEM stream"
+    (testing "with an empty reader"
+      (let [bundle-pem (StringReader. "")
+            pubkey-pem (open-ssl-file "public_keys/localhost.pem")]
+        (is (thrown-with-msg? IllegalArgumentException
+                              #"The certificate PEM stream must contain at least 1 certificate"
+                              (pem->ca-cert bundle-pem pubkey-pem)))))
+
+    (testing "with a single certificate that matches the public key"
+      (let [bundle-pem (open-ssl-file "certs/ca.pem")
+            pubkey-pem (open-ssl-file "ca/ca_pub.pem")]
+        (is (certificate? (pem->ca-cert bundle-pem pubkey-pem)))))
+
+    (testing "with a certificate bundle whose first cert matches the public key"
+      (let [bundle-pem (open-ssl-file "certs/multiple.pem")
+            pubkey-pem (open-ssl-file "ca/ca_pub.pem")]
+        (is (certificate? (pem->ca-cert bundle-pem pubkey-pem)))))
+
+    (testing "with a single certificate that doesn't match the public key"
+      (let [bundle-pem (open-ssl-file "certs/ca.pem")
+            pubkey-pem (open-ssl-file "public_keys/localhost.pem")]
+        (is (thrown-with-msg? IllegalArgumentException
+                              #"The first certificate in the certificate bundle does not match the expected public key"
+                              (pem->ca-cert bundle-pem pubkey-pem))))))
+
 
   (testing "write certificate to PEM stream"
     (let [subject     (cn "foo")

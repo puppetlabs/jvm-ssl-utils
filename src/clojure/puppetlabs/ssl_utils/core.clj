@@ -574,6 +574,15 @@
   (with-open [r (reader pem)]
     (SSLUtils/pemToCerts r)))
 
+(schema/defn ^:always-validate pem->ca-cert :- X509Certificate
+  "Given a CA certificate bundle and public key, extract the first certificate and
+  verify that it matches the given public key."
+  [bundle-pem :- Readerable
+   pubkey-pem :- Readerable]
+  (with-open [bundle-pem-reader (reader bundle-pem)]
+    (with-open [pubkey-pem-reader (reader pubkey-pem)]
+    (SSLUtils/pemToCaCert bundle-pem-reader pubkey-pem-reader))))
+
 (schema/defn ^:always-validate pem->cert :- X509Certificate
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decodes the contents into an `X509Certificate`."

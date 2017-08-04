@@ -80,6 +80,7 @@ import java.security.cert.PKIXBuilderParameters;
 import java.security.cert.X509CRL;
 import java.security.cert.X509CertSelector;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -489,6 +490,49 @@ public class SSLUtils {
         for (Object o : pemObjects)
             results.add(converter.getCertificate((X509CertificateHolder) o));
         return results;
+    }
+
+    /**
+     * Given a certificate and public key, test whether the public key in the certificate matches
+     * the expected public key.
+     *
+     * @param cert certificate The certificate to test
+     * @param pubKey the expected public key
+     * @return {@code true} if the certificate matches the public key, {@code false} otherwise.
+     */
+    public static boolean certMatchesPubKey(X509Certificate cert, PublicKey pubKey) {
+        PublicKey extractedPubKey = cert.getPublicKey();
+
+        return extractedPubKey.getFormat() == pubKey.getFormat() &&
+            extractedPubKey.getAlgorithm() == pubKey.getAlgorithm() &&
+            Arrays.equals(extractedPubKey.getEncoded(), pubKey.getEncoded());
+    }
+
+    /**
+     * Given a PEM reader for a CA certificate bundle and a PEM reader for a public key,
+     * extract the first certificate and verify that it matches the given public key.
+     *
+     * @param certBundleReader Reader for a PEM-encoded stream of X.509 certificates
+     * @param pubKeyReader Reader for a PEM-encoded public key
+     * @return The first decoded certificate in the certificate stream
+     * @throws CertificateException
+     * @throws IOException
+     * @throws IllegalArgumentException if the cert bundle is empty or the first cert doesn't match the public key
+     */
+    public static X509Certificate pemToCaCert(Reader certBundleReader, Reader pubKeyReader)
+        throws CertificateException, IOException
+    {
+        List<X509Certificate> certs = pemToCerts(certBundleReader);
+        if (certs.size() < 1)
+            throw new IllegalArgumentException("The certificate PEM stream must contain at least 1 certificate");
+
+        X509Certificate caCert = certs.get(0);
+        PublicKey caPubkey = pemToPublicKey(pubKeyReader);
+        if(!certMatchesPubKey(caCert, caPubkey)) {
+            throw new IllegalArgumentException("The first certificate in the certificate bundle does not match the expected public key");
+        }
+
+        return caCert;
     }
 
     /**
