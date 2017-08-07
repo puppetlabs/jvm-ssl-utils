@@ -411,7 +411,7 @@
             pubkey-pem (open-ssl-file "ca/ca_pub.pem")]
         (is (certificate? (pem->ca-cert bundle-pem pubkey-pem)))))
 
-    (testing "with a certificate bundle whose first cert matches the public key"
+    (testing "with a certificate chain whose first cert matches the public key"
       (let [bundle-pem (open-ssl-file "certs/multiple.pem")
             pubkey-pem (open-ssl-file "ca/ca_pub.pem")]
         (is (certificate? (pem->ca-cert bundle-pem pubkey-pem)))))
@@ -420,7 +420,7 @@
       (let [bundle-pem (open-ssl-file "certs/ca.pem")
             pubkey-pem (open-ssl-file "public_keys/localhost.pem")]
         (is (thrown-with-msg? IllegalArgumentException
-                              #"The first certificate in the certificate bundle does not match the expected public key"
+                              #"The first certificate in the certificate chain does not match the expected public key"
                               (pem->ca-cert bundle-pem pubkey-pem))))))
 
 

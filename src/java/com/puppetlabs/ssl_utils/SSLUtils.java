@@ -509,27 +509,27 @@ public class SSLUtils {
     }
 
     /**
-     * Given a PEM reader for a CA certificate bundle and a PEM reader for a public key,
+     * Given a PEM reader for a CA certificate chain and a PEM reader for a public key,
      * extract the first certificate and verify that it matches the given public key.
      *
-     * @param certBundleReader Reader for a PEM-encoded stream of X.509 certificates
+     * @param certChainReader Reader for a PEM-encoded stream of X.509 certificates
      * @param pubKeyReader Reader for a PEM-encoded public key
      * @return The first decoded certificate in the certificate stream
      * @throws CertificateException
      * @throws IOException
-     * @throws IllegalArgumentException if the cert bundle is empty or the first cert doesn't match the public key
+     * @throws IllegalArgumentException if the cert chain is empty or the first cert doesn't match the public key
      */
-    public static X509Certificate pemToCaCert(Reader certBundleReader, Reader pubKeyReader)
+    public static X509Certificate pemToCaCert(Reader certChainReader, Reader pubKeyReader)
         throws CertificateException, IOException
     {
-        List<X509Certificate> certs = pemToCerts(certBundleReader);
+        List<X509Certificate> certs = pemToCerts(certChainReader);
         if (certs.size() < 1)
             throw new IllegalArgumentException("The certificate PEM stream must contain at least 1 certificate");
 
         X509Certificate caCert = certs.get(0);
         PublicKey caPubkey = pemToPublicKey(pubKeyReader);
         if(!certMatchesPubKey(caCert, caPubkey)) {
-            throw new IllegalArgumentException("The first certificate in the certificate bundle does not match the expected public key");
+            throw new IllegalArgumentException("The first certificate in the certificate chain does not match the expected public key");
         }
 
         return caCert;
