@@ -1,6 +1,6 @@
 (ns puppetlabs.ssl-utils.core-test
   (:import java.util.Arrays
-           (java.io ByteArrayOutputStream ByteArrayInputStream)
+           (java.io ByteArrayOutputStream ByteArrayInputStream StringReader)
            (java.security.cert X509Certificate)
            (java.security KeyStore MessageDigest)
            (javax.security.auth.x500 X500Principal)
@@ -398,6 +398,31 @@
         (is (issued-by? actual (expected :issuer-name)))
         (is (= (expected :serial) (get-serial actual)))
         (is (= (expected :version) (.getVersion actual))))))
+  (testing "read CA certificate from PEM stream"
+    (testing "with an empty reader"
+      (let [bundle-pem (StringReader. "")
+            pubkey-pem (open-ssl-file "public_keys/localhost.pem")]
+        (is (thrown-with-msg? IllegalArgumentException
+                              #"The certificate PEM stream must contain at least 1 certificate"
+                              (pem->ca-cert bundle-pem pubkey-pem)))))
+
+    (testing "with a single certificate that matches the public key"
+      (let [bundle-pem (open-ssl-file "certs/ca.pem")
+            pubkey-pem (open-ssl-file "ca/ca_pub.pem")]
+        (is (certificate? (pem->ca-cert bundle-pem pubkey-pem)))))
+
+    (testing "with a certificate chain whose first cert matches the public key"
+      (let [bundle-pem (open-ssl-file "certs/multiple.pem")
+            pubkey-pem (open-ssl-file "ca/ca_pub.pem")]
+        (is (certificate? (pem->ca-cert bundle-pem pubkey-pem)))))
+
+    (testing "with a single certificate that doesn't match the public key"
+      (let [bundle-pem (open-ssl-file "certs/ca.pem")
+            pubkey-pem (open-ssl-file "public_keys/localhost.pem")]
+        (is (thrown-with-msg? IllegalArgumentException
+                              #"The first certificate in the certificate chain does not match the expected public key"
+                              (pem->ca-cert bundle-pem pubkey-pem))))))
+
 
   (testing "write certificate to PEM stream"
     (let [subject     (cn "foo")
@@ -876,9 +901,9 @@
   (testing "certificate"
     (let [cert (pem->cert (open-ssl-file "certs/localhost.pem"))]
       (are [algorithm expected] (= expected (fingerprint cert algorithm))
-           "SHA-1"   "2232c6267b24f9eaf9323cdf4ed07e31a131202d"
-           "SHA-256" "8c8438c39f6505d9766d335d66b081034a83f2a56c41704758f87fc26c76ef46"
-           "SHA-512" "2ad13f9b0aa4d0cca69ea4c1e1f1543461774c74ca99340c8b1264e5c8012402019ba0ab807e648847c29819e3c058f1b9df1a10ce4310c8a8c0d49c9b67e269")))
+           "SHA-1"   "8541015c004a0e780fea9d34e85508223540f8db"
+           "SHA-256" "d23bad16a87151e24bfd05b0aa7c82423d0d74889e7316eddc4384b7f6c95196"
+           "SHA-512" "71f35390978f0345fbb7f6cbc4be992dcdc07648879d0db836a0a49f637932a4abb4619e37fe9320af5634097204b6d7d2d3326d29d901c95c76e8f2b64e6ce4")))
 
   (testing "csr"
     (let [csr (pem->csr (open-ssl-file "certification_requests/ca_test_client.pem"))]
