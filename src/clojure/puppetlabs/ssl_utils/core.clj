@@ -575,13 +575,13 @@
     (SSLUtils/pemToCerts r)))
 
 (schema/defn ^:always-validate pem->ca-cert :- X509Certificate
-  "Given a CA certificate chain and public key, extract the first certificate and
-  verify that it matches the given public key."
+  "Given a CA certificate chain and key pair, extract the first certificate and
+  verify that it matches the key pair."
   [cert-chain-pem :- Readerable
-   pubkey-pem :- Readerable]
+   keypair-pem :- Readerable]
   (with-open [cert-chain-pem-reader (reader cert-chain-pem)
-              pubkey-pem-reader (reader pubkey-pem)]
-    (SSLUtils/pemToCaCert cert-chain-pem-reader pubkey-pem-reader)))
+              keypair-pem-reader (reader keypair-pem)]
+    (SSLUtils/pemToCaCert cert-chain-pem-reader keypair-pem-reader)))
 
 (schema/defn ^:always-validate pem->cert :- X509Certificate
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
