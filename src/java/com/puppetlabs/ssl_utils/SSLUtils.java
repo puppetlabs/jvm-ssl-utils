@@ -576,24 +576,6 @@ public class SSLUtils {
     }
 
     /**
-     * Decodes the provided object (read from a PEM stream via {@link #pemToObjects}) into a key pair.
-     *
-     * @param obj The object to decode into a PrivateKey
-     * @return The KeyPair decoded from the object
-     * @throws PEMException
-     * @see #pemToKeyPair
-     * @see #pemToKeyPairs
-     */
-    public static KeyPair objectToKeyPair(Object obj)
-        throws PEMException
-    {
-        if (obj instanceof PEMKeyPair)
-            return new JcaPEMKeyConverter().getKeyPair((PEMKeyPair) obj);
-        else
-            throw new IllegalArgumentException("Expected a KeyPair, got " + obj);
-    }
-
-    /**
      * Given a PEM reader, decode the contents into a list of private keys.
      *
      * @param reader Reader for a PEM-encoded stream
@@ -665,8 +647,13 @@ public class SSLUtils {
     {
         List<Object> objects = pemToObjects(reader);
         List<KeyPair> results = new ArrayList<KeyPair>(objects.size());
-        for (Object o : objects)
-            results.add(objectToKeyPair(o));
+        JcaPEMKeyConverter c = new JcaPEMKeyConverter();
+        for (Object o : objects) {
+            if (o instanceof PEMKeyPair)
+                results.add(c.getKeyPair((PEMKeyPair) o));
+            else
+                throw new IllegalArgumentException("Expected a KeyPair, got " + o);
+        }
         return results;
     }
 
