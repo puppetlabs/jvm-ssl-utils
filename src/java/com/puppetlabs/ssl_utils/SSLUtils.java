@@ -513,13 +513,13 @@ public class SSLUtils {
      * extract the first certificate and verify that it matches the given public key.
      *
      * @param certChainReader Reader for a PEM-encoded stream of X.509 certificates
-     * @param pubKeyReader Reader for a PEM-encoded public key
+     * @param keyPairReader Reader for a PEM-encoded key pair
      * @return The first decoded certificate in the certificate stream
      * @throws CertificateException
      * @throws IOException
-     * @throws IllegalArgumentException if the cert chain is empty or the first cert doesn't match the public key
+     * @throws IllegalArgumentException if the cert chain is empty or the first cert doesn't match the public key in the key pair
      */
-    public static X509Certificate pemToCaCert(Reader certChainReader, Reader pubKeyReader)
+    public static X509Certificate pemToCaCert(Reader certChainReader, Reader keyPairReader)
         throws CertificateException, IOException
     {
         List<X509Certificate> certs = pemToCerts(certChainReader);
@@ -527,7 +527,7 @@ public class SSLUtils {
             throw new IllegalArgumentException("The certificate PEM stream must contain at least 1 certificate");
 
         X509Certificate caCert = certs.get(0);
-        PublicKey caPubkey = pemToPublicKey(pubKeyReader);
+        PublicKey caPubkey = pemToKeyPair(keyPairReader).getPublic();
         if(!certMatchesPubKey(caCert, caPubkey)) {
             throw new IllegalArgumentException("The first certificate in the certificate chain does not match the expected public key");
         }
@@ -632,6 +632,48 @@ public class SSLUtils {
             throw new IllegalArgumentException("The PEM stream must contain exactly one public key");
         JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
         return converter.getPublicKey((SubjectPublicKeyInfo) objects.get(0));
+    }
+
+    /**
+     * Given a PEM reader, decode the contents into a list of key pairs.
+     * @param reader Reader for a PEM-encoded stream
+     * @return The list of decoded key pairs from the stream
+     * @throws IOException
+     * @throws PEMException
+     * @see #pemToKeyPair
+     */
+    public static List<KeyPair> pemToKeyPairs(Reader reader)
+        throws IOException
+    {
+        List<Object> objects = pemToObjects(reader);
+        List<KeyPair> results = new ArrayList<KeyPair>(objects.size());
+        JcaPEMKeyConverter c = new JcaPEMKeyConverter();
+        for (Object o : objects) {
+            if (o instanceof PEMKeyPair)
+                results.add(c.getKeyPair((PEMKeyPair) o));
+            else
+                throw new IllegalArgumentException("Expected a KeyPair, got " + o);
+        }
+        return results;
+    }
+
+    /**
+     * Given a PEM reader, decode the contents into a key pair.
+     * Throws an exception if multiple key pairs are found.
+     *
+     * @param reader Reader for a PEM-encoded stream
+     * @return The decoded key pair from the stream
+     * @throws IOException
+     * @throws IllegalArgumentException
+     * @see #pemToKeyPairs
+     */
+    public static KeyPair pemToKeyPair(Reader reader)
+        throws IOException
+    {
+        List<KeyPair> keyPairs = pemToKeyPairs(reader);
+        if (keyPairs.size() != 1)
+            throw new IllegalArgumentException("The PEM stream must contain exactly one key pair");
+        return keyPairs.get(0);
     }
 
     /**
