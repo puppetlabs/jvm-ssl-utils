@@ -1,3 +1,14 @@
+## 0.9.0 (2017-08-10)
+
+  * Added lein-parent/clj-parent to set common project dependency versions
+  * Function pre/post assertions converted to schemas
+  * Added new methods for interacting with certificate bundles and key pairs:
+    * `pem->ca-cert`
+    * `SSLUtils.pemToCaCert`
+    * `SSLUtils.pemTokeyPairs`
+    * `SSLUtils.pemTokeyPair`
+    * `SSLUtils.certMatchesPubKey`
+
 ## 0.8.3 (2016-11-16)
  * Bumps bouncycastle dependency to latest version (1.55)
 
