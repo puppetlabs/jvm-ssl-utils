@@ -5,7 +5,7 @@
     :password :env/clojars_jenkins_password
     :sign-releases false })
 
-(defproject puppetlabs/ssl-utils "0.9.1"
+(defproject puppetlabs/ssl-utils "0.9.2-SNAPSHOT"
   :url "http://www.github.com/puppetlabs/jvm-ssl-utils"
 
   :description "SSL certificate management on the JVM."
