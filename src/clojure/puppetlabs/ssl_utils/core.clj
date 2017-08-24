@@ -139,7 +139,8 @@
    (schema/optional-key :ssl-key) Readerable
    (schema/optional-key :ssl-ca-cert) Readerable
    (schema/optional-key :ssl-ca-crls) Readerable
-   (schema/optional-key :ssl-context) SSLContext})
+   (schema/optional-key :ssl-context) SSLContext
+   schema/Any schema/Any})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Internal
