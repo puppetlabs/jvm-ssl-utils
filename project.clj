@@ -5,14 +5,14 @@
     :password :env/clojars_jenkins_password
     :sign-releases false })
 
-(defproject puppetlabs/ssl-utils "0.9.2-SNAPSHOT"
+(defproject puppetlabs/ssl-utils "1.0.0-SNAPSHOT"
   :url "http://www.github.com/puppetlabs/jvm-ssl-utils"
 
   :description "SSL certificate management on the JVM."
 
   :min-lein-version "2.7.1"
 
-  :parent-project {:coords [puppetlabs/clj-parent "0.6.1"]
+  :parent-project {:coords [puppetlabs/clj-parent "1.7.5"]
                    :inherit [:managed-dependencies]}
 
   ;; Abort when version ranges or version conflicts are detected in
@@ -20,7 +20,7 @@
   :pedantic? :abort
 
   :dependencies [[org.clojure/tools.logging]
-                 [org.bouncycastle/bcpkix-jdk15on "1.55"]
+                 [org.bouncycastle/bcpkix-jdk15on "1.59"]
                  [commons-codec]
                  [clj-time]
                  [puppetlabs/i18n]
