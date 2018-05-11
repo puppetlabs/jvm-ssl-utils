@@ -106,14 +106,21 @@
    * :extensions  List of certificate extensions to include on the certificate;
                   defaults to []."
   ([ca-keys host-keys serial] (gen-cert* ca-keys host-keys serial {}))
+  ([ca-keys host-keys serial options] (gen-cert* ca-keys host-keys serial options false))
   ([ca-keys :- (schema/conditional
                 (fn [cert] (some #(= :cert %) (keys cert))) SSLCert
                 :else SSLKeyPair)
     host-keys :- SSLKeyPair
     serial :- schema/Int
-    options :- SSLOptions]
+    options :- SSLOptions
+    ca? :- schema/Bool]
    (let [validity (cert-validity-dates (* 5 60 60 24 365))
-         extensions (get options :extensions [])]
+         extensions (if ca?
+                      (ssl-utils/create-ca-extensions
+                        (:x509-name host-keys)
+                        serial
+                        (:public-key host-keys))
+                      (get options :extensions []))]
      (ssl-utils/sign-certificate
       (:x500-name ca-keys)
       (:private-key ca-keys)
@@ -132,12 +139,14 @@
    * :extensions  List of certificate extensions to include on the certificate;
                   defaults to []."
   ([certname ca-cert serial] (gen-cert certname ca-cert serial {}))
+  ([certname ca-cert serial options] (gen-cert certname ca-cert serial options false))
   ([certname :- schema/Str
     ca-cert :- SSLCert
     serial :- schema/Int
-    options :- SSLOptions]
+    options :- SSLOptions
+    ca? :- schema/Bool]
    (let [cert-keys (gen-keys certname options)]
-     (assoc cert-keys :cert (gen-cert* ca-cert cert-keys serial options)))))
+     (assoc cert-keys :cert (gen-cert* ca-cert cert-keys serial options ca?)))))
 
 (schema/defn ^:always-validate gen-self-signed-cert :- SSLCert
   "Generate a self-signed certificate.
@@ -148,11 +157,13 @@
    * :extensions  List of certificate extensions to include on the certificate;
                   defaults to []."
   ([certname serial] (gen-self-signed-cert certname serial {}))
+  ([certname serial options] (gen-self-signed-cert certname serial options false))
   ([certname :- schema/Str
     serial :- schema/Int
-    options :- SSLOptions]
-   (let [cert-keys (gen-keys certname options)]
-     (assoc cert-keys :cert (gen-cert* cert-keys cert-keys serial options)))))
+    options :- SSLOptions
+    ca? :- schema/Bool]
+   (let [cert-keys (gen-keys certname options) ]
+     (assoc cert-keys :cert (gen-cert* cert-keys cert-keys serial options ca?)))))
 
 (schema/defn ^:always-validate gen-crl :- X509CRL
   [ca-cert :- SSLCert]

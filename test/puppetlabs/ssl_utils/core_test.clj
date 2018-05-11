@@ -444,12 +444,19 @@
       (is (= orig-cert parsed-cert)))))
 
 (deftest certificate-revocation-list
-  (let [key-pair    (generate-key-pair 512)
-        public-key  (get-public-key key-pair)
+  (let [key-pair (generate-key-pair 512)
+        public-key (get-public-key key-pair)
         private-key (get-private-key key-pair)
         issuer-name (cn "Puppet CA: localhost")
-        crl         (generate-crl (X500Principal. issuer-name)
-                                  private-key public-key)]
+        not-before (generate-not-before-date)
+        not-after (generate-not-after-date)
+        cert (sign-certificate
+               issuer-name private-key
+               1 not-before not-after
+               issuer-name public-key
+               (create-ca-extensions issuer-name 1 public-key))
+        crl (generate-crl (X500Principal. issuer-name)
+                          private-key public-key)]
 
     (testing "create CRL"
       (is (certificate-revocation-list? crl))
@@ -472,8 +479,17 @@
         (is (certificate-revocation-list? parsed-crl))
         (is (issued-by? parsed-crl "CN=Puppet CA: localhost"))))
 
-    (testing "read CRLs from PEM stream"
-      (let [parsed-crls (-> "ca_crl_multi.pem" open-ssl-file pem->crls)]
+    (testing "write CRL to PEM stream"
+      (let [parsed-crl (-> crl (write-to-pem-stream crl->pem!) pem->crl)]
+        (is (certificate-revocation-list? parsed-crl))
+        (is (issued-by? parsed-crl issuer-name))
+        (is (= crl parsed-crl))))
+
+    (testing "read & write mutliple CRLs from PEM stream"
+      (let [parsed-crls (-> (open-ssl-file "ca_crl_multi.pem")
+                            pem->crls
+                            (write-to-pem-stream objs->pem!)
+                            pem->crls)]
         (is (certificate-revocation-list? (first parsed-crls)))
         (is (issued-by? (first parsed-crls)
                         (str "OU=Server Operations,O=Example Org\\, LLC,"
@@ -484,11 +500,29 @@
         (is (issued-by? (second parsed-crls)
                         "CN=Puppet CA: localhost"))))
 
-    (testing "write CRL to PEM stream"
-      (let [parsed-crl (-> crl (write-to-pem-stream crl->pem!) pem->crl)]
-        (is (certificate-revocation-list? parsed-crl))
-        (is (issued-by? parsed-crl issuer-name))
-        (is (= crl parsed-crl))))
+    (testing "read CA CRL from PEM stream"
+      (let [leaf-name-string "CN=Intermediate CA (master-ca)"
+            leaf-name (cn leaf-name-string)
+            leaf-keypair (generate-key-pair)
+            leaf-private-key (get-private-key leaf-keypair)
+            leaf-public-key (get-public-key leaf-keypair)
+            serial 42
+            not-before (generate-not-before-date)
+            not-after (generate-not-after-date)
+            leaf-cert (sign-certificate issuer-name private-key serial not-before
+                                        not-after leaf-name leaf-public-key
+                                        (create-ca-extensions leaf-name serial leaf-public-key))
+            leaf-crl (generate-crl (X500Principal. leaf-name)
+                                   leaf-private-key leaf-public-key)
+            crl-chain (write-to-pem-stream [leaf-crl crl] objs->pem!)
+            ca-crl (pem->ca-crl crl-chain)]
+        (is (certificate-revocation-list? ca-crl))
+        (is (issued-by? ca-crl leaf-name))
+        (let [crl-chain (StringReader. "")]
+          (is (thrown-with-msg?
+               IllegalArgumentException
+               #"The CRL.*least one CRL"
+               (pem->ca-crl crl-chain))))))
 
     (testing "revoking a certificate"
       (let [cert (-> "certs/cert_with_exts.pem" open-ssl-file pem->cert)]

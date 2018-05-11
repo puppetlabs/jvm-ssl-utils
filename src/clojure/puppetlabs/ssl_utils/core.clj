@@ -9,6 +9,7 @@
                                      ExtensionsUtils)
            (java.util Map List Date Set)
            (org.bouncycastle.asn1.x500.style BCStyle)
+           (org.bouncycastle.openssl.jcajce JcaPEMWriter)
            (java.io InputStream File Reader BufferedReader Writer OutputStream BufferedWriter)
            (java.net URI URL Socket))
   (:require [clojure.tools.logging :as log]
@@ -334,6 +335,20 @@
     :value {:is-ca true
             :path-len-constraint max-path-len}}))
 
+(schema/defn create-ca-extensions :- (schema/pred extension-list?)
+  "Create a list of extensions to be added to the CA certificate."
+  [ca-name :- (schema/pred valid-x500-name?)
+   ca-serial :- (schema/pred number?)
+   ca-public-key :- (schema/pred public-key?)]
+  [(authority-key-identifier
+     ca-name ca-serial false)
+   (basic-constraints-for-ca)
+   (key-usage
+     #{:key-cert-sign
+       :crl-sign} true)
+   (subject-key-identifier
+     ca-public-key false)])
+
 (schema/defn ^:always-validate crl-number :- SSLExtension
   "Create a `CRL Number` extension"
   [number :- schema/Int]
@@ -529,6 +544,15 @@
   (with-open [r (reader pem)]
     (SSLUtils/pemToCRLs r)))
 
+(schema/defn ^:always-validate pem->ca-crl :- X509CRL
+  "Given a CRL chain, extract the first CRL"
+  [crl-chain :- Readerable]
+  (let [[crl rest-of-chain] (pem->crls crl-chain)]
+    (if (nil? crl)
+      (throw (IllegalArgumentException.
+               "The CRL reader must contain at least one CRL"))
+      crl)))
+
 (schema/defn ^:always-validate pem->csr :- PKCS10CertificationRequest
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
   decode the contents into a `PKCS10CertificationRequest`.
@@ -567,6 +591,16 @@
    pem :- Writerable]
   (with-open [w (writer pem)]
     (SSLUtils/writeToPEM obj w)))
+
+(schema/defn ^:always-validate objs->pem!
+  "Adds one or more cert related objects, PEM encoded, to the supplied writer"
+  [objs :- [Object] ; yes the PEM writer actually takes java.lang.Object
+   buf :- Writerable]
+  (with-open [w (writer buf)]
+    (let [pem-writer (JcaPEMWriter. w)]
+      (doseq [obj objs]
+        (.writeObject pem-writer obj))
+      (.flush pem-writer))))
 
 (schema/defn ^:always-validate pem->certs :- [X509Certificate]
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
