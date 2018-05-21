@@ -21,13 +21,14 @@ import org.bouncycastle.cert.X509CRLHolder;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509v2CRLBuilder;
 import org.bouncycastle.cert.X509v3CertificateBuilder;
+import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
 import org.bouncycastle.cert.jcajce.JcaX509CRLConverter;
 import org.bouncycastle.cert.jcajce.JcaX509CRLHolder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v2CRLBuilder;
 import org.bouncycastle.crypto.util.PrivateKeyFactory;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.openssl.PEMWriter;
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMException;
@@ -43,7 +44,6 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.PKCS10CertificationRequestBuilder;
 import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
-import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
 import org.joda.time.DateTime;
 
 import javax.net.ssl.CertPathTrustManagerParameters;
@@ -264,7 +264,7 @@ public class SSLUtils {
     public static X509CRL generateCRL(X500Principal issuer,
                                       PrivateKey issuerPrivateKey,
                                       PublicKey issuerPublicKey)
-        throws CRLException, IOException, OperatorCreationException, InvalidKeyException
+        throws CRLException, IOException, OperatorCreationException, InvalidKeyException, NoSuchAlgorithmException
     {
         DateTime now = DateTime.now();
         Date issueDate = now.toDate();
@@ -272,7 +272,7 @@ public class SSLUtils {
         X509v2CRLBuilder builder = new JcaX509v2CRLBuilder(issuer, issueDate);
         builder.setNextUpdate(nextUpdate);
         builder.addExtension(Extension.authorityKeyIdentifier, false,
-                             new AuthorityKeyIdentifierStructure(issuerPublicKey));
+                             new JcaX509ExtensionUtils().createAuthorityKeyIdentifier(issuerPublicKey));
         builder.addExtension(Extension.cRLNumber, false, new CRLNumber(BigInteger.ZERO));
         ContentSigner signer =
             new JcaContentSignerBuilder("SHA256withRSA").build(issuerPrivateKey);
@@ -328,7 +328,8 @@ public class SSLUtils {
                                  PublicKey issuerPublicKey,
                                  BigInteger serial)
         throws CRLException, IOException, CertIOException,
-               OperatorCreationException, InvalidKeyException
+               OperatorCreationException, InvalidKeyException,
+               NoSuchAlgorithmException
     {
         // The CRL is not valid if the time of checking == the time of last_update.
         // So to have it valid right now we need to say that it was updated one second ago.
@@ -350,7 +351,7 @@ public class SSLUtils {
         builder.addExtension(Extension.cRLNumber, false,
                              new CRLNumber(crlNumber.add(BigInteger.ONE)));
         builder.addExtension(Extension.authorityKeyIdentifier, false,
-                             new AuthorityKeyIdentifierStructure(issuerPublicKey));
+                             new JcaX509ExtensionUtils().createAuthorityKeyIdentifier(issuerPublicKey));
 
         ContentSigner signer =
             new JcaContentSignerBuilder("SHA256withRSA").build(issuerPrivateKey);
@@ -467,7 +468,7 @@ public class SSLUtils {
     public static void writeToPEM(Object obj, Writer writer)
         throws IOException
     {
-        PEMWriter pw = new PEMWriter(writer);
+        JcaPEMWriter pw = new JcaPEMWriter(writer);
         pw.writeObject(obj);
         pw.flush();
     }
