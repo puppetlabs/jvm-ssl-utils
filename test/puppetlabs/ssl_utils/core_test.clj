@@ -963,3 +963,21 @@
                                             (cn "subject")
                                             [(subject-dns-alt-names ["moe" "curly" "larry"] false)])]
       (is (= #{"moe" "curly" "larry"} (set (get-subject-dns-alt-names csr)))))))
+
+(deftest subject-ip-alt-names-test
+  (testing "certificate"
+    (let [cert (sign-certificate (cn "ca")
+                                 (get-private-key (generate-key-pair 512))
+                                 1234
+                                 (generate-not-before-date)
+                                 (generate-not-after-date)
+                                 (cn "subject")
+                                 (get-public-key (generate-key-pair 512))
+                                 [(subject-alt-names {:dns-name ["moe"] :ip ["192.168.69.90" "192.168.69.91" "192.168.69.92"]} false)])]
+      (is (= #{"192.168.69.90" "192.168.69.91" "192.168.69.92"} (set (get-subject-ip-alt-names cert))))))
+
+  (testing "CSR"
+    (let [csr (generate-certificate-request (generate-key-pair 512)
+                                            (cn "subject")
+                                            [(subject-alt-names {:dns-name ["moe"] :ip ["192.168.69.90" "192.168.69.91" "192.168.69.92"]} false)])]
+      (is (= #{"192.168.69.90" "192.168.69.91" "192.168.69.92"} (set (get-subject-ip-alt-names csr)))))))
