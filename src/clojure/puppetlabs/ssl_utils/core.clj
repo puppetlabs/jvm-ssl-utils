@@ -255,6 +255,22 @@
   [cert-or-csr :- CertOrCSR]
   (:dns-name (get-extension-value cert-or-csr subject-alt-name-oid)))
 
+(schema/defn ^:always-validate subject-alt-names :- SSLExtension
+  "Create a Subject Alternative Names extensions (OID=2.5.29.17) which contains
+  a list of DNS and/maybe IP names as alternative names. The `critical` argument sets the
+  criticality flag of this extension."
+  [alt-names-hashmap :- {schema/Keyword [schema/Str]}
+   critical :- Object]
+  {:oid      subject-alt-name-oid
+   :critical (boolean critical)
+   :value    alt-names-hashmap})
+
+(schema/defn ^:always-validate get-subject-ip-alt-names :- (schema/maybe [schema/Str])
+ "Given a certificate or CSR, return the list of IP alternative names on the
+  Subject Alternative Names extension, or nil if the extension is not present."
+ [cert-or-csr :- CertOrCSR]
+ (:ip (get-extension-value cert-or-csr subject-alt-name-oid)))
+
 (schema/defn ^:always-validate netscape-comment :- SSLExtension
   "Create a `Netscape Certificate Comment` extension."
   [comment :- schema/Str]
