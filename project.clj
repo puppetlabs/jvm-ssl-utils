@@ -20,7 +20,7 @@
   :pedantic? :abort
 
   :dependencies [[org.clojure/tools.logging]
-                 [org.bouncycastle/bcpkix-jdk15on "1.59"]
+                 [org.bouncycastle/bcpkix-jdk15on "1.60"]
                  [commons-codec]
                  [clj-time]
                  [puppetlabs/i18n]
