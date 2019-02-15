@@ -13,7 +13,8 @@
   (:require [clojure.test :refer :all]
             [clojure.java.io :refer [resource reader]]
             [puppetlabs.ssl-utils.core :refer :all]
-            [puppetlabs.ssl-utils.simple :as simple]))
+            [puppetlabs.ssl-utils.simple :as simple]
+            [schema.core :as schema]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Utilities
@@ -89,6 +90,11 @@
   (-> (DateTime/now)
       (.plus (Period/years 5))
       (.toDate)))
+
+(defn str->bytes
+  "Turn a `String s` into `bytes[]`"
+  [^String s]
+  (bytes (byte-array (map (comp byte int) s))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Tests
@@ -981,3 +987,18 @@
                                             (cn "subject")
                                             [(subject-alt-names {:dns-name ["moe"] :ip ["192.168.69.90" "192.168.69.91" "192.168.69.92"]} false)])]
       (is (= #{"192.168.69.90" "192.168.69.91" "192.168.69.92"} (set (get-subject-ip-alt-names csr)))))))
+
+(deftest schema-test
+  (testing "readerable"
+    (is (schema/validate Readerable (char-array "somestring"))
+        "A char array satisfies Readerable")
+
+    (is (schema/validate Readerable (str->bytes "someotherstring"))
+        "A byte array satisfies Readerable"))
+
+  (testing "writerable"
+    (is (schema/validate Writerable (char-array "somestring"))
+        "A char array satisfies Writerable")
+
+    (is (schema/validate Writerable (str->bytes "someotherstring"))
+        "A byte array satisfies Writerable")))
