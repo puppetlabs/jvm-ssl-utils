@@ -561,12 +561,17 @@
     (SSLUtils/pemToCRLs r)))
 
 (schema/defn ^:always-validate pem->ca-crl :- X509CRL
-  "Given a CRL chain, extract the first CRL"
-  [crl-chain :- Readerable]
-  (let [[crl rest-of-chain] (pem->crls crl-chain)]
+  "Given a CRL chain and CA certificate, extract the CRL issued by the
+  certificate"
+  [crl-chain :- Readerable
+   ca-cert :- X509Certificate]
+  (let [match-ca-cert? (fn [crl] (= (.getIssuerX500Principal crl)
+                                    (.getSubjectX500Principal ca-cert)))
+        crls (pem->crls crl-chain)
+        crl (first (filter match-ca-cert? crls))]
     (if (nil? crl)
       (throw (IllegalArgumentException.
-               "The CRL reader must contain at least one CRL"))
+               "The CRL reader does not contain a CRL matching the given certificate"))
       crl)))
 
 (schema/defn ^:always-validate pem->csr :- PKCS10CertificationRequest
@@ -626,8 +631,8 @@
     (SSLUtils/pemToCerts r)))
 
 (schema/defn ^:always-validate pem->ca-cert :- X509Certificate
-  "Given a CA certificate chain and key pair, extract the first certificate and
-  verify that it matches the key pair."
+  "Given a CA certificate chain and key pair, extract and verify the certificate
+  matching the key pair."
   [cert-chain-pem :- Readerable
    keypair-pem :- Readerable]
   (with-open [cert-chain-pem-reader (reader cert-chain-pem)

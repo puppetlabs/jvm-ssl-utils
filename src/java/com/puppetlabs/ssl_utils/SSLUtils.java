@@ -87,6 +87,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 public class SSLUtils {
@@ -511,14 +512,14 @@ public class SSLUtils {
 
     /**
      * Given a PEM reader for a CA certificate chain and a PEM reader for a public key,
-     * extract the first certificate and verify that it matches the given public key.
+     * verify and return the certificate that matches the given key.
      *
      * @param certChainReader Reader for a PEM-encoded stream of X.509 certificates
      * @param keyPairReader Reader for a PEM-encoded key pair
-     * @return The first decoded certificate in the certificate stream
+     * @return The certificate in the certificate stream matching the given key
      * @throws CertificateException
      * @throws IOException
-     * @throws IllegalArgumentException if the cert chain is empty or the first cert doesn't match the public key in the key pair
+     * @throws IllegalArgumentException if the cert chain is empty or doesn't contain a cert matching the public key in the key pair
      */
     public static X509Certificate pemToCaCert(Reader certChainReader, Reader keyPairReader)
         throws CertificateException, IOException
@@ -527,13 +528,9 @@ public class SSLUtils {
         if (certs.size() < 1)
             throw new IllegalArgumentException("The certificate PEM stream must contain at least 1 certificate");
 
-        X509Certificate caCert = certs.get(0);
         PublicKey caPubkey = pemToKeyPair(keyPairReader).getPublic();
-        if(!certMatchesPubKey(caCert, caPubkey)) {
-            throw new IllegalArgumentException("The first certificate in the certificate chain does not match the expected public key");
-        }
-
-        return caCert;
+        Optional<X509Certificate> caCert = certs.stream().filter((cert) -> certMatchesPubKey(cert, caPubkey)).findFirst();
+        return caCert.orElseThrow(() -> new IllegalArgumentException("The certificate chain does not contain a certificate that matches the expected public key"));
     }
 
     /**
