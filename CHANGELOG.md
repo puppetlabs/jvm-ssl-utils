@@ -1,3 +1,24 @@
+## 2.0.0
+
+  * Allow certificate and CRL chains to be in any order
+  * This changes the API for `pem->ca-crl`
+
+## 1.0.2
+
+  * Update bouncycastle for minor security fixes
+
+## 1.0.1
+
+  * Add methods to create and retrieve IP SANs extensions
+
+## 1.0.0
+
+  * Support loading CRL chains
+
+## 0.9.1
+
+  * Relax schema constraints on generate-ssl-context
+
 ## 0.9.0 (2017-08-10)
 
   * Added lein-parent/clj-parent to set common project dependency versions

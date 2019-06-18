@@ -416,11 +416,16 @@
             keypair-pem (open-ssl-file "ca/ca_key.pem")]
         (is (certificate? (pem->ca-cert bundle-pem keypair-pem)))))
 
+    (testing "with a certificate chain whose second cert matches the public key"
+      (let [bundle-pem (open-ssl-file "certs/multiple_reverse.pem")
+            keypair-pem (open-ssl-file "ca/ca_key.pem")]
+        (is (certificate? (pem->ca-cert bundle-pem keypair-pem)))))
+
     (testing "with a single certificate that doesn't match the public key"
       (let [bundle-pem (open-ssl-file "certs/ca.pem")
             keypair-pem (open-ssl-file "private_keys/localhost.pem")]
         (is (thrown-with-msg? IllegalArgumentException
-                              #"The first certificate in the certificate chain does not match the expected public key"
+                              #"The certificate chain does not contain a certificate that matches the expected public key"
                               (pem->ca-cert bundle-pem keypair-pem))))))
 
 
@@ -485,7 +490,7 @@
         (is (issued-by? parsed-crl issuer-name))
         (is (= crl parsed-crl))))
 
-    (testing "read & write mutliple CRLs from PEM stream"
+    (testing "read & write multiple CRLs from PEM stream"
       (let [parsed-crls (-> (open-ssl-file "ca_crl_multi.pem")
                             pem->crls
                             (write-to-pem-stream objs->pem!)
@@ -513,16 +518,26 @@
                                         not-after leaf-name leaf-public-key
                                         (create-ca-extensions leaf-name serial leaf-public-key))
             leaf-crl (generate-crl (X500Principal. leaf-name)
-                                   leaf-private-key leaf-public-key)
-            crl-chain (write-to-pem-stream [leaf-crl crl] objs->pem!)
-            ca-crl (pem->ca-crl crl-chain)]
-        (is (certificate-revocation-list? ca-crl))
-        (is (issued-by? ca-crl leaf-name))
-        (let [crl-chain (StringReader. "")]
-          (is (thrown-with-msg?
-               IllegalArgumentException
-               #"The CRL.*least one CRL"
-               (pem->ca-crl crl-chain))))))
+                                   leaf-private-key leaf-public-key)]
+
+        (testing "when the ca crl is first"
+          (let [crl-chain (write-to-pem-stream [leaf-crl crl] objs->pem!)
+                ca-crl (pem->ca-crl crl-chain leaf-cert)]
+            (is (certificate-revocation-list? ca-crl))
+            (is (issued-by? ca-crl leaf-name))))
+
+        (testing "when the ca crl isn't first"
+          (let [crl-chain (write-to-pem-stream [crl leaf-crl] objs->pem!)
+                ca-crl (pem->ca-crl crl-chain leaf-cert)]
+            (is (certificate-revocation-list? ca-crl))
+            (is (issued-by? ca-crl leaf-name))))
+
+        (testing "errors when the crl chain is empty"
+          (let [crl-chain (StringReader. "")]
+            (is (thrown-with-msg?
+                 IllegalArgumentException
+                 #"The CRL reader does not contain a CRL matching.*"
+                 (pem->ca-crl crl-chain leaf-cert)))))))
 
     (testing "revoking a certificate"
       (let [cert (-> "certs/cert_with_exts.pem" open-ssl-file pem->cert)]
