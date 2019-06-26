@@ -128,11 +128,11 @@
 
 (def Readerable
   "Schema for anything that can be handed off to clojure's reader function."
-  (schema/cond-pre Reader BufferedReader InputStream File URI URL Socket byte[] char[] String))
+  (schema/cond-pre Reader BufferedReader InputStream File URI URL Socket bytes chars String))
 
 (def Writerable
   "Schema for anything that can be handed off to clojure's writer function."
-  (schema/cond-pre Writer BufferedWriter OutputStream File URI URL Socket byte[] char[] String))
+  (schema/cond-pre Writer BufferedWriter OutputStream File URI URL Socket bytes chars String))
 
 (def SSLContextOptions
   "Schema for the options map that generate-ssl-context requires."
