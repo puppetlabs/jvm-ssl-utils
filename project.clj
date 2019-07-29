@@ -52,7 +52,7 @@
                            :jar-exclusions ^:replace []
                            :source-paths ^:replace ["src/clojure" "src/java"]}}
 
-  :plugins [[lein-parent "0.3.5"]
+  :plugins [[lein-parent "0.3.7"]
             [puppetlabs/i18n "0.8.0"]]
   :lein-release {:scm         :git
                  :deploy-via  :lein-deploy}
