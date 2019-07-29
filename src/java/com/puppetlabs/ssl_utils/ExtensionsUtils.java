@@ -15,6 +15,7 @@ import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.asn1.DERUTF8String;
 import org.bouncycastle.asn1.misc.MiscObjectIdentifiers;
+import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.oiw.OIWObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
@@ -722,7 +723,7 @@ public class ExtensionsUtils {
                 SubjectPublicKeyInfo.getInstance(publicKey.getEncoded());
 
         DigestCalculator digCalc = new JcaDigestCalculatorProviderBuilder().build()
-                .get(new AlgorithmIdentifier(OIWObjectIdentifiers.idSHA1));
+                .get(new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256));
 
         X509ExtensionUtils utils = new X509ExtensionUtils(digCalc);
         return utils.createSubjectKeyIdentifier(pubKeyInfo);
@@ -740,7 +741,7 @@ public class ExtensionsUtils {
 
             DigestCalculator digCalc =
                     new JcaDigestCalculatorProviderBuilder().build().get(
-                            new AlgorithmIdentifier(OIWObjectIdentifiers.idSHA1));
+                            new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256));
 
             X509ExtensionUtils utils = new X509ExtensionUtils(digCalc);
             authorityKeyId = utils.createAuthorityKeyIdentifier(authPubKeyInfo);
