@@ -15,6 +15,7 @@ import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.asn1.DERUTF8String;
 import org.bouncycastle.asn1.misc.MiscObjectIdentifiers;
+import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.oiw.OIWObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
@@ -37,7 +38,7 @@ import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509ExtensionUtils;
 import org.bouncycastle.operator.DigestCalculator;
 import org.bouncycastle.operator.OperatorCreationException;
-import org.bouncycastle.operator.bc.BcDigestCalculatorProvider;
+import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 
 import java.io.EOFException;
@@ -721,8 +722,8 @@ public class ExtensionsUtils {
         SubjectPublicKeyInfo pubKeyInfo =
                 SubjectPublicKeyInfo.getInstance(publicKey.getEncoded());
 
-        DigestCalculator digCalc =
-                new BcDigestCalculatorProvider().get(new AlgorithmIdentifier(OIWObjectIdentifiers.idSHA1));
+        DigestCalculator digCalc = new JcaDigestCalculatorProviderBuilder().build()
+                .get(new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256));
 
         X509ExtensionUtils utils = new X509ExtensionUtils(digCalc);
         return utils.createSubjectKeyIdentifier(pubKeyInfo);
@@ -739,8 +740,8 @@ public class ExtensionsUtils {
                             pubKey.getEncoded());
 
             DigestCalculator digCalc =
-                    new BcDigestCalculatorProvider().get(
-                            new AlgorithmIdentifier(OIWObjectIdentifiers.idSHA1));
+                    new JcaDigestCalculatorProviderBuilder().build().get(
+                            new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256));
 
             X509ExtensionUtils utils = new X509ExtensionUtils(digCalc);
             authorityKeyId = utils.createAuthorityKeyIdentifier(authPubKeyInfo);

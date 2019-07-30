@@ -1,8 +1,20 @@
 language: clojure
 lein: 2.9.1
-jdk:
-  - openjdk8
-  - openjdk11
+jobs:
+  include:
+    - stage: jdk8 without FIPS
+      script: lein with-profile dev test
+      jdk: openjdk8
+    - stage: jdk8 with FIPS
+      script: lein with-profile fips test
+      jdk: openjdk8
+
+    - stage: jdk11 without FIPS
+      script: lein with-profile dev test
+      jdk: openjdk11
+    - stage: jdk11 with FIPS
+      script: lein with-profile fips test
+      jdk: openjdk11
+sudo: false
 notifications:
   email: false
-

@@ -26,18 +26,12 @@ import org.bouncycastle.cert.jcajce.JcaX509CRLConverter;
 import org.bouncycastle.cert.jcajce.JcaX509CRLHolder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v2CRLBuilder;
-import org.bouncycastle.crypto.util.PrivateKeyFactory;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMException;
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
-import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.DefaultDigestAlgorithmIdentifierFinder;
-import org.bouncycastle.operator.DefaultSignatureAlgorithmIdentifierFinder;
-import org.bouncycastle.operator.OperatorCreationException;
-import org.bouncycastle.operator.bc.BcRSAContentSignerBuilder;
+import org.bouncycastle.operator.*;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.operator.jcajce.JcaContentVerifierProviderBuilder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
@@ -55,22 +49,11 @@ import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.KeyManagementException;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.SignatureException;
-import java.security.UnrecoverableKeyException;
+import java.security.*;
 import java.security.cert.CRLException;
 import java.security.cert.CertStore;
 import java.security.cert.CertificateException;
@@ -91,11 +74,23 @@ import java.util.Optional;
 import java.util.UUID;
 
 public class SSLUtils {
-
     /**
      * The default key length to use when generating a keypair.
      */
     public static final int DEFAULT_KEY_LENGTH = 4096;
+
+    public static Class getProviderClass() throws ClassNotFoundException {
+        Class clazz;
+        try {
+            clazz = Class.forName("org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider");
+        } catch(ClassNotFoundException cnf) {
+            // if FIPS isn't present, attempt to use the non-FIPS provider. If this fails,
+            // the exception is allow to propagate
+            clazz = Class.forName("org.bouncycastle.jce.provider.BouncyCastleProvider");
+        }
+
+        return clazz;
+    }
 
     /**
      * Create new public & private keys with length 4096.
@@ -173,7 +168,7 @@ public class SSLUtils {
         }
 
         return requestBuilder.build(
-                new JcaContentSignerBuilder("SHA1withRSA").
+                new JcaContentSignerBuilder("SHA256withRSA").
                         build(keyPair.getPrivate()));
     }
 
@@ -234,10 +229,9 @@ public class SSLUtils {
         AlgorithmIdentifier digAlgId =
                 new DefaultDigestAlgorithmIdentifierFinder().find(sigAlgId);
 
-        ContentSigner signer =
-                new BcRSAContentSignerBuilder(sigAlgId, digAlgId).build(
-                        PrivateKeyFactory.createKey(issuerPrivateKey.getEncoded()));
+        JcaContentSignerBuilder builder = new JcaContentSignerBuilder("SHA256withRSA");
 
+        ContentSigner signer = builder.build(issuerPrivateKey);
 
         JcaX509CertificateConverter converter = new JcaX509CertificateConverter();
 
@@ -1190,9 +1184,32 @@ public class SSLUtils {
         // Implementation references:
         //  http://www.bouncycastle.org/wiki/display/JA1/BC+Version+2+APIs#BCVersion2APIs-VerifyingaSignature
         //  http://stackoverflow.com/questions/3711754/why-java-security-nosuchproviderexception-no-such-provider-bc
-        JcaContentVerifierProviderBuilder builder =
-            new JcaContentVerifierProviderBuilder().setProvider(new BouncyCastleProvider());
-        return csr.isSignatureValid(builder.build(csr.getSubjectPublicKeyInfo()));
+        JcaContentVerifierProviderBuilder builder;
+        try {
+            Class<?> providerClass = getProviderClass();
+            Constructor<?> ctor = providerClass.getConstructor();
+            builder = new JcaContentVerifierProviderBuilder().setProvider((Provider)ctor.newInstance());
+        } catch(ClassNotFoundException | NoSuchMethodException | InstantiationException |
+                IllegalAccessException | InvocationTargetException ex) {
+            throw new OperatorCreationException("unable to find suitable provider!", ex);
+        }
+        try {
+            return csr.isSignatureValid(builder.build(csr.getSubjectPublicKeyInfo()));
+        } catch(RuntimeOperatorException roe) {
+            // in bc-fips, a bad signature generates an exception that isn't generated in the
+            // non-FIPS version.
+            // specifically:
+            // org.bouncycastle.operator.RuntimeOperatorException: exception obtaining signature:
+            // org.bouncycastle.crypto.InvalidSignatureException: Unable to process signature: block incorrect
+            // Caused by: java.security.SignatureException: org.bouncycastle.crypto.InvalidSignatureException: Unable to
+            // process signature: block incorrect
+            Throwable cause = roe.getCause();
+            if(cause != null && cause.getClass().isAssignableFrom(SignatureException.class)) {
+                return false;
+            } else {
+                throw roe;
+            }
+        }
     }
 
     /**
