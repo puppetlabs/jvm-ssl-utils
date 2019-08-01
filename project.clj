@@ -10,7 +10,7 @@
 
   :description "SSL certificate management on the JVM."
 
-  :min-lein-version "2.7.1"
+  :min-lein-version "2.9.1"
 
   :parent-project {:coords [puppetlabs/clj-parent "3.0.0"]
                    :inherit [:managed-dependencies]}
@@ -19,7 +19,8 @@
   ;; dependencies. Also supports :warn to simply emit warnings.
   :pedantic? :abort
 
-  :dependencies [[org.clojure/tools.logging]
+  :dependencies [[org.clojure/clojure]
+                 [org.clojure/tools.logging]
                  [commons-codec]
                  [clj-time]
                  [puppetlabs/i18n]
@@ -34,8 +35,7 @@
   ;; depend on this source jar using a :classifier in their :dependencies.
   :classifiers [["sources" :sources-jar]]
 
-  :profiles {:dev {:dependencies [[org.clojure/clojure]
-                                  [org.bouncycastle/bcpkix-jdk15on]]
+  :profiles {:dev {:dependencies [[org.bouncycastle/bcpkix-jdk15on]]
                    :resource-paths ["test-resources"]}
 
              ;; per https://github.com/technomancy/leiningen/issues/1907
@@ -43,8 +43,7 @@
              :provided {:dependencies [[org.bouncycastle/bcpkix-jdk15on]]
                         :resource-paths ["test-resources"]}
 
-             :fips {:dependencies [[org.clojure/clojure]
-                                   [org.bouncycastle/bcpkix-fips]
+             :fips {:dependencies [[org.bouncycastle/bcpkix-fips]
                                    [org.bouncycastle/bc-fips]]
                    :resource-paths ["test-resources"]}
 
