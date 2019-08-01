@@ -1,3 +1,10 @@
+## 3.0.0
+
+  * This project no longer pulls in bouncycastle as a runtime dependency,
+    consumers will need to specify it themselves.
+  * This project is now compatible with both the opensource and FIPS
+    certified vesions of bouncycastle.
+
 ## 2.0.0
 
   * Allow certificate and CRL chains to be in any order
