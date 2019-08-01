@@ -10,7 +10,7 @@
 
   :description "SSL certificate management on the JVM."
 
-  :min-lein-version "2.7.1"
+  :min-lein-version "2.9.1"
 
   :parent-project {:coords [puppetlabs/clj-parent "3.0.0"]
                    :inherit [:managed-dependencies]}
