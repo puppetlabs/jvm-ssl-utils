@@ -168,7 +168,7 @@ public class SSLUtils {
         }
 
         return requestBuilder.build(
-                new JcaContentSignerBuilder("SHA256withRSA").
+                new JcaContentSignerBuilder("SHA1withRSA").
                         build(keyPair.getPrivate()));
     }
 
