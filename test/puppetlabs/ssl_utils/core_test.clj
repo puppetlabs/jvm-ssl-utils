@@ -19,9 +19,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Utilities
 
-(defn -pubkey-sha
-  "Gets the SHA-256 digest of the raw bytes of the provided publickey."
-  [pub-key algo]
+(defn pubkey-sha1
+  "Gets the SHA-1 digest of the raw bytes of the provided publickey."
+  [pub-key]
   {:pre [(public-key? pub-key)]
    :post [(vector? %)
           (every? integer? %)]}
@@ -30,18 +30,7 @@
                     SubjectPublicKeyInfo/getInstance
                     .getPublicKeyData
                     .getBytes)]
-    (vec (.digest (MessageDigest/getInstance algo) bytes))))
-
-
-(defn pubkey-sha1
-  "Gets the SHA-1 digest of the raw bytes of the provided publickey."
-  [pub-key]
-  (-pubkey-sha pub-key "SHA-1"))
-
-(defn pubkey-sha256
-  "Gets the SHA-256 digest of the raw bytes of the provided publickey."
-  [pub-key]
-  (-pubkey-sha pub-key "SHA-256"))
+    (vec (.digest (MessageDigest/getInstance "SHA1") bytes))))
 
 (defn open-ssl-file
   [filepath]
@@ -308,12 +297,12 @@
                             :critical false
                             :value    {:dns-name ["onefish" "twofish"]}}
                            {:oid      "2.5.29.14"
-                            :value    (pubkey-sha256 subj-pub)
+                            :value    (pubkey-sha1 subj-pub)
                             :critical false}
                            {:oid      "2.5.29.35"
                             :critical false
                             :value    {:issuer         nil
-                                       :key-identifier (pubkey-sha256 issuer-pub)
+                                       :key-identifier (pubkey-sha1 issuer-pub)
                                        :serial-number  nil}}
                            {:oid      "2.5.29.20"
                             :critical false
@@ -321,7 +310,7 @@
             cert-w-exts (sign-certificate issuer issuer-priv serial not-before
                                           not-after subject subj-pub sign-exts)
             cert-exts   (get-extensions cert-w-exts)]
-        (is (= (set expected-exts) (set cert-exts)))))
+        (is (= (set cert-exts) (set expected-exts)))))
 
     (testing (str "signing for authority key identifier with issuer and"
                   "serial number")
@@ -337,7 +326,7 @@
                                            sign-exts)
             actual-ext   (get-extension cert-w-exts
                                         "2.5.29.35")]
-        (is (= expected-ext actual-ext))))
+        (is (= actual-ext expected-ext))))
 
     (testing (str "signing for authority key identifier with public key,"
                   "issuer, and serial number")
@@ -346,14 +335,14 @@
             expected-ext {:oid      "2.5.29.35"
                           :critical false
                           :value    {:issuer         {:directory-name [issuer]}
-                                     :key-identifier (pubkey-sha256 issuer-pub)
+                                     :key-identifier (pubkey-sha1 issuer-pub)
                                      :serial-number  serial}}
             cert-w-exts  (sign-certificate issuer issuer-priv serial not-before
                                            not-after subject subj-pub
                                            sign-exts)
             actual-ext   (get-extension cert-w-exts
                                         "2.5.29.35")]
-        (is (= expected-ext actual-ext))))
+        (is (= actual-ext expected-ext))))
 
     (testing "signing for non-critical, non-CA basic constraints"
       (let [sign-exts    [(basic-constraints-for-non-ca false)]
@@ -366,7 +355,7 @@
                                            sign-exts)
             actual-ext   (get-extension cert-w-exts
                                         "2.5.29.19")]
-        (is (= expected-ext actual-ext))))
+        (is (= actual-ext expected-ext))))
 
     (testing "signing for CA basic constraints with no path constraint"
       (let [sign-exts    [(basic-constraints-for-ca)]
@@ -379,7 +368,7 @@
                                            sign-exts)
             actual-ext   (get-extension cert-w-exts
                                         "2.5.29.19")]
-        (is (= expected-ext actual-ext))))
+        (is (= actual-ext expected-ext))))
 
     (testing "signing for CA basic constraints with a path constraint"
       (let [max-path-len (Integer. 9)
@@ -393,7 +382,7 @@
                                            sign-exts)
             actual-ext   (get-extension cert-w-exts
                                         "2.5.29.19")]
-        (is (= expected-ext actual-ext))))))
+        (is (= actual-ext expected-ext))))))
 
 (deftest certificate-test
   (testing "read certificates from PEM stream"
@@ -489,9 +478,6 @@
         (is (= #{{:oid      "2.5.29.35"
                   :critical false
                   :value    {:issuer         nil
-                             ;; using SHA-1 here, because this key is loaded
-                             ;; from disk, previously generated, as part of
-                             ;; a test fixture
                              :key-identifier (pubkey-sha1 public-key)
                              :serial-number  nil}}
                  {:oid      "2.5.29.20"
