@@ -4,8 +4,11 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.codec.binary.Hex;
 
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.DERNull;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.asn1.pkcs.RSAPublicKey;
+import org.bouncycastle.asn1.pkcs.RSAPrivateKey;
 import org.bouncycastle.asn1.x500.AttributeTypeAndValue;
 import org.bouncycastle.asn1.x500.RDN;
 import org.bouncycastle.asn1.x500.X500Name;
@@ -509,20 +512,20 @@ public class SSLUtils {
      * verify and return the certificate that matches the given key.
      *
      * @param certChainReader Reader for a PEM-encoded stream of X.509 certificates
-     * @param keyPairReader Reader for a PEM-encoded key pair
+     * @param keyPairReader Reader for a PEM-encoded blob from which a PublicKey is extracted via {@link #pemToPublicKey}
      * @return The certificate in the certificate stream matching the given key
      * @throws CertificateException
      * @throws IOException
      * @throws IllegalArgumentException if the cert chain is empty or doesn't contain a cert matching the public key in the key pair
      */
-    public static X509Certificate pemToCaCert(Reader certChainReader, Reader keyPairReader)
+    public static X509Certificate pemToCaCert(Reader certChainReader, Reader keyReader)
         throws CertificateException, IOException
     {
         List<X509Certificate> certs = pemToCerts(certChainReader);
         if (certs.size() < 1)
             throw new IllegalArgumentException("The certificate PEM stream must contain at least 1 certificate");
 
-        PublicKey caPubkey = pemToKeyPair(keyPairReader).getPublic();
+        PublicKey caPubkey = pemToPublicKey(keyReader);
         Optional<X509Certificate> caCert = certs.stream().filter((cert) -> certMatchesPubKey(cert, caPubkey)).findFirst();
         return caCert.orElseThrow(() -> new IllegalArgumentException("The certificate chain does not contain a certificate that matches the expected public key"));
     }
@@ -621,9 +624,28 @@ public class SSLUtils {
     {
         List<Object> objects = pemToObjects(reader);
         if (objects.size() != 1)
-            throw new IllegalArgumentException("The PEM stream must contain exactly one public key");
+            throw new IllegalArgumentException("The PEM stream must contain exactly one object");
+
         JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
-        return converter.getPublicKey((SubjectPublicKeyInfo) objects.get(0));
+        Object object = objects.get(0);
+        if (object instanceof SubjectPublicKeyInfo)
+          return converter.getPublicKey((SubjectPublicKeyInfo) object);
+
+        else if (object instanceof PEMKeyPair)
+          return converter.getKeyPair((PEMKeyPair) object).getPublic();
+
+        else if (object instanceof PrivateKeyInfo) {
+          // See https://github.com/apache/nifi/blob/rel/nifi-1.9.2/nifi-toolkit/nifi-toolkit-tls/src/main/java/org/apache/nifi/toolkit/tls/util/TlsHelper.java#L243-L261
+          PrivateKeyInfo keyHolder = (PrivateKeyInfo) object;
+          RSAPrivateKey keyStruct = RSAPrivateKey.getInstance(keyHolder.parsePrivateKey());
+          RSAPublicKey pubKeySpec = new RSAPublicKey(keyStruct.getModulus(), keyStruct.getPublicExponent());
+          AlgorithmIdentifier algId = new AlgorithmIdentifier(PKCSObjectIdentifiers.rsaEncryption, DERNull.INSTANCE);
+          SubjectPublicKeyInfo pubKeyInfo = new SubjectPublicKeyInfo(algId, pubKeySpec);
+          return converter.getPublicKey(pubKeyInfo);
+
+        } else {
+          throw new IllegalArgumentException("Could not recognize object in PEM stream");
+        }
     }
 
     /**

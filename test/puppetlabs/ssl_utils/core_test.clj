@@ -417,6 +417,11 @@
             keypair-pem (open-ssl-file "ca/ca_key.pem")]
         (is (certificate? (pem->ca-cert bundle-pem keypair-pem)))))
 
+    (testing "can extract the public key for validation if only given a private key"
+      (let [bundle-pem (open-ssl-file "certs/ca.pem")
+            key-pem (open-ssl-file "ca/ca_key_pkcs8.pem")]
+        (is (certificate? (pem->ca-cert bundle-pem key-pem)))))
+
     (testing "with a certificate chain whose first cert matches the public key"
       (let [bundle-pem (open-ssl-file "certs/multiple.pem")
             keypair-pem (open-ssl-file "ca/ca_key.pem")]

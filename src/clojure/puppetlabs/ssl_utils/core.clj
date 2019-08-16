@@ -634,10 +634,10 @@
   "Given a CA certificate chain and key pair, extract and verify the certificate
   matching the key pair."
   [cert-chain-pem :- Readerable
-   keypair-pem :- Readerable]
+   key-or-keypair-pem :- Readerable]
   (with-open [cert-chain-pem-reader (reader cert-chain-pem)
-              keypair-pem-reader (reader keypair-pem)]
-    (SSLUtils/pemToCaCert cert-chain-pem-reader keypair-pem-reader)))
+              key-pem-reader (reader key-or-keypair-pem)]
+    (SSLUtils/pemToCaCert cert-chain-pem-reader key-pem-reader)))
 
 (schema/defn ^:always-validate pem->cert :- X509Certificate
   "Given the path to a PEM file (or some other object supported by clojure's `reader`),
