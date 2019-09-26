@@ -660,7 +660,7 @@
       (testing (str "should be able to load cert chain from reader in "
                     "keystore and retrieve it back")
         (let [private-key-file (open-ssl-file "private_keys/localhost.pem")
-              cert-file        (open-ssl-file "certs/multiple.pem")
+              cert-file        (open-ssl-file "certs/localhost.pem")
               keystore-val     (keystore)
               _                (assoc-private-key-from-reader! keystore-val
                                                                keystore-alias
@@ -712,7 +712,7 @@
       (is (instance? SSLContext result)))))
 
 (deftest generate-ssl-context-test
-  (let [ssl-context (SSLContext/getDefault)
+  (let [ssl-context (SSLContext/getInstance "TLSv1.2")
         ssl-cert    (open-ssl-file "certs/localhost.pem")
         ssl-key     (open-ssl-file "private_keys/localhost.pem")
         ssl-ca-cert (open-ssl-file "certs/ca.pem")

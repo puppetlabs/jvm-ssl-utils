@@ -12,7 +12,7 @@
 
   :min-lein-version "2.9.1"
 
-  :parent-project {:coords [puppetlabs/clj-parent "3.0.0"]
+  :parent-project {:coords [puppetlabs/clj-parent "4.2.2"]
                    :inherit [:managed-dependencies]}
 
   ;; Abort when version ranges or version conflicts are detected in
@@ -43,9 +43,24 @@
              :provided {:dependencies [[org.bouncycastle/bcpkix-jdk15on]]
                         :resource-paths ["test-resources"]}
 
-             :fips {:dependencies [[org.bouncycastle/bcpkix-fips]
+             :fips {:dependencies [[org.bouncycastle/bctls-fips]
+                                   [org.bouncycastle/bcpkix-fips]
                                    [org.bouncycastle/bc-fips]]
-                   :resource-paths ["test-resources"]}
+                    ;; this only ensures that we run with the proper profiles
+                    ;; during testing. This JVM opt will be set in the puppet module
+                    ;; that sets up the JVM classpaths during installation.
+                    :jvm-opts ~(let [version (System/getProperty "java.version")
+                                     [major minor _] (clojure.string/split version #"\.")
+                                     unsupported-ex (ex-info "Unsupported major Java version. Expects 8 or 11."
+                                                      {:major major
+                                                       :minor minor})]
+                                 (condp = (java.lang.Integer/parseInt major)
+                                   1 (if (= 8 (java.lang.Integer/parseInt minor))
+                                       ["-Djava.security.properties==jdk8-fips-security"]
+                                       (throw unsupported-ex))
+                                   11 ["-Djava.security.properties==jdk11-fips-security"]
+                                   (throw unsupported-ex)))
+                    :resource-paths ["test-resources"]}
 
              :sources-jar {:java-source-paths ^:replace []
                            :jar-exclusions ^:replace []
@@ -60,3 +75,4 @@
 
   :repositories [["puppet-releases" "https://artifactory.delivery.puppetlabs.net/artifactory/list/clojure-releases__local/"]
                  ["puppet-snapshots" "https://artifactory.delivery.puppetlabs.net/artifactory/list/clojure-snapshots__local/"]])
+

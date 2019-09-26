@@ -82,14 +82,30 @@ public class SSLUtils {
      */
     public static final int DEFAULT_KEY_LENGTH = 4096;
 
+    public static final String FIPS_PROVIDER_CLASS = "org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider";
+    public static final String NON_FIPS_PROVIDER_CLASS = "org.bouncycastle.jce.provider.BouncyCastleProvider";
+    public static final String BOUNCYCASTLE_FIPS_KEYSTORE = "BCFKS";
+    public static final String JAVA_KEYSTORE = "JKS";
+    public static final String PKIX_KEYMANAGER_ALGO = "PKIX";
+    public static final String BOUNCYCASTLE_JSSE_PROVIDER = "BCJSSE";
+    public static final String TLS_PROTOCOL = "TLS";
+
+    public static boolean isFIPS() {
+        try {
+            return getProviderClass().getCanonicalName().equals(FIPS_PROVIDER_CLASS);
+        } catch(ClassNotFoundException cnfe) {
+            return false;
+        }
+    }
+
     public static Class getProviderClass() throws ClassNotFoundException {
         Class clazz;
         try {
-            clazz = Class.forName("org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider");
+            clazz = Class.forName(FIPS_PROVIDER_CLASS);
         } catch(ClassNotFoundException cnf) {
             // if FIPS isn't present, attempt to use the non-FIPS provider. If this fails,
             // the exception is allow to propagate
-            clazz = Class.forName("org.bouncycastle.jce.provider.BouncyCastleProvider");
+            clazz = Class.forName(NON_FIPS_PROVIDER_CLASS);
         }
 
         return clazz;
@@ -426,8 +442,14 @@ public class SSLUtils {
     public static KeyStore createKeyStore()
         throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException
     {
-        KeyStore ks = KeyStore.getInstance("JKS");
-        ks.load(null);
+        final String keystoreType;
+        if (isFIPS()) {
+            keystoreType = BOUNCYCASTLE_FIPS_KEYSTORE;
+        } else {
+            keystoreType = JAVA_KEYSTORE;
+        }
+        KeyStore ks = KeyStore.getInstance(keystoreType);
+        ks.load(null, null);
         return ks;
     }
 
@@ -502,8 +524,8 @@ public class SSLUtils {
     public static boolean certMatchesPubKey(X509Certificate cert, PublicKey pubKey) {
         PublicKey extractedPubKey = cert.getPublicKey();
 
-        return extractedPubKey.getFormat() == pubKey.getFormat() &&
-            extractedPubKey.getAlgorithm() == pubKey.getAlgorithm() &&
+        return extractedPubKey.getFormat().equals(pubKey.getFormat()) &&
+            extractedPubKey.getAlgorithm().equals(pubKey.getAlgorithm()) &&
             Arrays.equals(extractedPubKey.getEncoded(), pubKey.getEncoded());
     }
 
@@ -512,7 +534,7 @@ public class SSLUtils {
      * verify and return the certificate that matches the given key.
      *
      * @param certChainReader Reader for a PEM-encoded stream of X.509 certificates
-     * @param keyPairReader Reader for a PEM-encoded blob from which a PublicKey is extracted via {@link #pemToPublicKey}
+     * @param keyReader Reader for a PEM-encoded blob from which a PublicKey is extracted via {@link #pemToPublicKey}
      * @return The certificate in the certificate stream matching the given key
      * @throws CertificateException
      * @throws IOException
@@ -792,14 +814,12 @@ public class SSLUtils {
             throws KeyStoreException
     {
         if (certs == null || certs.size() == 0)
-            throw new IllegalArgumentException(
-                    "associatePrivateKey requires at least one cert");
+            throw new IllegalArgumentException("associatePrivateKey requires at least one cert");
 
         X509Certificate[] certsArray = new X509Certificate[certs.size()];
         certs.toArray(certsArray);
 
-        keystore.setKeyEntry(alias, privateKey, password.toCharArray(),
-                certsArray);
+        keystore.setKeyEntry(alias, privateKey, password.toCharArray(), certsArray);
         return keystore;
     }
 
@@ -885,17 +905,21 @@ public class SSLUtils {
      * @throws UnrecoverableKeyException
      */
     public static KeyManagerFactory getKeyManagerFactory(KeyStore keystore, String password)
-        throws NoSuchAlgorithmException, KeyStoreException, UnrecoverableKeyException
+        throws NoSuchAlgorithmException, KeyStoreException, UnrecoverableKeyException, NoSuchProviderException
     {
-        KeyManagerFactory factory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        final KeyManagerFactory factory;
+        if (isFIPS()) {
+            factory = KeyManagerFactory.getInstance(PKIX_KEYMANAGER_ALGO, BOUNCYCASTLE_JSSE_PROVIDER);
+        } else {
+            factory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        }
         factory.init(keystore, password.toCharArray());
         return factory;
     }
 
     private static KeyManagerFactory getKeyManagerFactory(
             Map<String, Object> stores)
-        throws KeyStoreException, NoSuchAlgorithmException,
-            UnrecoverableKeyException
+        throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException, NoSuchProviderException
     {
         KeyStore keystore = (KeyStore) stores.get("keystore");
         String password = (String) stores.get("keystore-pw");
@@ -912,10 +936,14 @@ public class SSLUtils {
      * @throws KeyStoreException
      */
     public static TrustManagerFactory getTrustManagerFactory(KeyStore truststore)
-        throws NoSuchAlgorithmException, KeyStoreException
+        throws NoSuchAlgorithmException, KeyStoreException, NoSuchProviderException
     {
-        TrustManagerFactory factory = TrustManagerFactory.getInstance(
-                TrustManagerFactory.getDefaultAlgorithm());
+        final TrustManagerFactory factory;
+        if (isFIPS()) {
+            factory = TrustManagerFactory.getInstance(PKIX_KEYMANAGER_ALGO, BOUNCYCASTLE_JSSE_PROVIDER);
+        } else {
+            factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        }
         factory.init(truststore);
         return factory;
     }
@@ -923,10 +951,14 @@ public class SSLUtils {
     private static TrustManagerFactory getTrustManagerFactory(
             KeyStore trustStore, Reader crls)
         throws NoSuchAlgorithmException, KeyStoreException,
-            IOException, CRLException, InvalidAlgorithmParameterException
+            IOException, CRLException, InvalidAlgorithmParameterException, NoSuchProviderException
     {
-        TrustManagerFactory factory = TrustManagerFactory.getInstance(
-                TrustManagerFactory.getDefaultAlgorithm());
+        final TrustManagerFactory factory;
+        if (isFIPS()) {
+            factory = TrustManagerFactory.getInstance(PKIX_KEYMANAGER_ALGO, BOUNCYCASTLE_JSSE_PROVIDER);
+        } else {
+            factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        }
 
         if (crls != null) {
             PKIXBuilderParameters pbParams = new PKIXBuilderParameters(
@@ -947,9 +979,14 @@ public class SSLUtils {
     private static SSLContext managerFactoriesToSSLContext(
             KeyManagerFactory kmf,
             TrustManagerFactory tmf)
-            throws KeyManagementException, NoSuchAlgorithmException
+            throws KeyManagementException, NoSuchAlgorithmException, NoSuchProviderException
     {
-        SSLContext context = SSLContext.getInstance("SSL");
+        final SSLContext context;
+        if (isFIPS()) {
+            context = SSLContext.getInstance(TLS_PROTOCOL, BOUNCYCASTLE_JSSE_PROVIDER);
+        } else {
+            context = SSLContext.getInstance(TLS_PROTOCOL);
+        }
         context.init(kmf != null ? kmf.getKeyManagers() : null,
                 tmf.getTrustManagers(), null);
         return context;
@@ -977,7 +1014,7 @@ public class SSLUtils {
                                               Reader caCert)
         throws KeyStoreException, CertificateException, IOException,
             NoSuchAlgorithmException, KeyManagementException,
-            UnrecoverableKeyException
+            UnrecoverableKeyException, NoSuchProviderException
     {
         Map<String, Object> stores = pemsToKeyAndTrustStores(cert, privateKey, caCert);
         KeyStore trustStore = (KeyStore) stores.get("truststore");
@@ -1014,7 +1051,7 @@ public class SSLUtils {
         throws KeyStoreException, CertificateException, IOException,
             NoSuchAlgorithmException, KeyManagementException,
             UnrecoverableKeyException, CRLException,
-            InvalidAlgorithmParameterException
+            InvalidAlgorithmParameterException, NoSuchProviderException
     {
         Map<String, Object> stores = pemsToKeyAndTrustStores(cert, privateKey, caCert);
         KeyStore trustStore = (KeyStore) stores.get("truststore");
@@ -1048,7 +1085,7 @@ public class SSLUtils {
      */
     public static SSLContext caCertPemToSSLContext(Reader caCert)
         throws CertificateException, NoSuchAlgorithmException, KeyStoreException,
-                IOException, KeyManagementException
+                IOException, KeyManagementException, NoSuchProviderException
     {
         KeyStore trustStore = caCertPemToTrustStore(caCert);
         TrustManagerFactory tmf = getTrustManagerFactory(trustStore);
@@ -1078,7 +1115,7 @@ public class SSLUtils {
                                                           Reader crls)
         throws CertificateException, NoSuchAlgorithmException, KeyStoreException,
             IOException, KeyManagementException, CRLException,
-            InvalidAlgorithmParameterException
+            InvalidAlgorithmParameterException, NoSuchProviderException
     {
         KeyStore trustStore = caCertPemToTrustStore(caCert);
         TrustManagerFactory tmf = getTrustManagerFactory(trustStore, crls);
