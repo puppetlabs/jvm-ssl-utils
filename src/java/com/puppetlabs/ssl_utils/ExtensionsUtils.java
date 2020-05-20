@@ -355,12 +355,7 @@ public class ExtensionsUtils {
             ASN1Set extsAsn1 = attr.getAttrValues();
             if (extsAsn1 != null) {
                 ASN1Encodable extObj = extsAsn1.getObjectAt(0);
-
-                if (extObj instanceof Extensions) {
-                    return (Extensions)extObj;
-                } else if (extObj instanceof DERSequence) {
-                    return Extensions.getInstance(extObj);
-                }
+                return Extensions.getInstance(extObj);
             }
         }
 
