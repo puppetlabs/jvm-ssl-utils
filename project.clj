@@ -3,7 +3,7 @@
   { :url url
     :username :env/clojars_jenkins_username
     :password :env/clojars_jenkins_password
-    :sign-releases false })
+    :sign-releases false})
 
 (defproject puppetlabs/ssl-utils "3.0.5-SNAPSHOT"
   :url "http://www.github.com/puppetlabs/jvm-ssl-utils"
