@@ -542,7 +542,7 @@ public class ExtensionsUtils {
         } else if (oid.equals(MiscObjectIdentifiers.netscapeCertComment)) {
             try {
                 return ASN1Primitive.fromByteArray(data);
-            } catch (EOFException e) {
+            } catch (IOException e) {
                 // Sometimes the comment field is not properly wrapped in an IA5String
                 return new DERIA5String(new String(data, Charset.forName("US-ASCII")));
             }
