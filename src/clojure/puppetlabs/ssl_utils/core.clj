@@ -532,6 +532,25 @@
   (SSLUtils/revoke crl issuer-private-key
                                issuer-public-key cert-serial))
 
+(schema/defn ^:always-validate revoke-multiple :- X509CRL
+  "Given a certificate revocation list and a list of certificate
+   serial numbers, revoke the certificates by adding their serial
+   numbers to the list and returning the updated CRL. The issuer
+   keys should be the same ones that were used when generating
+   the CRL.
+
+   The CRLNumber extension on the CRL will be incremented by 1,
+   or the extension will be added if it doesn't already exist.
+
+   The AuthorityKeyIdentifier extension will be added to the CRL
+   if it doesn't already exist."
+  [crl :- X509CRL
+   issuer-private-key :- PrivateKey
+   issuer-public-key :- PublicKey
+   cert-serials :- [schema/Int]]
+  (SSLUtils/revokeMultiple crl issuer-private-key
+                   issuer-public-key cert-serials))
+
 (schema/defn ^:always-validate crl->pem!
   "Encodes a CRL to PEM format, and writes it to a file (or other stream).
    Arguments:

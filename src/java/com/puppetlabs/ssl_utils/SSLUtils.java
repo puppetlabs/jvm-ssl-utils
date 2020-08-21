@@ -298,6 +298,39 @@ public class SSLUtils {
         return crl.isRevoked(certificate);
     }
 
+    private static X509v2CRLBuilder crlBuilder(X509CRL crl)
+            throws CRLException {
+        // The CRL is not valid if the time of checking == the time of last_update.
+        // So to have it valid right now we need to say that it was updated one second ago.
+        DateTime now = DateTime.now();
+        Date thisUpdate = now.minusSeconds(1).toDate();
+        Date nextUpdate = now.plusYears(5).toDate();
+        X509v2CRLBuilder builder =
+                new JcaX509v2CRLBuilder(crl.getIssuerX500Principal(), thisUpdate);
+        builder.setNextUpdate(nextUpdate);
+        // Copy over existing CRLEntrys
+        builder.addCRL(new JcaX509CRLHolder(crl));
+        return builder;
+    }
+
+    private static X509CRL buildCRL(X509CRL crl,
+                                    PrivateKey issuerPrivateKey,
+                                    PublicKey issuerPublicKey,
+                                    X509v2CRLBuilder builder)
+            throws IOException, CRLException, NoSuchAlgorithmException, OperatorCreationException {
+        BigInteger crlNumber = (BigInteger)
+                ExtensionsUtils.getExtensionValue(crl, ExtensionsUtils.CRL_NUMBER_OID);
+        crlNumber = (crlNumber == null) ? BigInteger.ZERO : crlNumber;
+        builder.addExtension(Extension.cRLNumber, false,
+                new CRLNumber(crlNumber.add(BigInteger.ONE)));
+        builder.addExtension(Extension.authorityKeyIdentifier, false,
+                new JcaX509ExtensionUtils().createAuthorityKeyIdentifier(issuerPublicKey));
+
+        ContentSigner signer =
+                new JcaContentSignerBuilder("SHA256withRSA").build(issuerPrivateKey);
+        return new JcaX509CRLConverter().getCRL(builder.build(signer));
+    }
+
     /**
      * Given a certificate revocation list and certificate serial number,
      * add the certificate to the revocation list and return the updated
@@ -319,7 +352,6 @@ public class SSLUtils {
      * @throws IOException
      * @throws CertIOException
      * @throws OperatorCreationException
-     * @throws InvalidKeyException
      * @see #isRevoked
      * @see #generateCRL
      */
@@ -327,35 +359,48 @@ public class SSLUtils {
                                  PrivateKey issuerPrivateKey,
                                  PublicKey issuerPublicKey,
                                  BigInteger serial)
-        throws CRLException, IOException, CertIOException,
-               OperatorCreationException, InvalidKeyException,
-               NoSuchAlgorithmException
-    {
-        // The CRL is not valid if the time of checking == the time of last_update.
-        // So to have it valid right now we need to say that it was updated one second ago.
-        DateTime now = DateTime.now();
-        Date thisUpdate = now.minusSeconds(1).toDate();
-        Date nextUpdate = now.plusYears(5).toDate();
-        X509v2CRLBuilder builder =
-            new JcaX509v2CRLBuilder(crl.getIssuerX500Principal(), thisUpdate);
-        builder.setNextUpdate(nextUpdate);
-
-        // Copy over existing CRLEntrys
-        builder.addCRL(new JcaX509CRLHolder(crl));
+            throws CRLException, IOException, NoSuchAlgorithmException, OperatorCreationException {
+        X509v2CRLBuilder builder = crlBuilder(crl);
         // TODO PE-5678 Use java.security.cert.CRLReason.KEY_COMPROMISE.ordinal() instead of 1
-        builder.addCRLEntry(serial, now.toDate(), 1);
+        builder.addCRLEntry(serial, DateTime.now().toDate(), 1);
+        return buildCRL(crl, issuerPrivateKey, issuerPublicKey, builder);
+    }
 
-        BigInteger crlNumber = (BigInteger)
-            ExtensionsUtils.getExtensionValue(crl, ExtensionsUtils.CRL_NUMBER_OID);
-        crlNumber = (crlNumber == null) ? BigInteger.ZERO : crlNumber;
-        builder.addExtension(Extension.cRLNumber, false,
-                             new CRLNumber(crlNumber.add(BigInteger.ONE)));
-        builder.addExtension(Extension.authorityKeyIdentifier, false,
-                             new JcaX509ExtensionUtils().createAuthorityKeyIdentifier(issuerPublicKey));
-
-        ContentSigner signer =
-            new JcaContentSignerBuilder("SHA256withRSA").build(issuerPrivateKey);
-        return new JcaX509CRLConverter().getCRL(builder.build(signer));
+    /**
+     * Given a certificate revocation list and a list of certificate
+     * serial numbers, add the certificates to the revocation list and
+     * return the updated CRL. The issuer keys should be the same keys
+     * that were used when generating the CRL.
+     *
+     * The CRLNumber extension on the CRL will be incremented by 1, or
+     * the extension will be added if it doesn't already exist.
+     *
+     * The AuthorityKeyIdentifier extension will be added to the CRL if
+     * if doesn't already exist.
+     *
+     * @param crl The revocation list to add the certificate serials to
+     * @param issuerPrivateKey The certificate authority's private key
+     * @param issuerPublicKey The certificate authority's public key
+     * @param serials The serial numbers from the certificates to revoke
+     * @return The updated CRL containing the revoked certificate serials
+     * @throws CRLException
+     * @throws IOException
+     * @throws CertIOException
+     * @throws OperatorCreationException
+     * @see #isRevoked
+     * @see #generateCRL
+     */
+    public static X509CRL revokeMultiple(X509CRL crl,
+                                 PrivateKey issuerPrivateKey,
+                                 PublicKey issuerPublicKey,
+                                 List<BigInteger> serials)
+            throws CRLException, IOException, NoSuchAlgorithmException, OperatorCreationException {
+        X509v2CRLBuilder builder = crlBuilder(crl);
+        // TODO PE-5678 Use java.security.cert.CRLReason.KEY_COMPROMISE.ordinal() instead of 1
+        for (BigInteger serial : serials) {
+            builder.addCRLEntry(serial, DateTime.now().toDate(), 1);
+        }
+        return buildCRL(crl, issuerPrivateKey, issuerPublicKey, builder);
     }
 
     /**
