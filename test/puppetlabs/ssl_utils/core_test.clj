@@ -574,7 +574,18 @@
                    (.getIssuerX500Principal updated-crl))))
           (testing "AuthorityKeyIdentifier extension hasn't changed"
             (is (= (get-extension crl authority-key-identifier-oid)
-                   (get-extension updated-crl authority-key-identifier-oid)))))))))
+                   (get-extension updated-crl authority-key-identifier-oid)))))))
+
+    (testing "Revoking multiple certificates"
+      (let [cert2 (-> "certs/cert_with_exts.pem" open-ssl-file pem->cert)
+            serials [(get-serial cert) (get-serial cert2)]]
+        (is (not (revoked? crl cert)))
+        (is (not (revoked? crl cert2)))
+        (let [updated-crl (revoke-multiple crl private-key public-key serials)]
+          (testing "certificates are reovked"
+            (is (revoked? updated-crl cert))
+            (is (revoked? updated-crl cert2))))))))
+
 
 (defn- encoded-content-equal?
   [expected actual]
