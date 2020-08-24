@@ -1,7 +1,7 @@
 language: clojure
-lein: 2.7.1
+lein: 2.9.1
 jdk:
-  - oraclejdk8
+  - openjdk8
 script: ./ext/travisci/test.sh
 sudo: false
 notifications:
