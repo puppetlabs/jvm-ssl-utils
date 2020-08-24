@@ -3,9 +3,9 @@
   { :url url
     :username :env/clojars_jenkins_username
     :password :env/clojars_jenkins_password
-    :sign-releases false })
+    :sign-releases false})
 
-(defproject puppetlabs/ssl-utils "1.0.2"
+(defproject puppetlabs/ssl-utils "1.1.0-SNAPSHOT"
   :url "http://www.github.com/puppetlabs/jvm-ssl-utils"
 
   :description "SSL certificate management on the JVM."
@@ -47,6 +47,6 @@
   :lein-release {:scm         :git
                  :deploy-via  :lein-deploy}
   :deploy-repositories [["releases" ~(deploy-info "https://clojars.org/repo")]
-                        ["snapshots" ~(deploy-info "https://clojars.org/repo")]]
+                        ["snapshots" ~(deploy-info "https://clojars.org/repo")]])
 
-  )
+
