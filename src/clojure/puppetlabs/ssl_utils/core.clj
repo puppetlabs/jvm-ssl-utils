@@ -292,14 +292,14 @@
   `sign-certificate` and `generate-certificate-request`, at which time the key's
   hash will be computed and stored in the resulting object."
   ([public-key critical]
-    (create-authority-key-identifier public-key nil nil critical))
+   (create-authority-key-identifier public-key nil nil critical))
   ([issuer-dn serial critical]
-    (create-authority-key-identifier nil issuer-dn serial critical))
+   (create-authority-key-identifier nil issuer-dn serial critical))
   ([public-key :- PublicKey
     issuer-dn :- ValidX500Name
     serial :- schema/Int
     critical :- Object]
-    (create-authority-key-identifier public-key issuer-dn serial critical)))
+   (create-authority-key-identifier public-key issuer-dn serial critical)))
 
 (schema/defn ^:always-validate subject-key-identifier :- SSLExtension
   "Create a `Subject Key Identifier` extension from a `PublicKey` object. The
@@ -431,9 +431,9 @@
 (schema/defn ^:always-validate generate-key-pair :- KeyPair
   "Given a key length (defaults to 4096), generate a new public & private key pair."
   ([]
-     (SSLUtils/generateKeyPair))
+   (SSLUtils/generateKeyPair))
   ([key-length :- schema/Int]
-     (SSLUtils/generateKeyPair key-length)))
+   (SSLUtils/generateKeyPair key-length)))
 
 (schema/defn ^:always-validate x500-name->CN :- schema/Str
   "Given an X500 name, return the common name from it."
@@ -475,7 +475,7 @@
                         value format is dependent upon the oid."
   ([issuer-dn issuer-priv-key serial not-before not-after
     subject-dn subject-pub-key]
-    (sign-certificate issuer-dn issuer-priv-key serial not-before not-after
+   (sign-certificate issuer-dn issuer-priv-key serial not-before not-after
                       subject-dn subject-pub-key []))
   ([issuer-dn :- ValidX500Name
     issuer-priv-key :- PrivateKey
@@ -838,12 +838,12 @@
 
   Returns the SSLContext instance."
   ([cert private-key ca-cert]
-    (pems->ssl-context cert private-key ca-cert nil))
+   (pems->ssl-context cert private-key ca-cert nil))
   ([cert :- Readerable
     private-key :- Readerable
     ca-cert :- Readerable
     crls :- (schema/maybe Readerable)]
-    (with-open [cert-reader    (reader cert)
+   (with-open [cert-reader    (reader cert)
                 key-reader     (reader private-key)
                 ca-cert-reader (reader ca-cert)]
       (if crls
