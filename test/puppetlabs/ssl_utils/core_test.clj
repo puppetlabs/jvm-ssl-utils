@@ -39,11 +39,11 @@
 (defn write-to-pem-stream
   ([object] (write-to-pem-stream object obj->pem!))
   ([object write-function]
-     (let [pem-stream (ByteArrayOutputStream.)]
-       (write-function object pem-stream)
-       (-> pem-stream
-           (.toByteArray)
-           (ByteArrayInputStream.)))))
+   (let [pem-stream (ByteArrayOutputStream.)]
+     (write-function object pem-stream)
+     (-> pem-stream
+         (.toByteArray)
+         (ByteArrayInputStream.)))))
 
 (defmulti has-subject?
   "Returns true if x has the subject identified by the x500-name string or `X500Name`.
@@ -211,10 +211,10 @@
       (is (certificate-request? csr))
       (is (has-subject? csr "CN=ca_test_client"))))
 
-    (testing "throws exception if multiples found"
+  (testing "throws exception if multiples found"
       (is (thrown-with-msg? IllegalArgumentException
                             #"The PEM stream contains more than one object"
-                            (-> "certs/multiple.pem" open-ssl-file pem->csr)))))
+                            (-> "certs/multiple.pem" open-ssl-file pem->csr))))
 
   (testing "write CSR to PEM stream"
     (let [subject    (cn "foo")
@@ -223,7 +223,7 @@
           parsed-csr (pem->csr pem)]
       (is (certificate-request? parsed-csr))
       (is (has-subject? parsed-csr subject))
-      (is (= orig-csr parsed-csr))))
+      (is (= orig-csr parsed-csr)))))
 
 (deftest signing-certificates
   (let [subject         (cn "foo")
@@ -467,10 +467,10 @@
         not-before (generate-not-before-date)
         not-after (generate-not-after-date)
         cert (sign-certificate
-               issuer-name private-key
-               1 not-before not-after
-               issuer-name public-key
-               (create-ca-extensions issuer-name 1 public-key))
+              issuer-name private-key
+              1 not-before not-after
+              issuer-name public-key
+              (create-ca-extensions issuer-name 1 public-key))
         crl (generate-crl (X500Principal. issuer-name)
                           private-key public-key)]
 
@@ -480,14 +480,14 @@
       (is (nil? (.verify crl public-key)))
 
       (testing "AuthorityKeyIdentifier and CRLNumber extensions are included"
-        (is (= #{{:oid      "2.5.29.35"
+        (is (= #{{:oid "2.5.29.35"
                   :critical false
-                  :value    {:issuer         nil
-                             :key-identifier (pubkey-sha1 public-key)
-                             :serial-number  nil}}
-                 {:oid      "2.5.29.20"
+                  :value {:issuer nil
+                          :key-identifier (pubkey-sha1 public-key)
+                          :serial-number nil}}
+                 {:oid "2.5.29.20"
                   :critical false
-                  :value    BigInteger/ZERO}}
+                  :value BigInteger/ZERO}}
                (set (get-extensions crl))))))
 
     (testing "read CRL from PEM stream"
@@ -574,7 +574,18 @@
                    (.getIssuerX500Principal updated-crl))))
           (testing "AuthorityKeyIdentifier extension hasn't changed"
             (is (= (get-extension crl authority-key-identifier-oid)
-                   (get-extension updated-crl authority-key-identifier-oid)))))))))
+                   (get-extension updated-crl authority-key-identifier-oid)))))))
+
+    (testing "Revoking multiple certificates"
+      (let [cert2 (-> "certs/cert_with_exts.pem" open-ssl-file pem->cert)
+            serials [(get-serial cert) (get-serial cert2)]]
+        (is (not (revoked? crl cert)))
+        (is (not (revoked? crl cert2)))
+        (let [updated-crl (revoke-multiple crl private-key public-key serials)]
+          (testing "certificates are reovked"
+            (is (revoked? updated-crl cert))
+            (is (revoked? updated-crl cert2))))))))
+
 
 (defn- encoded-content-equal?
   [expected actual]
@@ -643,7 +654,7 @@
           (is (identical? keystore-val keystore-from-assoc)
               "Keystore returned from assoc not same as one passed in")
           (is (encoded-content-equal? cert keystore-cert)
-              "Cert passed in differs from cert retrieved from keystore"))
+              "Cert passed in differs from cert retrieved from keystore")))
 
       (testing "should fail when loading compound keys"
         (let [private-key-file (open-ssl-file "private_keys/multiple_pks.pem")
@@ -685,7 +696,7 @@
       (is (= #{:keystore :keystore-pw :truststore} (-> result keys set)))
       (is (instance? KeyStore (:keystore result)))
       (is (instance? KeyStore (:truststore result)))
-      (is (string? (:keystore-pw result)))))))
+      (is (string? (:keystore-pw result))))))
 
 (deftest ssl-context-test
   (testing "convert PEMs to SSLContext"
@@ -955,7 +966,7 @@
         (pem->csr (open-ssl-file "certification_requests/ca_test_client_with_exts.pem"))))
 
   (is (not (signature-valid?
-        (pem->csr (open-ssl-file "certification_requests/bad_public_key.pem"))))))
+            (pem->csr (open-ssl-file "certification_requests/bad_public_key.pem"))))))
 
 (deftest fingerprint-test
   (testing "certificate"
