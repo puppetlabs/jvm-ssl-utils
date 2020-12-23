@@ -1,6 +1,4 @@
 language: clojure
-dist: xenial
-#lein: 2.9.1
 install:
        - sudo env LEIN_ROOT=true curl -L -o /usr/local/bin/lein https://raw.githubusercontent.com/technomancy/leiningen/2.9.1/bin/lein
        - sudo chmod a+x  /usr/local/bin/lein
@@ -25,20 +23,12 @@ jobs:
       script: lein with-profile dev test
       jdk: openjdk8
       arch: ppc64le
-    - stage: jdk8 with FIPS
-      before_install: sudo apt-get install openjdk-8-jdk
-      script:  lein with-profile fips test
-      jdk: openjdk8
-      arch: ppc64le
 
     - stage: jdk11 without FIPS
       script:  lein with-profile dev test
       jdk: openjdk11
       arch: ppc64le
-    - stage: jdk11 with FIPS
-      script:  lein with-profile fips test
-      jdk: openjdk11
-      arch: ppc64le
+
 sudo: false
 notifications:
   email: false
