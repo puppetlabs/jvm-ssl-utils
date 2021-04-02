@@ -579,13 +579,20 @@
   (with-open [r (reader pem)]
     (SSLUtils/pemToCRLs r)))
 
+(schema/defn ^:always-validate crl-issued-by-cert? :- schema/Bool
+  "Given a CRL and a certificate, determine whether the CRL was issued by the
+  certificate."
+  [crl :- X509CRL
+   cert :- X509Certificate]
+  (= (.getIssuerX500Principal crl)
+     (.getSubjectX500Principal cert)))
+
 (schema/defn ^:always-validate pem->ca-crl :- X509CRL
   "Given a CRL chain and CA certificate, extract the CRL issued by the
   certificate"
   [crl-chain :- Readerable
    ca-cert :- X509Certificate]
-  (let [match-ca-cert? (fn [crl] (= (.getIssuerX500Principal crl)
-                                    (.getSubjectX500Principal ca-cert)))
+  (let [match-ca-cert? (fn [crl] (crl-issued-by-cert? crl ca-cert))
         crls (pem->crls crl-chain)
         crl (first (filter match-ca-cert? crls))]
     (if (nil? crl)
