@@ -119,7 +119,7 @@
   (schema/cond-pre PublicKey PrivateKey))
 
 (def ExtensionContainer
-  "A schema for all the things that can hold and SSL extension."
+  "A schema for all the things that can hold an SSL extension."
   (schema/cond-pre
    X509Certificate
    PKCS10CertificationRequest
