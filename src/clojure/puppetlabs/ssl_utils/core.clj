@@ -206,6 +206,10 @@
   "SubjectAlternativeName OID 2.5.29.17"
   ExtensionsUtils/SUBJECT_ALTERNATIVE_NAME_OID)
 
+(def delta-crl-indicator-oid
+  "DeltaCRLIndicator OID 2.5.29.27"
+  ExtensionsUtils/DELTA_CRL_INDICATOR_OID)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Extensions
 
@@ -403,6 +407,10 @@
   {:oid "1.3.6.1.4.1.34380.1.1.4"
    :critical (boolean critical)
    :value key})
+
+(schema/defn ^:always-validate delta-crl? :- schema/Bool
+  [crl :- X509CRL]
+  (boolean (get-extension-value crl delta-crl-indicator-oid)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Core
