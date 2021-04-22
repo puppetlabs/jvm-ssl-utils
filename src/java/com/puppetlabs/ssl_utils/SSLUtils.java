@@ -277,6 +277,7 @@ public class SSLUtils {
      * @param issuer The certificate authority's identifier
      * @param issuerPrivateKey The certificate authority's private key
      * @param issuerPublicKey The certificate authority's public key
+     * @param nextUpdate The date by which an updated CRL is expected
      * @return A new certificate revocation list
      * @throws CRLException
      * @throws IOException
@@ -286,12 +287,12 @@ public class SSLUtils {
      */
     public static X509CRL generateCRL(X500Principal issuer,
                                       PrivateKey issuerPrivateKey,
-                                      PublicKey issuerPublicKey)
+                                      PublicKey issuerPublicKey,
+                                      Date nextUpdate)
         throws CRLException, IOException, OperatorCreationException, NoSuchAlgorithmException
     {
         DateTime now = DateTime.now();
         Date issueDate = now.toDate();
-        Date nextUpdate = now.plusYears(5).toDate();
         X509v2CRLBuilder builder = new JcaX509v2CRLBuilder(issuer, issueDate);
         builder.setNextUpdate(nextUpdate);
         builder.addExtension(Extension.authorityKeyIdentifier, false,
@@ -300,6 +301,15 @@ public class SSLUtils {
         ContentSigner signer =
             new JcaContentSignerBuilder("SHA256withRSA").build(issuerPrivateKey);
         return new JcaX509CRLConverter().getCRL(builder.build(signer));
+    }
+
+    public static X509CRL generateCRL(X500Principal issuer,
+                                      PrivateKey issuerPrivateKey,
+                                      PublicKey issuerPublicKey)
+        throws CRLException, IOException, OperatorCreationException, NoSuchAlgorithmException
+    {
+        Date nextUpdate = DateTime.now().plusYears(5).toDate();
+        return generateCRL(issuer, issuerPrivateKey, issuerPublicKey, nextUpdate);
     }
 
     /**
