@@ -22,6 +22,7 @@
   :dependencies [[org.clojure/clojure]
                  [org.clojure/tools.logging]
                  [commons-codec]
+                 [clj-commons/fs]
                  [clj-time]
                  [puppetlabs/i18n]
                  [prismatic/schema]]
