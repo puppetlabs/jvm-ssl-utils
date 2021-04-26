@@ -57,7 +57,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 
 import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
 import java.security.KeyManagementException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -129,12 +128,11 @@ public class SSLUtils {
      * Create new public & private keys with length 4096.
      *
      * @return A new pair of public & private keys
-     * @throws NoSuchProviderException
      * @throws NoSuchAlgorithmException
      * @see #generateKeyPair(int)
      */
     public static KeyPair generateKeyPair()
-        throws NoSuchProviderException, NoSuchAlgorithmException
+        throws NoSuchAlgorithmException
     {
         return generateKeyPair(DEFAULT_KEY_LENGTH);
     }
@@ -143,12 +141,11 @@ public class SSLUtils {
      * Create new public & private keys of the provided length.
      *
      * @return A new pair of public & private keys
-     * @throws NoSuchProviderException
      * @throws NoSuchAlgorithmException
      * @see #generateKeyPair()
      */
     public static KeyPair generateKeyPair(int keyLength)
-        throws NoSuchProviderException, NoSuchAlgorithmException
+        throws NoSuchAlgorithmException
     {
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
         keyGen.initialize(keyLength);
@@ -233,8 +230,7 @@ public class SSLUtils {
                                                   String subjectDn,
                                                   PublicKey subjectPublicKey,
                                                   List<Map<String, Object>> extensions)
-            throws IOException, OperatorCreationException, CertificateException,
-                   NoSuchAlgorithmException, SignatureException, InvalidKeyException
+            throws IOException, OperatorCreationException, CertificateException
     {
         X509v3CertificateBuilder certBuilder = new X509v3CertificateBuilder(
                 new X500Name(BCStyle.INSTANCE, issuerDn),
@@ -285,14 +281,13 @@ public class SSLUtils {
      * @throws CRLException
      * @throws IOException
      * @throws OperatorCreationException
-     * @throws InvalidKeyException
      * @see #revoke
      * @see #isRevoked
      */
     public static X509CRL generateCRL(X500Principal issuer,
                                       PrivateKey issuerPrivateKey,
                                       PublicKey issuerPublicKey)
-        throws CRLException, IOException, OperatorCreationException, InvalidKeyException, NoSuchAlgorithmException
+        throws CRLException, IOException, OperatorCreationException, NoSuchAlgorithmException
     {
         DateTime now = DateTime.now();
         Date issueDate = now.toDate();
