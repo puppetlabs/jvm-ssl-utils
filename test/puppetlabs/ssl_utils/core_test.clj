@@ -496,7 +496,7 @@
         (is (not (revoked? crl cert)))
         (is (not (revoked? crl cert2)))
         (let [updated-crl (revoke-multiple crl private-key public-key serials)]
-          (testing "certificates are reovked"
+          (testing "certificates are revoked"
             (is (revoked? updated-crl cert))
             (is (revoked? updated-crl cert2))))))))
 
