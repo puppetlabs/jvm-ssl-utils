@@ -82,6 +82,12 @@ public class ExtensionsUtils {
         Extension.subjectAlternativeName.toString();
 
     /**
+     * DeltaCRLIndicator OID 2.5.29.27
+     */
+    public static final String DELTA_CRL_INDICATOR_OID =
+        Extension.deltaCRLIndicator.toString();
+
+    /**
      * Return true if the given OID is contained within the subtree of parent OID.
      *
      * @param parentOid The OID of the parent tree.
