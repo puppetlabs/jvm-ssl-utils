@@ -12,7 +12,7 @@
 
   :min-lein-version "2.9.1"
 
-  :parent-project {:coords [puppetlabs/clj-parent "4.6.14"]
+  :parent-project {:coords [puppetlabs/clj-parent "4.6.20"]
                    :inherit [:managed-dependencies]}
 
   ;; Abort when version ranges or version conflicts are detected in
@@ -22,6 +22,7 @@
   :dependencies [[org.clojure/clojure]
                  [org.clojure/tools.logging]
                  [commons-codec]
+                 [clj-commons/fs]
                  [clj-time]
                  [puppetlabs/i18n]
                  [prismatic/schema]]
