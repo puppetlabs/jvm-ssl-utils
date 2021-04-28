@@ -106,6 +106,13 @@
   (SSLUtils/generateCRL issuer issuer-private-key issuer-public-key
                         (generate-future-date) (generate-future-date)))
 
+(defn generate-crl-with-bad-signature
+  [issuer _ _]
+  (let [random-keys (generate-key-pair 2048)
+        public-key (get-public-key random-keys)
+        private-key (get-private-key random-keys)]
+    (SSLUtils/generateCRL issuer private-key public-key)))
+
 (defn generate-ca-cert
   [issuer-name issuer-key-pair serial root?]
   (let [subject-name (if root?
@@ -198,3 +205,14 @@
     (fs/mkdirs dir-path)
     (objs->pem! cert cert-path)
     (objs->pem! crl crl-path)))
+
+(defn write-crl-with-bad-sig
+  [test-subpath]
+  (let [dir-path (fs/file test-files-path test-subpath)
+        cert-path (fs/file dir-path "cert-with-crl-bad-sig.pem")
+        crl-path (fs/file dir-path "crl-with-bad-signature.pem")
+        [cert bad-crl] (generate-cert-chain-with-crls
+                        1 generate-crl-with-bad-signature)]
+    (fs/mkdirs dir-path)
+    (objs->pem! cert cert-path)
+    (objs->pem! bad-crl crl-path)))
