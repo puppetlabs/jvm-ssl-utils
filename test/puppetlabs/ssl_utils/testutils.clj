@@ -83,10 +83,13 @@
 (defn generate-not-before-date []
   (generate-past-date))
 
-(defn generate-not-after-date []
+(defn generate-future-date []
   (-> (DateTime/now)
       (.plus (Period/years 5))
       (.toDate)))
+
+(defn generate-not-after-date []
+  (generate-future-date))
 
 (defn str->bytes
   "Turn a `String s` into `bytes[]`"
@@ -95,7 +98,13 @@
 
 (defn generate-expired-crl
   [issuer issuer-private-key issuer-public-key]
-  (SSLUtils/generateCRL issuer issuer-private-key issuer-public-key (generate-past-date)))
+  (SSLUtils/generateCRL issuer issuer-private-key issuer-public-key
+                        (.toDate (DateTime/now)) (generate-past-date)))
+
+(defn generate-not-yet-valid-crl
+  [issuer issuer-private-key issuer-public-key]
+  (SSLUtils/generateCRL issuer issuer-private-key issuer-public-key
+                        (generate-future-date) (generate-future-date)))
 
 (defn generate-ca-cert
   [issuer-name issuer-key-pair serial root?]
@@ -179,3 +188,13 @@
     (fs/mkdirs dir-path)
     (objs->pem! cert cert-path)
     (objs->pem! expired-crl crl-path)))
+
+(defn write-not-yet-valid-crl
+  [test-subpath]
+  (let [dir-path (fs/file test-files-path test-subpath)
+        cert-path (fs/file dir-path "cert-with-not-valid-crl.pem")
+        crl-path (fs/file dir-path "not-yet-valid-crl.pem")
+        [cert crl] (generate-cert-chain-with-crls 1 generate-not-yet-valid-crl)]
+    (fs/mkdirs dir-path)
+    (objs->pem! cert cert-path)
+    (objs->pem! crl crl-path)))
