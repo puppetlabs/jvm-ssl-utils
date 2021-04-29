@@ -71,9 +71,13 @@ import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CRLException;
+import java.security.cert.CertPath;
+import java.security.cert.CertPathValidator;
+import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertStore;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateEncodingException;
+import java.security.cert.CertificateFactory;
 import java.security.cert.CollectionCertStoreParameters;
 import java.security.cert.PKIXBuilderParameters;
 import java.security.cert.X509CRL;
@@ -100,6 +104,7 @@ public class SSLUtils {
     public static final String BOUNCYCASTLE_FIPS_KEYSTORE = "BCFKS";
     public static final String JAVA_KEYSTORE = "JKS";
     public static final String PKIX_KEYMANAGER_ALGO = "PKIX";
+    public static final String BOUNCYCASTLE_FIPS_PROVIDER = "BCFIPS";
     public static final String BOUNCYCASTLE_JSSE_PROVIDER = "BCJSSE";
     public static final String TLS_PROTOCOL = "TLS";
 
@@ -436,6 +441,48 @@ public class SSLUtils {
             builder.addCRLEntry(serial, DateTime.now().toDate(), 1);
         }
         return buildCRL(crl, issuerPrivateKey, issuerPublicKey, builder);
+    }
+
+    /**
+     * Given a list of certificates and a list of CRLs, validate the certificate
+     * chain, i.e. ensure that none of the certs have been revoked by checking
+     * the appropriate CRL, which must be present and currently valid.
+     * Returns nil if successful."
+     *
+     * @param certs The certificate chain to validate
+     * @param crls The CRL chain to validate
+     * @throws CertificateException
+     * @throws CertPathValidatorException
+     * @throws IOException
+     * @throws InvalidAlgorithmParameterException
+     * @throws KeyStoreException
+     * @throws NoSuchAlgorithmException
+     * @throws NoSuchProviderException
+     */
+    public static void validateCertChain(List<X509Certificate> certs,
+                                         List<X509CRL> crls)
+        throws CertificateException, CertPathValidatorException, IOException,
+               InvalidAlgorithmParameterException, KeyStoreException,
+               NoSuchAlgorithmException, NoSuchProviderException {
+        final CertificateFactory certFactory;
+        final CertPathValidator validator;
+        final CertStore crlStore;
+        final CollectionCertStoreParameters storeParams = new CollectionCertStoreParameters(crls);
+        if (isFIPS()) {
+            certFactory = CertificateFactory.getInstance("X.509", BOUNCYCASTLE_FIPS_PROVIDER);
+            validator = CertPathValidator.getInstance(PKIX_KEYMANAGER_ALGO, BOUNCYCASTLE_FIPS_PROVIDER);
+            crlStore = CertStore.getInstance("Collection", storeParams, BOUNCYCASTLE_FIPS_PROVIDER);
+        } else {
+            certFactory = CertificateFactory.getInstance("X.509");
+            validator = CertPathValidator.getInstance(CertPathValidator.getDefaultType());
+            crlStore = CertStore.getInstance("Collection", storeParams);
+        }
+        final CertPath certPath = certFactory.generateCertPath(certs);
+        final KeyStore truststore = certsToTrustStore(certs);
+        PKIXBuilderParameters params =
+                new PKIXBuilderParameters(truststore, new X509CertSelector());
+        params.addCertStore(crlStore);
+        validator.validate(certPath, params);
     }
 
     /**
@@ -796,6 +843,26 @@ public class SSLUtils {
     }
 
     /**
+     * Add all certificates to the keystore.
+     *
+     * @param keystore The keystore to add all the certificates to
+     * @param prefix An alias to associate with the certificates. Each certificate will
+     *               have a numeric index appended to the prefix (starting with '-0')
+     * @param certs List of certificates to add to the keystore
+     * @return The provided keystore
+     * @throws KeyStoreException
+     * @see #associateCert
+     */
+    public static KeyStore associateCertsFromList(KeyStore keystore, String prefix, List<X509Certificate> certs)
+            throws KeyStoreException
+    {
+        ListIterator<X509Certificate> iter = certs.listIterator();
+        for (int i = 0; iter.hasNext(); i++)
+            associateCert(keystore, prefix + "-" + i, iter.next());
+        return keystore;
+    }
+
+    /**
      * Add all certificates from a PEM reader to the keystore.
      *
      * @param keystore The keystore to add all the certificates to
@@ -812,10 +879,7 @@ public class SSLUtils {
         throws CertificateException, KeyStoreException, IOException
     {
         List<X509Certificate> certs = pemToCerts(pem);
-        ListIterator<X509Certificate> iter = certs.listIterator();
-        for (int i = 0; iter.hasNext(); i++)
-            associateCert(keystore, prefix + "-" + i, iter.next());
-        return keystore;
+        return associateCertsFromList(keystore, prefix, certs);
     }
 
     /**
@@ -1124,6 +1188,12 @@ public class SSLUtils {
         KeyManagerFactory kmf = getKeyManagerFactory(stores);
         TrustManagerFactory tmf = getTrustManagerFactory(trustStore, crls);
         return managerFactoriesToSSLContext(kmf, tmf);
+    }
+
+    private static KeyStore certsToTrustStore(List<X509Certificate> certs)
+            throws CertificateException, NoSuchAlgorithmException, KeyStoreException, IOException {
+        KeyStore trustStore = createKeyStore();
+        return associateCertsFromList(trustStore, "CA Certificate", certs);
     }
 
     private static KeyStore caCertPemToTrustStore(Reader caCert)
