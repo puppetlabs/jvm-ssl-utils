@@ -131,20 +131,25 @@
 
 (defn generate-cert-chain-with-crls
   ([number-of-certs]
-   (generate-cert-chain-with-crls number-of-certs generate-crl))
+   (generate-cert-chain-with-crls number-of-certs
+                                  generate-crl
+                                  (generate-key-pair 2048)))
   ([number-of-certs generate-crl-fn]
-   (let [key-pair (generate-key-pair 2048)
-         root-public-key (get-public-key key-pair)
-         root-private-key (get-private-key key-pair)
+   (generate-cert-chain-with-crls number-of-certs
+                                  generate-crl-fn
+                                  (generate-key-pair 2048)))
+  ([number-of-certs generate-crl-fn root-key-pair]
+   (let [root-public-key (get-public-key root-key-pair)
+         root-private-key (get-private-key root-key-pair)
          root-name (cn "Root CA")
-         root-cert (first (generate-ca-cert root-name key-pair 666 true))
+         root-cert (first (generate-ca-cert root-name root-key-pair 666 true))
          root-crl (generate-crl-fn (X500Principal. root-name)
                                    root-private-key root-public-key)]
      (loop [certs [root-cert]
             crls [root-crl]
             certs-to-generate (dec number-of-certs)
             issuer root-cert
-            issuer-key-pair key-pair]
+            issuer-key-pair root-key-pair]
        (if (< certs-to-generate 1)
          [certs crls]
          (let [[new-cert new-key-pair] (generate-ca-cert
