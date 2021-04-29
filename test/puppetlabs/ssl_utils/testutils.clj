@@ -175,49 +175,44 @@
 ;; Within the repl, run the following (with your desired function and arguments):
 ;; ```
 ;; (require '[puppetlabs.ssl-utils.testutils :as t])
-;; (t/write-cert-chain-and-crls 3 "your-subpath")
+;; (t/write-valid-cert-chain-and-crls 3 "your-subpath")
 ;; ```
 
 (def test-files-path "test-resources/puppetlabs/ssl_utils/examples/ssl")
 
-(defn write-cert-chain-and-crls
-  [number-of-certs test-subpath]
+(defn write-certs-and-crls
+  [certs crls test-subpath certs-filename crls-filename]
   (let [dir-path (fs/file test-files-path test-subpath)
-        certs-path (fs/file dir-path (str number-of-certs "-cert-chain.pem"))
-        crls-path (fs/file dir-path (str number-of-certs "-crl-chain.pem"))
-        [certs crls] (generate-cert-chain-with-crls number-of-certs)]
+        certs-path (fs/file dir-path certs-filename)
+        crls-path (fs/file dir-path crls-filename)]
     (fs/mkdirs dir-path)
     (objs->pem! certs certs-path)
     (objs->pem! crls crls-path)))
 
+(defn write-valid-cert-chain-and-crls
+  [number-of-certs test-subpath]
+  (let [certs-filename (str number-of-certs "-cert-chain.pem")
+        crls-filename (str number-of-certs "-crl-chain.pem")
+        [certs crls] (generate-cert-chain-with-crls number-of-certs)]
+    (write-certs-and-crls certs crls test-subpath certs-filename crls-filename)))
+
 (defn write-expired-crl
   [test-subpath]
-  (let [dir-path (fs/file test-files-path test-subpath)
-        cert-path (fs/file dir-path "cert-with-expired-crl.pem")
-        crl-path (fs/file dir-path "expired-crl.pem")
-        [cert expired-crl] (generate-cert-chain-with-crls
-                            1 generate-expired-crl)]
-    (fs/mkdirs dir-path)
-    (objs->pem! cert cert-path)
-    (objs->pem! expired-crl crl-path)))
+  (let [cert-filename "cert-with-expired-crl.pem"
+        crl-filename "expired-crl.pem"
+        [cert expired-crl] (generate-cert-chain-with-crls 1 generate-expired-crl)]
+    (write-certs-and-crls cert expired-crl test-subpath cert-filename crl-filename)))
 
 (defn write-not-yet-valid-crl
   [test-subpath]
-  (let [dir-path (fs/file test-files-path test-subpath)
-        cert-path (fs/file dir-path "cert-with-not-valid-crl.pem")
-        crl-path (fs/file dir-path "not-yet-valid-crl.pem")
+  (let [cert-filename "cert-with-not-valid-crl.pem"
+        crl-filename "not-yet-valid-crl.pem"
         [cert crl] (generate-cert-chain-with-crls 1 generate-not-yet-valid-crl)]
-    (fs/mkdirs dir-path)
-    (objs->pem! cert cert-path)
-    (objs->pem! crl crl-path)))
+    (write-certs-and-crls cert crl test-subpath cert-filename crl-filename)))
 
 (defn write-crl-with-bad-sig
   [test-subpath]
-  (let [dir-path (fs/file test-files-path test-subpath)
-        cert-path (fs/file dir-path "cert-with-crl-bad-sig.pem")
-        crl-path (fs/file dir-path "crl-with-bad-signature.pem")
-        [cert bad-crl] (generate-cert-chain-with-crls
-                        1 generate-crl-with-bad-signature)]
-    (fs/mkdirs dir-path)
-    (objs->pem! cert cert-path)
-    (objs->pem! bad-crl crl-path)))
+  (let [cert-filename "cert-with-crl-bad-sig.pem"
+        crl-filename "crl-with-bad-signature.pem"
+        [cert bad-crl] (generate-cert-chain-with-crls 1 generate-crl-with-bad-signature)]
+    (write-certs-and-crls cert bad-crl test-subpath cert-filename crl-filename)))
