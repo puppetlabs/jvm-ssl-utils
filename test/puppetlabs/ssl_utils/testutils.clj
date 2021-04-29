@@ -131,20 +131,25 @@
 
 (defn generate-cert-chain-with-crls
   ([number-of-certs]
-   (generate-cert-chain-with-crls number-of-certs generate-crl))
+   (generate-cert-chain-with-crls number-of-certs
+                                  generate-crl
+                                  (generate-key-pair 2048)))
   ([number-of-certs generate-crl-fn]
-   (let [key-pair (generate-key-pair 2048)
-         root-public-key (get-public-key key-pair)
-         root-private-key (get-private-key key-pair)
+   (generate-cert-chain-with-crls number-of-certs
+                                  generate-crl-fn
+                                  (generate-key-pair 2048)))
+  ([number-of-certs generate-crl-fn root-key-pair]
+   (let [root-public-key (get-public-key root-key-pair)
+         root-private-key (get-private-key root-key-pair)
          root-name (cn "Root CA")
-         root-cert (first (generate-ca-cert root-name key-pair 666 true))
+         root-cert (first (generate-ca-cert root-name root-key-pair 666 true))
          root-crl (generate-crl-fn (X500Principal. root-name)
                                    root-private-key root-public-key)]
      (loop [certs [root-cert]
             crls [root-crl]
             certs-to-generate (dec number-of-certs)
             issuer root-cert
-            issuer-key-pair key-pair]
+            issuer-key-pair root-key-pair]
        (if (< certs-to-generate 1)
          [certs crls]
          (let [[new-cert new-key-pair] (generate-ca-cert
@@ -162,6 +167,23 @@
                   new-cert
                   new-key-pair)))))))
 
+(defn generate-cert-chain-with-revoked-cert
+  [number-of-certs]
+  (if (< number-of-certs 2)
+    (throw (Exception. (format "Can't perform revocations on a %d-cert chain."
+                               number-of-certs))))
+  (let [key-pair (generate-key-pair 2048)
+        [certs crls] (generate-cert-chain-with-crls number-of-certs
+                                                    generate-crl
+                                                    key-pair)
+        cert-to-revoke (nth certs (- number-of-certs 2))
+        crl-to-update (last crls)
+        updated-crl (revoke crl-to-update
+                            (get-private-key key-pair)
+                            (get-public-key key-pair)
+                            (get-serial cert-to-revoke))]
+    [certs (-> crls drop-last (conj updated-crl))]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Writing test files
 
@@ -170,49 +192,51 @@
 ;; Within the repl, run the following (with your desired function and arguments):
 ;; ```
 ;; (require '[puppetlabs.ssl-utils.testutils :as t])
-;; (t/write-cert-chain-and-crls 3 "your-subpath")
+;; (t/write-valid-cert-chain-and-crls 3 "your-subpath")
 ;; ```
 
 (def test-files-path "test-resources/puppetlabs/ssl_utils/examples/ssl")
 
-(defn write-cert-chain-and-crls
-  [number-of-certs test-subpath]
+(defn write-certs-and-crls
+  [certs crls test-subpath certs-filename crls-filename]
   (let [dir-path (fs/file test-files-path test-subpath)
-        certs-path (fs/file dir-path (str number-of-certs "-cert-chain.pem"))
-        crls-path (fs/file dir-path (str number-of-certs "-crl-chain.pem"))
-        [certs crls] (generate-cert-chain-with-crls number-of-certs)]
+        certs-path (fs/file dir-path certs-filename)
+        crls-path (fs/file dir-path crls-filename)]
     (fs/mkdirs dir-path)
     (objs->pem! certs certs-path)
     (objs->pem! crls crls-path)))
 
+(defn write-valid-cert-chain-and-crls
+  [number-of-certs test-subpath]
+  (let [certs-filename (str number-of-certs "-cert-chain.pem")
+        crls-filename (str number-of-certs "-crl-chain.pem")
+        [certs crls] (generate-cert-chain-with-crls number-of-certs)]
+    (write-certs-and-crls certs crls test-subpath certs-filename crls-filename)))
+
 (defn write-expired-crl
   [test-subpath]
-  (let [dir-path (fs/file test-files-path test-subpath)
-        cert-path (fs/file dir-path "cert-with-expired-crl.pem")
-        crl-path (fs/file dir-path "expired-crl.pem")
-        [cert expired-crl] (generate-cert-chain-with-crls
-                            1 generate-expired-crl)]
-    (fs/mkdirs dir-path)
-    (objs->pem! cert cert-path)
-    (objs->pem! expired-crl crl-path)))
+  (let [cert-filename "cert-with-expired-crl.pem"
+        crl-filename "expired-crl.pem"
+        [cert expired-crl] (generate-cert-chain-with-crls 1 generate-expired-crl)]
+    (write-certs-and-crls cert expired-crl test-subpath cert-filename crl-filename)))
 
 (defn write-not-yet-valid-crl
   [test-subpath]
-  (let [dir-path (fs/file test-files-path test-subpath)
-        cert-path (fs/file dir-path "cert-with-not-valid-crl.pem")
-        crl-path (fs/file dir-path "not-yet-valid-crl.pem")
+  (let [cert-filename "cert-with-not-valid-crl.pem"
+        crl-filename "not-yet-valid-crl.pem"
         [cert crl] (generate-cert-chain-with-crls 1 generate-not-yet-valid-crl)]
-    (fs/mkdirs dir-path)
-    (objs->pem! cert cert-path)
-    (objs->pem! crl crl-path)))
+    (write-certs-and-crls cert crl test-subpath cert-filename crl-filename)))
 
 (defn write-crl-with-bad-sig
   [test-subpath]
-  (let [dir-path (fs/file test-files-path test-subpath)
-        cert-path (fs/file dir-path "cert-with-crl-bad-sig.pem")
-        crl-path (fs/file dir-path "crl-with-bad-signature.pem")
-        [cert bad-crl] (generate-cert-chain-with-crls
-                        1 generate-crl-with-bad-signature)]
-    (fs/mkdirs dir-path)
-    (objs->pem! cert cert-path)
-    (objs->pem! bad-crl crl-path)))
+  (let [cert-filename "cert-with-crl-bad-sig.pem"
+        crl-filename "crl-with-bad-signature.pem"
+        [cert bad-crl] (generate-cert-chain-with-crls 1 generate-crl-with-bad-signature)]
+    (write-certs-and-crls cert bad-crl test-subpath cert-filename crl-filename)))
+
+(defn write-cert-chain-with-revoked-cert
+  [number-of-certs test-subpath]
+  (let [certs-filename "cert-chain-with-revoked-cert.pem"
+        crls-filename "crl-chain-with-cert-revoked.pem"
+        [certs crls] (generate-cert-chain-with-revoked-cert number-of-certs)]
+    (write-certs-and-crls certs crls test-subpath certs-filename crls-filename)))
