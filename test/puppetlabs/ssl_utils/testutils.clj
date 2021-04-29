@@ -167,6 +167,23 @@
                   new-cert
                   new-key-pair)))))))
 
+(defn generate-cert-chain-with-revoked-cert
+  [number-of-certs]
+  (if (< number-of-certs 2)
+    (throw (Exception. (format "Can't perform revocations on a %d-cert chain."
+                               number-of-certs))))
+  (let [key-pair (generate-key-pair 2048)
+        [certs crls] (generate-cert-chain-with-crls number-of-certs
+                                                    generate-crl
+                                                    key-pair)
+        cert-to-revoke (nth certs (- number-of-certs 2))
+        crl-to-update (last crls)
+        updated-crl (revoke crl-to-update
+                            (get-private-key key-pair)
+                            (get-public-key key-pair)
+                            (get-serial cert-to-revoke))]
+    [certs (-> crls drop-last (conj updated-crl))]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Writing test files
 
@@ -216,3 +233,10 @@
         crl-filename "crl-with-bad-signature.pem"
         [cert bad-crl] (generate-cert-chain-with-crls 1 generate-crl-with-bad-signature)]
     (write-certs-and-crls cert bad-crl test-subpath cert-filename crl-filename)))
+
+(defn write-cert-chain-with-revoked-cert
+  [number-of-certs test-subpath]
+  (let [certs-filename "cert-chain-with-revoked-cert.pem"
+        crls-filename "crl-chain-with-cert-revoked.pem"
+        [certs crls] (generate-cert-chain-with-revoked-cert number-of-certs)]
+    (write-certs-and-crls certs crls test-subpath certs-filename crls-filename)))
