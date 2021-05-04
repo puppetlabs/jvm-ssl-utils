@@ -559,6 +559,15 @@
   (SSLUtils/revokeMultiple crl issuer-private-key
                    issuer-public-key cert-serials))
 
+(schema/defn ^:always-validate validate-cert-chain
+  "Given a list of certificates and a list of CRLs, validate the certificate
+   chain, i.e. ensure that none of the certs have been revoked by checking the
+   appropriate CRL, which must be present and currently valid.
+   Returns nil if successful."
+  [cert-chain :- [X509Certificate]
+   crl-chain :- [X509CRL]]
+  (SSLUtils/validateCertChain cert-chain crl-chain))
+
 (schema/defn ^:always-validate crl->pem!
   "Encodes a CRL to PEM format, and writes it to a file (or other stream).
    Arguments:

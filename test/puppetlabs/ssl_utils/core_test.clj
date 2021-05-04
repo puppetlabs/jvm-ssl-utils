@@ -5,7 +5,9 @@
            (javax.security.auth.x500 X500Principal)
            (javax.net.ssl SSLContext)
            (org.joda.time DateTimeUtils)
-           (clojure.lang ExceptionInfo))
+           (clojure.lang ExceptionInfo)
+           (java.security.cert CertPathValidatorException)
+           (com.puppetlabs.ssl_utils SSLUtils))
   (:require [clojure.test :refer :all]
             [clojure.java.io :refer [resource reader]]
             [puppetlabs.ssl-utils.core :refer :all]
@@ -500,6 +502,59 @@
             (is (revoked? updated-crl cert))
             (is (revoked? updated-crl cert2))))))))
 
+(deftest validate-cert-chain-and-crls-test
+ (testing "validate cert chain against CRLs"
+   (let [single-cert-chain (-> "crl_validation/1-cert-chain.pem" open-ssl-file pem->certs)
+         single-crl-chain (-> "crl_validation/1-crl-chain.pem" open-ssl-file pem->crls)
+         cert-chain (-> "crl_validation/3-cert-chain.pem" open-ssl-file pem->certs)
+         crl-chain (-> "crl_validation/3-crl-chain.pem" open-ssl-file pem->crls)
+         other-crl-chain (-> "crl_validation/other-3-crl-chain.pem" open-ssl-file pem->crls)
+         crl-chain-missing-crls (-> "crl_validation/2-crl-chain.pem" open-ssl-file pem->crls)
+         crl-chain-extra-crls (-> "crl_validation/4-crl-chain.pem" open-ssl-file pem->crls)
+         cert-with-expired-crl (-> "crl_validation/cert-with-expired-crl.pem" open-ssl-file pem->certs)
+         expired-crl (-> "crl_validation/expired-crl.pem" open-ssl-file pem->crls)
+         cert-with-not-valid-crl (-> "crl_validation/cert-with-not-valid-crl.pem" open-ssl-file pem->certs)
+         not-yet-valid-crl (-> "crl_validation/not-yet-valid-crl.pem" open-ssl-file pem->crls)
+         cert-chain-with-crl-bad-sig (-> "crl_validation/cert-with-crl-bad-sig.pem" open-ssl-file pem->certs)
+         crl-chain-bad-signature (-> "crl_validation/crl-with-bad-signature.pem" open-ssl-file pem->crls)
+         cert-chain-with-revoked-cert (-> "crl_validation/cert-chain-with-revoked-cert.pem" open-ssl-file pem->certs)
+         crl-chain-cert-revoked (-> "crl_validation/crl-chain-with-cert-revoked.pem" open-ssl-file pem->crls)
+         missing-crls-error-message (if (SSLUtils/isFIPS) #"No CRLs found for issuer*"
+                                                          #"Could not determine revocation status")
+         invalid-crls-error-message (if (SSLUtils/isFIPS) #"Cannot verify CRL."
+                                                          #"Could not determine revocation status")
+         revoked-cert-error-message (if (SSLUtils/isFIPS) #"Certificate revocation after*"
+                                                          #"Certificate has been revoked*")]
+     (testing "successful with single-cert chain and CRL"
+       (is (nil? (validate-cert-chain single-cert-chain single-crl-chain))))
+     (testing "successful when all certs have an associated CRL"
+       (is (nil? (validate-cert-chain cert-chain crl-chain))))
+     (testing "successful with extra CRLs"
+       (is (nil? (validate-cert-chain cert-chain crl-chain-extra-crls))))
+     (testing "fails with missing CRLs"
+       (is (thrown-with-msg? CertPathValidatorException
+                             missing-crls-error-message
+                             (validate-cert-chain cert-chain crl-chain-missing-crls))))
+     (testing "fails with totally unrelated CRLs"
+       (is (thrown-with-msg? CertPathValidatorException
+                             invalid-crls-error-message
+                             (validate-cert-chain cert-chain other-crl-chain))))
+     (testing "fails with expired CRLs"
+       (is (thrown-with-msg? CertPathValidatorException
+                             missing-crls-error-message
+                             (validate-cert-chain cert-with-expired-crl expired-crl))))
+     (testing "fails with not-yet-valid CRLs"
+       (is (thrown-with-msg? CertPathValidatorException
+                             missing-crls-error-message
+                             (validate-cert-chain cert-with-not-valid-crl not-yet-valid-crl))))
+     (testing "CRLs with invalid signatures (aka not signed by their issuer) are rejected"
+       (is (thrown-with-msg? CertPathValidatorException
+                             invalid-crls-error-message
+                             (validate-cert-chain cert-chain-with-crl-bad-sig crl-chain-bad-signature))))
+     (testing "rejected when cert in chain has been revoked"
+       (is (thrown-with-msg? CertPathValidatorException
+                             revoked-cert-error-message
+                             (validate-cert-chain cert-chain-with-revoked-cert crl-chain-cert-revoked)))))))
 
 (defn- encoded-content-equal?
   [expected actual]
