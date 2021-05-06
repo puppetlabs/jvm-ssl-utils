@@ -468,7 +468,7 @@
 
     (testing "revoking a certificate"
       (let [cert (-> "certs/cert_with_exts.pem" open-ssl-file pem->cert)]
-        (is (= 0 (get-extension-value crl crl-number-oid)))
+        (is (= 0 (get-crl-number crl)))
         (is (false? (revoked? crl cert)))
 
         ;; We need to advance the value of DateTime.now() so it's not the
@@ -481,7 +481,7 @@
           (testing "certificate is revoked"
             (is (true? (revoked? updated-crl cert))))
           (testing "CRLNumber extension value is incremented"
-            (is (= 1 (get-extension-value updated-crl crl-number-oid))))
+            (is (= 1 (get-crl-number updated-crl))))
           (testing "dates are advanced"
             (is (.after (.getThisUpdate updated-crl) (.getThisUpdate crl)))
             (is (.after (.getNextUpdate updated-crl) (.getNextUpdate crl))))

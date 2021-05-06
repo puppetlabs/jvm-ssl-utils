@@ -376,6 +376,12 @@
    :critical false
    :value (biginteger number)})
 
+(schema/defn ^:always-validate get-crl-number :- (schema/maybe BigInteger)
+  "Given a CRL, return the value of the CRL Number extension, or nil if the
+  extension is not present."
+  [crl :- X509CRL]
+  (get-extension-value crl crl-number-oid))
+
 (schema/defn ^:always-validate puppet-node-uid :- SSLExtension
   "Create a `Puppet Node UID` extension."
   [uid :- schema/Str
