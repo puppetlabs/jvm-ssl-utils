@@ -1,7 +1,7 @@
 (ns puppetlabs.ssl-utils.testutils
   (:import (java.io ByteArrayOutputStream ByteArrayInputStream)
            (java.security.cert X509Certificate)
-           (java.security MessageDigest)
+           (java.security MessageDigest PublicKey)
            (javax.security.auth.x500 X500Principal)
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
@@ -19,7 +19,8 @@
   {:pre [(public-key? pub-key)]
    :post [(vector? %)
           (every? integer? %)]}
-  (let [bytes   (-> pub-key
+  (let [bytes   (-> ^PublicKey
+                    pub-key
                     .getEncoded
                     SubjectPublicKeyInfo/getInstance
                     .getPublicKeyData
@@ -47,7 +48,7 @@
 
 (defmethod has-subject? [X509Certificate String]
   [cert x500-name]
-  (= x500-name (-> cert .getSubjectX500Principal .getName)))
+  (= x500-name (-> ^X509Certificate cert .getSubjectX500Principal .getName)))
 
 (defmethod has-subject? [X509Certificate X500Name]
   [cert x500-name]
