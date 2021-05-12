@@ -129,6 +129,16 @@
                         BigInteger/TEN
                         nil))
 
+;; This does not contain delta CRL content, just the delta CRL indicator,
+;; so should only be used for testing purposes.
+(defn generate-delta-crl
+  [issuer issuer-private-key issuer-public-key]
+  (SSLUtils/generateCRL issuer issuer-private-key issuer-public-key
+                        (.toDate (DateTime/now))
+                        (generate-future-date)
+                        BigInteger/ONE
+                        [(javaize (delta-crl-indicator BigInteger/ZERO))]))
+
 (defn generate-crl-with-bad-signature
   [issuer _ _]
   (let [random-keys (generate-key-pair 2048)

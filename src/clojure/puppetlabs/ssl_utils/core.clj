@@ -414,6 +414,13 @@
    :critical (boolean critical)
    :value key})
 
+(schema/defn ^:always-validate delta-crl-indicator :- SSLExtension
+  "Create a `Delta CRL Indicator` extension."
+  [base-crl-number :- BigInteger]
+  {:oid delta-crl-indicator-oid
+   :critical true
+   :value base-crl-number})
+
 (schema/defn ^:always-validate delta-crl? :- schema/Bool
   [crl :- X509CRL]
   (boolean (get-extension-value crl delta-crl-indicator-oid)))
