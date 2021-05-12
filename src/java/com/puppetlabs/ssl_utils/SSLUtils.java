@@ -277,13 +277,17 @@ public class SSLUtils {
      * & public keys, create a new certificate revocation list (CRL).
      *
      * The CRL will have an AuthorityKeyIdentifier extension and CRLNumber
-     * extension set to 0.
+     * extension, set to 0 unless otherwise specified.
      *
      * @param issuer The certificate authority's identifier
      * @param issuerPrivateKey The certificate authority's private key
      * @param issuerPublicKey The certificate authority's public key
      * @param thisUpdate The date after which this CRL becomes valid
      * @param nextUpdate The date by which an updated CRL is expected
+     * @param crlNumber The CRL Number for this CRL, used to identify how new a
+     *                  CRL is compared to another CRL from the same issuer
+     * @param extensions An optional list of extensions to include, in addition
+     *                   to AuthorityKeyIdentifier and CRLNumber.
      * @return A new certificate revocation list
      * @throws CRLException
      * @throws IOException
@@ -295,14 +299,26 @@ public class SSLUtils {
                                       PrivateKey issuerPrivateKey,
                                       PublicKey issuerPublicKey,
                                       Date thisUpdate,
-                                      Date nextUpdate)
+                                      Date nextUpdate,
+                                      BigInteger crlNumber,
+                                      List<Map<String, Object>> extensions)
         throws CRLException, IOException, OperatorCreationException, NoSuchAlgorithmException
     {
         X509v2CRLBuilder builder = new JcaX509v2CRLBuilder(issuer, thisUpdate);
         builder.setNextUpdate(nextUpdate);
         builder.addExtension(Extension.authorityKeyIdentifier, false,
                              new JcaX509ExtensionUtils().createAuthorityKeyIdentifier(issuerPublicKey));
-        builder.addExtension(Extension.cRLNumber, false, new CRLNumber(BigInteger.ZERO));
+        builder.addExtension(Extension.cRLNumber, false, new CRLNumber(crlNumber));
+        Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
+        if (bcExtensions != null) {
+            for (ASN1ObjectIdentifier oid : bcExtensions.getNonCriticalExtensionOIDs()) {
+                builder.addExtension(oid, false, bcExtensions.getExtension(oid).getParsedValue());
+            }
+
+            for (ASN1ObjectIdentifier oid : bcExtensions.getCriticalExtensionOIDs()) {
+                builder.addExtension(oid, true, bcExtensions.getExtension(oid).getParsedValue());
+            }
+        }
         ContentSigner signer =
             new JcaContentSignerBuilder("SHA256withRSA").build(issuerPrivateKey);
         return new JcaX509CRLConverter().getCRL(builder.build(signer));
@@ -316,7 +332,8 @@ public class SSLUtils {
         DateTime now = DateTime.now();
         Date thisUpdate = now.toDate();
         Date nextUpdate = now.plusYears(5).toDate();
-        return generateCRL(issuer, issuerPrivateKey, issuerPublicKey, thisUpdate, nextUpdate);
+        return generateCRL(issuer, issuerPrivateKey, issuerPublicKey,
+                           thisUpdate, nextUpdate, BigInteger.ZERO, null);
     }
 
     /**
