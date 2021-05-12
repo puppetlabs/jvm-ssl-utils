@@ -434,6 +434,10 @@ public class ExtensionsUtils {
             BigInteger number = (BigInteger) extMap.get("value");
             return new Extension(oid, false, new DEROctetString(
                     new CRLNumber(number)));
+        } else if (oid.equals(Extension.deltaCRLIndicator)) {
+            BigInteger baseCRLNumber = (BigInteger) extMap.get("value");
+            return new Extension(oid, true, new DEROctetString(
+                    new CRLNumber(baseCRLNumber)));
         } else {
             // If the OID isn't recognized, then just parse the value as a string
             String value = (String) extMap.get("value");
