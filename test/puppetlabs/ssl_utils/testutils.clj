@@ -113,6 +113,22 @@
                         BigInteger/ZERO
                         nil))
 
+(defn generate-newer-crl
+  [issuer issuer-private-key issuer-public-key]
+  (SSLUtils/generateCRL issuer issuer-private-key issuer-public-key
+                        (.toDate (DateTime/now))
+                        (generate-future-date)
+                        BigInteger/ONE
+                        nil))
+
+(defn generate-newest-crl
+  [issuer issuer-private-key issuer-public-key]
+  (SSLUtils/generateCRL issuer issuer-private-key issuer-public-key
+                        (.toDate (DateTime/now))
+                        (generate-future-date)
+                        BigInteger/TEN
+                        nil))
+
 (defn generate-crl-with-bad-signature
   [issuer _ _]
   (let [random-keys (generate-key-pair 2048)
