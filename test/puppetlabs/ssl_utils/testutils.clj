@@ -146,6 +146,12 @@
         private-key (get-private-key random-keys)]
     (SSLUtils/generateCRL issuer private-key public-key)))
 
+(defn generate-multiple-crls
+  [issuer issuer-private-key issuer-public-key]
+  {:original (generate-crl issuer issuer-private-key issuer-public-key)
+   :new (generate-newer-crl issuer issuer-private-key issuer-public-key)
+   :newest (generate-newest-crl issuer issuer-private-key issuer-public-key)})
+
 (defn generate-ca-cert
   [issuer-name issuer-key-pair serial root?]
   (let [subject-name (if root?
