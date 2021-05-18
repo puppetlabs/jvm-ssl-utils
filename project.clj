@@ -5,14 +5,14 @@
     :password :env/clojars_jenkins_password
     :sign-releases false})
 
-(defproject puppetlabs/ssl-utils "3.1.1-SNAPSHOT"
+(defproject puppetlabs/ssl-utils "3.2.0-SNAPSHOT"
   :url "http://www.github.com/puppetlabs/jvm-ssl-utils"
 
   :description "SSL certificate management on the JVM."
 
   :min-lein-version "2.9.1"
 
-  :parent-project {:coords [puppetlabs/clj-parent "4.6.20"]
+  :parent-project {:coords [puppetlabs/clj-parent "4.6.22"]
                    :inherit [:managed-dependencies]}
 
   ;; Abort when version ranges or version conflicts are detected in
