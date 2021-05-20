@@ -406,35 +406,35 @@ public class ExtensionsUtils {
         ASN1ObjectIdentifier oid = new ASN1ObjectIdentifier(oidString);
         Boolean isCritical = (Boolean) extMap.get("critical");
 
-        if (oid.equals(Extension.subjectAlternativeName) ||
-                oid.equals(Extension.issuerAlternativeName)) {
+        if (oid.equals((Object) Extension.subjectAlternativeName) ||
+                oid.equals((Object) Extension.issuerAlternativeName)) {
             @SuppressWarnings("unchecked")
             Map<String, List<String>> val = (Map<String, List<String>>) extMap.get("value");
             return new Extension(oid, isCritical, new DEROctetString(mapToGeneralNames(val)));
-        } else if (oid.equals(MiscObjectIdentifiers.netscapeCertComment)) {
+        } else if (oid.equals((Object) MiscObjectIdentifiers.netscapeCertComment)) {
             DERIA5String ia5Str = new DERIA5String((String) extMap.get("value"));
             return new Extension(oid, isCritical, new DEROctetString(ia5Str));
-        } else if (oid.equals(Extension.keyUsage)) {
+        } else if (oid.equals((Object) Extension.keyUsage)) {
             Set<String> val = (Set<String>) extMap.get("value");
             return new Extension(oid, isCritical, new DEROctetString(setToKeyUsage(val)));
-        } else if (oid.equals(Extension.extendedKeyUsage)) {
+        } else if (oid.equals((Object) Extension.extendedKeyUsage)) {
             List<String> list = (List<String>) extMap.get("value");
             return new Extension(oid, isCritical, new DEROctetString(listToExtendedKeyUsage(list)));
-        } else if (oid.equals(Extension.basicConstraints)) {
+        } else if (oid.equals((Object) Extension.basicConstraints)) {
             Map<String, Object> val = (Map<String, Object>) extMap.get("value");
             return new Extension(oid, isCritical, new DEROctetString(mapToBasicConstraints(val)));
-        } else if (oid.equals(Extension.subjectKeyIdentifier)) {
+        } else if (oid.equals((Object) Extension.subjectKeyIdentifier)) {
             PublicKey pubKey = (PublicKey) extMap.get("value");
             return new Extension(oid, isCritical, new DEROctetString(publicKeyToSubjectKeyIdentifier(pubKey)));
-        } else if (oid.equals(Extension.authorityKeyIdentifier)) {
+        } else if (oid.equals((Object) Extension.authorityKeyIdentifier)) {
             Map<String, Object> val = (Map<String, Object>) extMap.get("value");
             return new Extension(oid, isCritical,
                     new DEROctetString(mapToAuthorityKeyIdentifier(val)));
-        } else if (oid.equals(Extension.cRLNumber)) {
+        } else if (oid.equals((Object) Extension.cRLNumber)) {
             BigInteger number = (BigInteger) extMap.get("value");
             return new Extension(oid, false, new DEROctetString(
                     new CRLNumber(number)));
-        } else if (oid.equals(Extension.deltaCRLIndicator)) {
+        } else if (oid.equals((Object) Extension.deltaCRLIndicator)) {
             BigInteger baseCRLNumber = (BigInteger) extMap.get("value");
             return new Extension(oid, true, new DEROctetString(
                     new CRLNumber(baseCRLNumber)));
@@ -534,29 +534,29 @@ public class ExtensionsUtils {
                                                  byte[] data)
             throws IOException
     {
-        if (oid.equals(Extension.subjectAlternativeName) ||
-            oid.equals(Extension.issuerAlternativeName))
+        if (oid.equals((Object) Extension.subjectAlternativeName) ||
+            oid.equals((Object) Extension.issuerAlternativeName))
         {
             return GeneralNames.getInstance(data);
-        } else if (oid.equals(Extension.authorityKeyIdentifier)) {
+        } else if (oid.equals((Object) Extension.authorityKeyIdentifier)) {
             return AuthorityKeyIdentifier.getInstance(data);
-        } else if (oid.equals(Extension.subjectKeyIdentifier)) {
+        } else if (oid.equals((Object) Extension.subjectKeyIdentifier)) {
             return SubjectKeyIdentifier.getInstance(data);
-        } else if (oid.equals(Extension.basicConstraints)) {
+        } else if (oid.equals((Object) Extension.basicConstraints)) {
             return BasicConstraints.getInstance(data);
-        } else if (oid.equals(Extension.keyUsage)) {
+        } else if (oid.equals((Object) Extension.keyUsage)) {
             DERBitString bs = (DERBitString) ASN1Primitive.fromByteArray(data);
             return KeyUsage.getInstance(bs);
-        } else if (oid.equals(Extension.extendedKeyUsage)) {
+        } else if (oid.equals((Object) Extension.extendedKeyUsage)) {
             return ExtendedKeyUsage.getInstance(data);
-        } else if (oid.equals(MiscObjectIdentifiers.netscapeCertComment)) {
+        } else if (oid.equals((Object) MiscObjectIdentifiers.netscapeCertComment)) {
             try {
                 return ASN1Primitive.fromByteArray(data);
             } catch (IOException e) {
                 // Sometimes the comment field is not properly wrapped in an IA5String
                 return new DERIA5String(new String(data, Charset.forName("US-ASCII")));
             }
-        } else if (oid.equals(Extension.cRLNumber)) {
+        } else if (oid.equals((Object) Extension.cRLNumber)) {
             return CRLNumber.getInstance(data);
         } else {
             try {
