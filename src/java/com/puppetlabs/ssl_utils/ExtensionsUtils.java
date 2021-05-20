@@ -76,6 +76,12 @@ public class ExtensionsUtils {
         Extension.authorityKeyIdentifier.toString();
 
     /**
+     * AuthorityKeyIdentifier OID 2.5.29.35
+     */
+    public static final String SUBJECT_KEY_IDENTIFIER_OID =
+            Extension.subjectKeyIdentifier.toString();
+
+    /**
      * SubjectAlternativeName OID 2.5.29.17
      */
     public static final String SUBJECT_ALTERNATIVE_NAME_OID =

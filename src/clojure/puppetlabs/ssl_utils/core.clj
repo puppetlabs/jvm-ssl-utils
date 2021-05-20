@@ -202,6 +202,10 @@
   "AuthorityKeyIdentifier OID 2.5.29.35"
   ExtensionsUtils/AUTHORITY_KEY_IDENTIFIER_OID)
 
+(def subject-key-identifier-oid
+  "SubjectKeyIdentifier OID 2.5.29.14"
+  ExtensionsUtils/SUBJECT_KEY_IDENTIFIER_OID)
+
 (def subject-alt-name-oid
   "SubjectAlternativeName OID 2.5.29.17"
   ExtensionsUtils/SUBJECT_ALTERNATIVE_NAME_OID)
@@ -312,7 +316,7 @@
   hash will be computed and stored in the resulting object."
   [public-key :- PublicKey
    critical :- Object]
-  {:oid      "2.5.29.14"
+  {:oid      subject-key-identifier-oid
    :critical (boolean critical)
    :value    public-key})
 
