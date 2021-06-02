@@ -361,17 +361,27 @@
 
 (schema/defn create-ca-extensions :- (schema/pred extension-list?)
   "Create a list of extensions to be added to the CA certificate."
-  [ca-name :- (schema/pred valid-x500-name?)
-   ca-serial :- (schema/pred number?)
-   ca-public-key :- (schema/pred public-key?)]
-  [(authority-key-identifier
-     ca-name ca-serial false)
-   (basic-constraints-for-ca)
-   (key-usage
+  ([issuer-public-key :- (schema/pred public-key?)
+    ca-public-key :- (schema/pred public-key?)]
+   [(authority-key-identifier
+     issuer-public-key false)
+    (basic-constraints-for-ca)
+    (key-usage
      #{:key-cert-sign
        :crl-sign} true)
-   (subject-key-identifier
+    (subject-key-identifier
      ca-public-key false)])
+  ([ca-name :- (schema/pred valid-x500-name?)
+    ca-serial :- (schema/pred number?)
+    ca-public-key :- (schema/pred public-key?)]
+   [(authority-key-identifier
+     ca-name ca-serial false)
+    (basic-constraints-for-ca)
+    (key-usage
+     #{:key-cert-sign
+       :crl-sign} true)
+    (subject-key-identifier
+     ca-public-key false)]))
 
 (schema/defn ^:always-validate crl-number :- SSLExtension
   "Create a `CRL Number` extension"

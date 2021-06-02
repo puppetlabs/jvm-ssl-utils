@@ -298,6 +298,32 @@
                                            sign-exts)
             actual-ext   (get-extension cert-w-exts
                                         "2.5.29.19")]
+        (is (= actual-ext expected-ext))))
+
+    (testing "signing for CA with auth id from public key"
+      (let [extensions (create-ca-extensions issuer-pub subj-pub)
+            cert-w-exts (sign-certificate issuer issuer-priv serial not-before
+                                          not-after subject subj-pub extensions)
+            expected-ext {:oid authority-key-identifier-oid
+                          :critical false
+                          :value    {:issuer         nil
+                                     :key-identifier (pubkey-sha1 issuer-pub)
+                                     :serial-number  nil}}
+            actual-ext (get-extension cert-w-exts
+                                      authority-key-identifier-oid)]
+        (is (= actual-ext expected-ext))))
+
+    (testing "signing for CA with auth id from issuer and serial"
+      (let [extensions (create-ca-extensions issuer serial subj-pub)
+            cert-w-exts (sign-certificate issuer issuer-priv serial not-before
+                                          not-after subject subj-pub extensions)
+            expected-ext {:oid authority-key-identifier-oid
+                          :critical false
+                          :value    {:issuer         {:directory-name [issuer]}
+                                     :key-identifier nil
+                                     :serial-number  serial}}
+            actual-ext (get-extension cert-w-exts
+                                      authority-key-identifier-oid)]
         (is (= actual-ext expected-ext))))))
 
 (deftest certificate-test

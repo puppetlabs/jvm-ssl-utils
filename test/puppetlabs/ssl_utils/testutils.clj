@@ -165,7 +165,7 @@
         not-after (generate-not-after-date)
         cert (sign-certificate issuer-name (get-private-key issuer-key-pair)
                                serial not-before not-after subject-name public-key
-                               (create-ca-extensions subject-name serial public-key))]
+                               (create-ca-extensions (get-public-key issuer-key-pair) public-key))]
     [cert key-pair]))
 
 (defn generate-cert-chain-with-crls
