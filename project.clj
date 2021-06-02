@@ -50,7 +50,7 @@
                     ;; this only ensures that we run with the proper profiles
                     ;; during testing. This JVM opt will be set in the puppet module
                     ;; that sets up the JVM classpaths during installation.
-                    :jvm-opts ~(let [version (System/getProperty "java.version")
+                    :jvm-opts ~(let [version (System/getProperty "java.specification.version")
                                      [major minor _] (clojure.string/split version #"\.")
                                      unsupported-ex (ex-info "Unsupported major Java version. Expects 8 or 11."
                                                       {:major major
