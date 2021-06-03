@@ -44,9 +44,9 @@
              :provided {:dependencies [[org.bouncycastle/bcpkix-jdk15on]]
                         :resource-paths ["test-resources"]}
 
-             :fips {:dependencies [[org.bouncycastle/bctls-fips]
-                                   [org.bouncycastle/bcpkix-fips]
-                                   [org.bouncycastle/bc-fips]]
+             :fips {:dependencies [[org.bouncycastle/bctls-fips "1.0.11.4"]
+                                   [org.bouncycastle/bcpkix-fips "1.0.5"]
+                                   [org.bouncycastle/bc-fips "1.0.2.1"]]
                     ;; this only ensures that we run with the proper profiles
                     ;; during testing. This JVM opt will be set in the puppet module
                     ;; that sets up the JVM classpaths during installation.
