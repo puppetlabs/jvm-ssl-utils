@@ -279,3 +279,23 @@
         crls-filename "crl-chain-with-cert-revoked.pem"
         [certs crls] (generate-cert-chain-with-revoked-cert number-of-certs)]
     (write-certs-and-crls certs crls test-subpath certs-filename crls-filename)))
+
+(defn write-bundle-for-manual-validation
+  [number-of-certs output-dir]
+  (let [[certs crls-with-updates leaf-keys] (generate-cert-chain-with-crls
+                                             number-of-certs
+                                             generate-multiple-crls)
+        original-crls (map :original crls-with-updates)
+        new-crls (map :new crls-with-updates)
+        newest-crls (map :newest crls-with-updates)]
+    (fs/mkdirs output-dir)
+    ;; The file names `ca-bundle.pem`, `crls.pem`, and `puppet_ca_key.pem` are used
+    ;; in the instructions for setting up an intermediate CA with an external root
+    ;; (https://puppet.com/docs/puppet/latest/server/intermediate_ca.html#set-up-puppet-as-an-intermediate-ca-with-an-external-root),
+    ;; which should allow for easily copy-pasting the example `import` command.
+    (objs->pem! certs (fs/file output-dir "ca-bundle.pem"))
+    (objs->pem! original-crls (fs/file output-dir "crls.pem"))
+    (objs->pem! new-crls (fs/file output-dir "new-crls.pem"))
+    (objs->pem! newest-crls (fs/file output-dir "newest-crls.pem"))
+    (key->pem! (get-private-key leaf-keys) (fs/file output-dir "puppet_ca_key.pem"))
+    (key->pem! (get-public-key leaf-keys) (fs/file output-dir "puppet_ca_pubkey.pem"))))
