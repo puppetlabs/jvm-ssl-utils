@@ -190,7 +190,7 @@
             issuer root-cert
             issuer-key-pair root-key-pair]
        (if (< certs-to-generate 1)
-         [certs crls]
+         [certs crls issuer-key-pair]
          (let [[new-cert new-key-pair] (generate-ca-cert
                                         (cn (get-cn-from-x509-certificate issuer))
                                         issuer-key-pair
@@ -211,17 +211,17 @@
   (if (< number-of-certs 2)
     (throw (Exception. (format "Can't perform revocations on a %d-cert chain."
                                number-of-certs))))
-  (let [key-pair (generate-key-pair 2048)
-        [certs crls] (generate-cert-chain-with-crls number-of-certs
-                                                    generate-crl
-                                                    key-pair)
+  (let [root-key-pair (generate-key-pair 2048)
+        [certs crls leaf-keys] (generate-cert-chain-with-crls number-of-certs
+                                                              generate-crl
+                                                              root-key-pair)
         cert-to-revoke (nth certs (- number-of-certs 2))
         crl-to-update (last crls)
         updated-crl (revoke crl-to-update
-                            (get-private-key key-pair)
-                            (get-public-key key-pair)
+                            (get-private-key root-key-pair)
+                            (get-public-key root-key-pair)
                             (get-serial cert-to-revoke))]
-    [certs (-> crls drop-last (conj updated-crl))]))
+    [certs (-> crls drop-last (conj updated-crl) leaf-keys)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Writing test files
@@ -249,28 +249,28 @@
   [number-of-certs test-subpath]
   (let [certs-filename (str number-of-certs "-cert-chain.pem")
         crls-filename (str number-of-certs "-crl-chain.pem")
-        [certs crls] (generate-cert-chain-with-crls number-of-certs)]
+        [certs crls _] (generate-cert-chain-with-crls number-of-certs)]
     (write-certs-and-crls certs crls test-subpath certs-filename crls-filename)))
 
 (defn write-expired-crl
   [test-subpath]
   (let [cert-filename "cert-with-expired-crl.pem"
         crl-filename "expired-crl.pem"
-        [cert expired-crl] (generate-cert-chain-with-crls 1 generate-expired-crl)]
+        [cert expired-crl _] (generate-cert-chain-with-crls 1 generate-expired-crl)]
     (write-certs-and-crls cert expired-crl test-subpath cert-filename crl-filename)))
 
 (defn write-not-yet-valid-crl
   [test-subpath]
   (let [cert-filename "cert-with-not-valid-crl.pem"
         crl-filename "not-yet-valid-crl.pem"
-        [cert crl] (generate-cert-chain-with-crls 1 generate-not-yet-valid-crl)]
+        [cert crl _] (generate-cert-chain-with-crls 1 generate-not-yet-valid-crl)]
     (write-certs-and-crls cert crl test-subpath cert-filename crl-filename)))
 
 (defn write-crl-with-bad-sig
   [test-subpath]
   (let [cert-filename "cert-with-crl-bad-sig.pem"
         crl-filename "crl-with-bad-signature.pem"
-        [cert bad-crl] (generate-cert-chain-with-crls 1 generate-crl-with-bad-signature)]
+        [cert bad-crl _] (generate-cert-chain-with-crls 1 generate-crl-with-bad-signature)]
     (write-certs-and-crls cert bad-crl test-subpath cert-filename crl-filename)))
 
 (defn write-cert-chain-with-revoked-cert
@@ -279,3 +279,23 @@
         crls-filename "crl-chain-with-cert-revoked.pem"
         [certs crls] (generate-cert-chain-with-revoked-cert number-of-certs)]
     (write-certs-and-crls certs crls test-subpath certs-filename crls-filename)))
+
+(defn write-bundle-for-manual-validation
+  [number-of-certs output-dir]
+  (let [[certs crls-with-updates leaf-keys] (generate-cert-chain-with-crls
+                                             number-of-certs
+                                             generate-multiple-crls)
+        original-crls (map :original crls-with-updates)
+        new-crls (map :new crls-with-updates)
+        newest-crls (map :newest crls-with-updates)]
+    (fs/mkdirs output-dir)
+    ;; The file names `ca-bundle.pem`, `crls.pem`, and `puppet_ca_key.pem` are used
+    ;; in the instructions for setting up an intermediate CA with an external root
+    ;; (https://puppet.com/docs/puppet/latest/server/intermediate_ca.html#set-up-puppet-as-an-intermediate-ca-with-an-external-root),
+    ;; which should allow for easily copy-pasting the example `import` command.
+    (objs->pem! certs (fs/file output-dir "ca-bundle.pem"))
+    (objs->pem! original-crls (fs/file output-dir "crls.pem"))
+    (objs->pem! new-crls (fs/file output-dir "new-crls.pem"))
+    (objs->pem! newest-crls (fs/file output-dir "newest-crls.pem"))
+    (key->pem! (get-private-key leaf-keys) (fs/file output-dir "puppet_ca_key.pem"))
+    (key->pem! (get-public-key leaf-keys) (fs/file output-dir "puppet_ca_pubkey.pem"))))
