@@ -76,7 +76,16 @@
 
   (testing "read RSA-only keys from PEM stream"
     (let [rsa-only-keys (-> "private_keys/keyonly.pem" open-ssl-file pem->private-keys)]
-      (is (every? private-key? rsa-only-keys)))))
+      (is (every? private-key? rsa-only-keys))))
+
+  (testing "read EC key from PEM stream"
+    (let [ec-key (-> "private_keys/eckey.pem" open-ssl-file pem->private-key)]
+      (is (private-key? ec-key))))
+
+  (testing "throw if PEM not a private key"
+    (is (thrown-with-msg? IllegalArgumentException
+                          #"Expected a KeyPair or PrivateKey"
+                          (-> "certs/ca.pem" open-ssl-file pem->private-key)))))
 
 
 (deftest name-test

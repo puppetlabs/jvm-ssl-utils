@@ -737,8 +737,14 @@ public class SSLUtils {
     {
         List<Object> objects = pemToObjects(reader);
         List<PrivateKey> results = new ArrayList<PrivateKey>(objects.size());
-        for (Object o : objects)
-            results.add(objectToPrivateKey(o));
+        for (Object o : objects) {
+            // Filter out EC params; this passes every other
+            // kind of object through to `objectToPrivateKey`,
+            // which will throw if the object is not a key
+            if (!(o instanceof ASN1ObjectIdentifier)) {
+                results.add(objectToPrivateKey(o));
+            }
+        }
         return results;
     }
 
