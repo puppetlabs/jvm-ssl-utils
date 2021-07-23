@@ -96,7 +96,6 @@
   "Returns true if x is an instance of `X509CRL` (see `generate-crl`)."
   [x]
   (instance? X509CRL x))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Schemas
 
@@ -1043,3 +1042,19 @@
   [c :- CertOrCSR
    digest :- schema/Str]
   (SSLUtils/getFingerprint c digest))
+
+(schema/defn ^:always-validate prevent-duplicate :- (schema/maybe '(schema/Int))
+  "Given the list of serials to be added to the revoked list of Puppet's CA CRL
+   and the Puppet's CA CRL, extract the all the existing serial numbers
+   within the Puppet's CA CRL and group them into a list. Compare the given list
+   of serials against the newly extracted list for any shared serial numbers.
+   Those shared serial numbers will be removed. Return a list of serials to be
+   added to the revoked list without any numbers already existed in Puppet's CA CRL."
+  [serials :- '(schema/Int) ; must be a list of serials
+   cacrl :- X509CRL] ; must be an instance of X509CRL
+  (let [in? (fn [coll elem] (if (some #(= % elem) coll)
+              (do (println (str elem " existed. Will not be revoked")) true)
+              nil))
+        cacrl-revoked-list (.getRevokedCertificates cacrl)
+        existed-serials (map #(.getSerialNumber %) cacrl-revoked-list)]
+    (remove #(in? existed-serials %) serials)))
