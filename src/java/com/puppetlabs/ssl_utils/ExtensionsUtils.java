@@ -32,6 +32,7 @@ import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.asn1.x509.SubjectKeyIdentifier;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
 import org.bouncycastle.cert.X509CRLHolder;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509ExtensionUtils;
@@ -383,7 +384,7 @@ public class ExtensionsUtils {
      * @see #parseExtensionObject(java.util.Map)
      */
     static Extensions getExtensionsObjFromMap(List<Map<String,Object>> extMapsList)
-            throws IOException, OperatorCreationException {
+        throws IOException, OperatorCreationException, CertificateEncodingException {
         if ((extMapsList != null) && (extMapsList.size() > 0)) {
             List<Extension> ret = new ArrayList<Extension>();
             for (Map<String, Object> extObj : extMapsList) {
@@ -406,7 +407,7 @@ public class ExtensionsUtils {
      */
     @SuppressWarnings("unchecked")
     static Extension parseExtensionObject(Map<String, Object> extMap)
-            throws IOException, OperatorCreationException
+        throws IOException, OperatorCreationException, CertificateEncodingException
     {
         String oidString = (String)extMap.get("oid");
         ASN1ObjectIdentifier oid = new ASN1ObjectIdentifier(oidString);
@@ -431,11 +432,22 @@ public class ExtensionsUtils {
             return new Extension(oid, isCritical, new DEROctetString(mapToBasicConstraints(val)));
         } else if (oid.equals((Object) Extension.subjectKeyIdentifier)) {
             PublicKey pubKey = (PublicKey) extMap.get("value");
-            return new Extension(oid, isCritical, new DEROctetString(publicKeyToSubjectKeyIdentifier(pubKey)));
+            Map<String, Object> options = (Map<String, Object>) extMap.get("options");
+            if (options == null) {
+                return new Extension(oid, isCritical,
+                                     new DEROctetString(publicKeyToSubjectKeyIdentifier(pubKey, false)));
+            }
+            Boolean truncate = (Boolean) options.get("truncate");
+            return new Extension(oid, isCritical,
+                                 new DEROctetString(publicKeyToSubjectKeyIdentifier(pubKey, truncate)));
         } else if (oid.equals((Object) Extension.authorityKeyIdentifier)) {
             Map<String, Object> val = (Map<String, Object>) extMap.get("value");
-            return new Extension(oid, isCritical,
-                    new DEROctetString(mapToAuthorityKeyIdentifier(val)));
+            Map<String, Object> options = (Map<String, Object>) extMap.get("options");
+            if (options == null) {
+                return new Extension(oid, isCritical, new DEROctetString(mapToAuthorityKeyIdentifier(val, false)));
+            }
+            Boolean truncate = (Boolean) options.get("truncate");
+            return new Extension(oid, isCritical, new DEROctetString(mapToAuthorityKeyIdentifier(val, truncate)));
         } else if (oid.equals((Object) Extension.cRLNumber)) {
             BigInteger number = (BigInteger) extMap.get("value");
             return new Extension(oid, false, new DEROctetString(
@@ -726,47 +738,61 @@ public class ExtensionsUtils {
         return bc;
     }
 
-    private static SubjectKeyIdentifier publicKeyToSubjectKeyIdentifier(PublicKey publicKey)
-            throws OperatorCreationException
-    {
+    private static SubjectKeyIdentifier publicKeyToSubjectKeyIdentifier(PublicKey publicKey,
+                                                                        Boolean truncate)
+        throws OperatorCreationException {
         SubjectPublicKeyInfo pubKeyInfo =
                 SubjectPublicKeyInfo.getInstance(publicKey.getEncoded());
 
         DigestCalculator digCalc = new JcaDigestCalculatorProviderBuilder().build()
                 .get(new AlgorithmIdentifier(OIWObjectIdentifiers.idSHA1));
 
-        X509ExtensionUtils utils = new X509ExtensionUtils(digCalc);
+        X509ExtensionUtils utils = new JcaX509ExtensionUtils(digCalc);
+        if (truncate == true) {
+            return utils.createTruncatedSubjectKeyIdentifier(pubKeyInfo);
+        }
         return utils.createSubjectKeyIdentifier(pubKeyInfo);
     }
 
-    private static AuthorityKeyIdentifier mapToAuthorityKeyIdentifier(
-            Map<String, Object> authKeyIdMap) throws OperatorCreationException {
-        AuthorityKeyIdentifier authorityKeyId = null;
+    private static JcaX509ExtensionUtils extensionUtils()
+            throws OperatorCreationException {
+        DigestCalculator digCalc =
+            new JcaDigestCalculatorProviderBuilder().build().get(
+                    new AlgorithmIdentifier(OIWObjectIdentifiers.idSHA1));
+        return new JcaX509ExtensionUtils(digCalc);
+    }
 
-        PublicKey pubKey = (PublicKey) authKeyIdMap.get ("public_key");
-        if (pubKey != null) {
-            SubjectPublicKeyInfo authPubKeyInfo =
-                    SubjectPublicKeyInfo.getInstance(
-                            pubKey.getEncoded());
+    private static AuthorityKeyIdentifier authKeyIdFromPubKey(
+            PublicKey pubKey, Boolean truncateKey)
+            throws OperatorCreationException {
+        SubjectPublicKeyInfo authPubKeyInfo =
+            SubjectPublicKeyInfo.getInstance(pubKey.getEncoded());
 
-            DigestCalculator digCalc =
-                    new JcaDigestCalculatorProviderBuilder().build().get(
-                            new AlgorithmIdentifier(OIWObjectIdentifiers.idSHA1));
-
-            X509ExtensionUtils utils = new X509ExtensionUtils(digCalc);
-            authorityKeyId = utils.createAuthorityKeyIdentifier(authPubKeyInfo);
+        JcaX509ExtensionUtils utils = extensionUtils();
+        if (truncateKey == true) {
+            byte[] shortKey = utils.createTruncatedSubjectKeyIdentifier(
+                                      authPubKeyInfo).getKeyIdentifier();
+            return new AuthorityKeyIdentifier(shortKey);
+        }
+        else {
+            return utils.createAuthorityKeyIdentifier(authPubKeyInfo);
         }
 
-        BigInteger serialNumber = (BigInteger) authKeyIdMap.get
-                ("serial_number");
+    }
+
+    private static Boolean ensureValidArgsForAuthKeyIssuer(BigInteger serialNumber,
+                                                           String issuer,
+                                                           PublicKey pubKey)
+        throws IllegalArgumentException {
         if (pubKey == null && serialNumber == null) {
+            /* This is a little funny but since this is called in the conditional
+               for `cert == null` we know that cert has not been provided and can
+               say so in the Exception */
             throw new IllegalArgumentException(
-                    "Neither 'public_key' nor 'serial_number' provided for " +
+                    "Neither 'public_key', 'serial_number', or 'cert' provided for " +
                     "auth key identifier.  At least one of these must be " +
                     "provided.");
         }
-
-        String issuer = (String) authKeyIdMap.get ("issuer_dn");
         if (issuer == null) {
             if (serialNumber != null) {
                 throw new IllegalArgumentException(
@@ -780,20 +806,50 @@ public class ExtensionsUtils {
                         "'serial_number' not provided for auth key identifier" +
                         "but was expected since 'issuer' was provided");
             }
+            return true;
+        }
+        return false;
+    }
 
-            GeneralNames issuerAsGeneralNames =
-                    new GeneralNames(new GeneralName(new X500Name(issuer)));
-            if (authorityKeyId != null) {
-                authorityKeyId = new AuthorityKeyIdentifier(
-                        authorityKeyId.getKeyIdentifier(),
-                        issuerAsGeneralNames,
-                        serialNumber);
+    private static AuthorityKeyIdentifier authKeyIdFromIssuer(String issuer,
+                                                              AuthorityKeyIdentifier authorityKeyId,
+                                                              BigInteger serialNumber)
+        throws OperatorCreationException {
+        GeneralNames issuerAsGeneralNames =
+            new GeneralNames(new GeneralName(new X500Name(issuer)));
+        if (authorityKeyId != null) {
+            return new AuthorityKeyIdentifier(authorityKeyId.getKeyIdentifier(),
+                                                        issuerAsGeneralNames,
+                                                        serialNumber);
+        }
+        else {
+            return new AuthorityKeyIdentifier(issuerAsGeneralNames,
+                                                        serialNumber);
+        }
+    }
+
+    private static AuthorityKeyIdentifier mapToAuthorityKeyIdentifier(Map<String, Object> authKeyIdMap,
+                                                                      Boolean truncate)
+        throws OperatorCreationException, CertificateEncodingException, IOException {
+        AuthorityKeyIdentifier authorityKeyId = null;
+        X509Certificate cert = (X509Certificate) authKeyIdMap.get("cert");
+
+        if (cert == null) {
+            PublicKey pubKey = (PublicKey) authKeyIdMap.get ("public_key");
+            if (pubKey != null) {
+                authorityKeyId = authKeyIdFromPubKey(pubKey, truncate);
             }
-            else {
-                authorityKeyId = new AuthorityKeyIdentifier(
-                        issuerAsGeneralNames,
-                        serialNumber);
+            BigInteger serialNumber = (BigInteger) authKeyIdMap.get("serial_number");
+            String issuer = (String) authKeyIdMap.get ("issuer_dn");
+            if (ensureValidArgsForAuthKeyIssuer(serialNumber, issuer, pubKey) == true) {
+                authorityKeyId = authKeyIdFromIssuer(issuer, authorityKeyId, serialNumber);
             }
+        }
+        else {
+            JcaX509ExtensionUtils utils = extensionUtils();
+            // This copies the the field for the SubjectKeyIdentifier from the cert and uses
+            // that data to generate an AuthorityKeyIdentifier to be added to the signed cert.
+            authorityKeyId = utils.createAuthorityKeyIdentifier(new X509CertificateHolder(cert.getEncoded()));
         }
 
         return authorityKeyId;

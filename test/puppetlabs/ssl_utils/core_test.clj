@@ -15,6 +15,10 @@
             [puppetlabs.ssl-utils.testutils :refer :all]
             [schema.core :as schema]))
 
+(def key-id-type-2-byte-length 8)
+
+(def key-id-type-1-byte-length 20)
+
 (deftest key-test
   (testing "generate public & private keys"
     (let [key-pair (generate-key-pair)
@@ -253,6 +257,21 @@
                                         "2.5.29.35")]
         (is (= actual-ext expected-ext))))
 
+    (testing "signing as an intermediate ca with a type 2 subject id and with a certificate"
+      (let [int-sign-exts (-> (create-ca-extensions (get-public-key issuer-key-pair) (get-public-key key-pair))
+                              (swap-extension (create-truncated-subject-key-identifier(get-public-key key-pair))))
+            int-ca (sign-certificate issuer issuer-priv serial not-before
+                                     not-after subject subj-pub
+                                     int-sign-exts)
+            new-key-pair (generate-key-pair)
+            cert (sign-certificate subject (get-private-key key-pair) serial not-before not-after
+                                   (cn "bar") (get-public-key new-key-pair)
+                                   [(authority-key-identifier int-ca)])
+            int-ca-subject-id (get-extension-value int-ca "2.5.29.14")
+            cert-auth-id (get-extension-value cert "2.5.29.35")]
+        (is (= key-id-type-2-byte-length (count int-ca-subject-id)))
+        (is (= int-ca-subject-id (:key-identifier cert-auth-id)))))
+
     (testing (str "signing for authority key identifier with public key,"
                   "issuer, and serial number")
       (let [sign-exts    [(authority-key-identifier
@@ -410,6 +429,32 @@
       (is (= serial (get-serial parsed-cert)))
       (is (= orig-cert parsed-cert)))))
 
+(deftest crl-with-type-2-auth-id
+  (let [key-pair (generate-key-pair)
+        public-key (get-public-key key-pair)
+        private-key (get-private-key key-pair)
+        cert-key-pair (generate-key-pair)
+        issuer-name (cn "Puppet CA: localhost")
+        not-before (generate-not-before-date)
+        not-after (generate-not-after-date)
+        extensions [(create-truncated-authority-key-identifier public-key)]
+        ca (sign-certificate
+              issuer-name private-key
+              1 not-before not-after
+              issuer-name public-key
+              (create-ca-extensions issuer-name 1 public-key))
+        crl (generate-crl (X500Principal. issuer-name) private-key public-key
+                          not-before not-after (biginteger 0) extensions)
+        cert (sign-certificate issuer-name private-key 2 not-before not-after
+                               (cn "foo") (get-public-key cert-key-pair))
+        updated-crl (revoke crl private-key public-key (get-serial cert))]
+    (testing "The updated-crl is unchanged from the original crl"
+      (is (= key-id-type-2-byte-length (-> (get-extension-value crl authority-key-identifier-oid)
+                                           (:key-identifier)
+                                           (count))))
+      (is (= (get-extension crl authority-key-identifier-oid)
+             (get-extension updated-crl authority-key-identifier-oid))))))
+
 (deftest certificate-revocation-list
   (let [key-pair (generate-key-pair 512)
         public-key (get-public-key key-pair)
@@ -426,6 +471,9 @@
                           private-key public-key)]
 
     (testing "create CRL"
+      (is (= key-id-type-1-byte-length (-> (get-extension-value crl authority-key-identifier-oid)
+                                           (:key-identifier)
+                                           (count))))
       (is (certificate-revocation-list? crl))
       (is (issued-by? crl issuer-name))
       (is (nil? (.verify crl public-key)))

@@ -139,6 +139,28 @@
                         BigInteger/ONE
                         [(javaize (delta-crl-indicator BigInteger/ZERO))]))
 
+(defn create-truncated-subject-key-identifier
+  [key]
+  {:oid subject-key-identifier-oid
+   :critical false
+   :value key
+   :options {:truncate true}})
+
+(defn create-truncated-authority-key-identifier
+  [key]
+  {:oid      authority-key-identifier-oid
+   :critical false
+   :value    {:public-key    key
+              :serial-number nil
+              :issuer-dn     nil
+              :cert          nil}
+   :options {:truncate true}})
+
+(defn swap-extension
+  [extensions extension]
+  (-> (remove #(= (:oid extension) (:oid %)) extensions)
+      (conj extension)))
+
 (defn generate-crl-with-bad-signature
   [issuer _ _]
   (let [random-keys (generate-key-pair 2048)

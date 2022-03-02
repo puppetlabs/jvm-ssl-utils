@@ -103,11 +103,15 @@
 (def ValidX500Name
   (schema/pred valid-x500-name?))
 
-(def SSLExtension
-  "A map containing all the fields required to define an extension."
+(def  SSLExtension
+  "A map containing all the fields required to define an extension. This is not
+   the actual SSL Extension itself but the required oid, critical boolean, and
+   value for the Extension. Use the optional :options to to modify how the
+   extension is created in ExtensionsUtils."
   {:oid schema/Str
    :critical schema/Bool
-   :value Object})
+   :value Object
+   (schema/optional-key :options) Object})
 
 (def SSLExtensionList
   [SSLExtension])
@@ -287,27 +291,44 @@
    :value    comment})
 
 (defn- create-authority-key-identifier
-  [public-key issuer-dn serial critical]
+  [{:keys [public-key issuer-dn serial cert critical]}]
   {:oid      authority-key-identifier-oid
    :critical (boolean critical)
    :value    {:public-key    public-key
               :serial-number (if (number? serial) (biginteger serial))
-              :issuer-dn     issuer-dn}})
+              :issuer-dn     issuer-dn
+              :cert          cert}})
 
-(schema/defn ^:always-validate authority-key-identifier :- SSLExtension
-  "Create an `Authority Key Identifier` extension from a `PublicKey` object. The
-  extension created by this function is intended to be passed into
-  `sign-certificate` and `generate-certificate-request`, at which time the key's
-  hash will be computed and stored in the resulting object."
+(schema/defn ^:always-validate authority-key-identifier-options :- SSLExtension
+  "Create an `Authority Key Identifier` extension from a `PublicKey` object or
+   copy the existing `SubjectKeyIdentifier` from a certificate. This function is
+   intended to be passed into `sign-certificate` and `generate-certificate-request`.
+
+   PublicKey details:
+   A type 1 identifier will be computed from the public key.
+
+   Certificate details:
+   An `X509Certificate` can be used instead of a `PublicKey`. The
+   `SubjectKeyIdentifier`of the certificate is copied and used for the
+   `AuthorityKeyIdentifier` for the certificate about to be signed. When a
+   certificate is used, no hash computation takes place."
+  ([cert]
+   (create-authority-key-identifier {:cert cert :critical false}))
   ([public-key critical]
-   (create-authority-key-identifier public-key nil nil critical))
+   (create-authority-key-identifier {:public-key public-key :critical critical}))
   ([issuer-dn serial critical]
-   (create-authority-key-identifier nil issuer-dn serial critical))
+   (create-authority-key-identifier {:issuer-dn issuer-dn :serial serial :critical critical}))
   ([public-key :- PublicKey
     issuer-dn :- ValidX500Name
     serial :- schema/Int
     critical :- Object]
-   (create-authority-key-identifier public-key issuer-dn serial critical)))
+   (create-authority-key-identifier {:public-key public-key
+                                     :issuer-dn issuer-dn
+                                     :serial serial
+                                     :critical critical})))
+
+(schema/def authority-key-identifier
+  authority-key-identifier-options)
 
 (schema/defn ^:always-validate subject-key-identifier :- SSLExtension
   "Create a `Subject Key Identifier` extension from a `PublicKey` object. The
@@ -527,16 +548,31 @@
 (schema/defn ^:always-validate generate-crl :- X509CRL
   "Given the certificate authority's principal identifier and private & public
    keys, create and return a `X509CRL` certificate revocation list (CRL).
-   The CRL will have an AuthorityKeyIdentifier and CRLNumber extensions.
+   The CRL will have an AuthorityKeyIdentifier and CRLNumber extensions. Typical
+   usage of this will be with the 3 argument arity; the fuller arity is exposed
+   here for testing purposes.
 
    Arguments:
    `issuer`:             the issuer's `X500Principal`
    `issuer-private-key`: the issuer's `PrivateKey`
-   `issuer-public-key`:  the issuer's `PublicKey`"
-  [issuer :- X500Principal
-   issuer-private-key :- PrivateKey
-   issuer-public-key :- PublicKey]
-  (SSLUtils/generateCRL issuer issuer-private-key issuer-public-key))
+   `issuer-public-key`:  the issuer's `PublicKey`
+   `this-update`:        date for when this crl is created
+   `next-update`:        when to fetch the rcl next
+   `crl-number`:         number to start revocation count at
+   `extensions`:         any extensions to sign onto the crl"
+  ([issuer :- X500Principal
+    issuer-private-key :- PrivateKey
+    issuer-public-key :- PublicKey]
+   (SSLUtils/generateCRL issuer issuer-private-key issuer-public-key))
+  ([issuer :- X500Principal
+    issuer-private-key :- PrivateKey
+    issuer-public-key :- PublicKey
+    this-update :- Date
+    next-update :- Date
+    crl-number :- BigInteger
+    extensions :- SSLExtensionList]
+   (SSLUtils/generateCRL issuer issuer-private-key issuer-public-key this-update next-update
+                         crl-number (javaize extensions))))
 
 (schema/defn ^:always-validate revoked? :- schema/Bool
   "Given a certificate revocation list and certificate, test if the
