@@ -190,7 +190,7 @@ public class SSLUtils {
      */
     public static PKCS10CertificationRequest generateCertificateRequest(KeyPair keyPair, String subjectDN,
         List<Map<String, Object>> extensions)
-        throws IOException, OperatorCreationException
+        throws IOException, OperatorCreationException, CertificateEncodingException
     {
         // TODO: the puppet code sets a property "version=0" on the request object
         // here; can't figure out how to do that at the moment.  Not sure if it's needed.
@@ -302,12 +302,10 @@ public class SSLUtils {
                                       Date nextUpdate,
                                       BigInteger crlNumber,
                                       List<Map<String, Object>> extensions)
-        throws CRLException, IOException, OperatorCreationException, NoSuchAlgorithmException
+        throws CRLException, IOException, OperatorCreationException, NoSuchAlgorithmException, CertificateEncodingException
     {
         X509v2CRLBuilder builder = new JcaX509v2CRLBuilder(issuer, thisUpdate);
         builder.setNextUpdate(nextUpdate);
-        builder.addExtension(Extension.authorityKeyIdentifier, false,
-                             new JcaX509ExtensionUtils().createAuthorityKeyIdentifier(issuerPublicKey));
         builder.addExtension(Extension.cRLNumber, false, new CRLNumber(crlNumber));
         Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
         if (bcExtensions != null) {
@@ -319,6 +317,10 @@ public class SSLUtils {
                 builder.addExtension(oid, true, bcExtensions.getExtension(oid).getParsedValue());
             }
         }
+        if (builder.hasExtension(Extension.authorityKeyIdentifier) == false) {
+            builder.addExtension(Extension.authorityKeyIdentifier, false,
+                                 new JcaX509ExtensionUtils().createAuthorityKeyIdentifier(issuerPublicKey));
+        }
         ContentSigner signer =
             new JcaContentSignerBuilder("SHA256withRSA").build(issuerPrivateKey);
         return new JcaX509CRLConverter().getCRL(builder.build(signer));
@@ -327,7 +329,7 @@ public class SSLUtils {
     public static X509CRL generateCRL(X500Principal issuer,
                                       PrivateKey issuerPrivateKey,
                                       PublicKey issuerPublicKey)
-        throws CRLException, IOException, OperatorCreationException, NoSuchAlgorithmException
+        throws CRLException, IOException, OperatorCreationException, NoSuchAlgorithmException, CertificateEncodingException
     {
         DateTime now = DateTime.now();
         Date thisUpdate = now.toDate();
@@ -380,8 +382,17 @@ public class SSLUtils {
         crlNumber = (crlNumber == null) ? BigInteger.ZERO : crlNumber;
         builder.addExtension(Extension.cRLNumber, false,
                 new CRLNumber(crlNumber.add(BigInteger.ONE)));
-        builder.addExtension(Extension.authorityKeyIdentifier, false,
-                new JcaX509ExtensionUtils().createAuthorityKeyIdentifier(issuerPublicKey));
+        JcaX509CRLHolder holder = new JcaX509CRLHolder(crl);
+        Extension extension = holder.getExtension(Extension.authorityKeyIdentifier);
+        if (extension == null) {
+            builder.addExtension(Extension.authorityKeyIdentifier, false,
+                                 new JcaX509ExtensionUtils().createAuthorityKeyIdentifier(issuerPublicKey));
+            }
+        else {
+            builder.addExtension(Extension.authorityKeyIdentifier, false,
+                                 extension.getParsedValue());
+
+        }
 
         ContentSigner signer =
                 new JcaContentSignerBuilder("SHA256withRSA").build(issuerPrivateKey);
@@ -398,7 +409,9 @@ public class SSLUtils {
      * the extension will be added if it doesn't already exist.
      *
      * The AuthorityKeyIdentifier extension will be added to the CRL if
-     * if doesn't already exist.
+     * if doesn't already exist. If the original CRL already has an
+     * AuthorityKeyIdentifier it will be copied into the new CRL,
+     * otherwise one will be computed from the issuerPublicKey.
      *
      * @param crl The revocation list to add the certificate serial to
      * @param issuerPrivateKey The certificate authority's private key
@@ -433,7 +446,9 @@ public class SSLUtils {
      * the extension will be added if it doesn't already exist.
      *
      * The AuthorityKeyIdentifier extension will be added to the CRL if
-     * if doesn't already exist.
+     * if doesn't already exist. If the original CRL already has an
+     * AuthorityKeyIdentifier it will be copied into the new CRL,
+     * otherwise one will be computed from the issuerPublicKey.
      *
      * @param crl The revocation list to add the certificate serials to
      * @param issuerPrivateKey The certificate authority's private key
