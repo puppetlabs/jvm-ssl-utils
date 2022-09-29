@@ -5,14 +5,14 @@
     :password :env/clojars_jenkins_password
     :sign-releases false})
 
-(defproject puppetlabs/ssl-utils "3.4.2-SNAPSHOT"
+(defproject puppetlabs/ssl-utils "3.5.0-SNAPSHOT"
   :url "http://www.github.com/puppetlabs/jvm-ssl-utils"
 
   :description "SSL certificate management on the JVM."
 
-  :min-lein-version "2.9.1"
+  :min-lein-version "2.9.10"
 
-  :parent-project {:coords [puppetlabs/clj-parent "4.9.2"]
+  :parent-project {:coords [puppetlabs/clj-parent "5.2.6"]
                    :inherit [:managed-dependencies]}
 
   ;; Abort when version ranges or version conflicts are detected in
@@ -36,12 +36,12 @@
   ;; depend on this source jar using a :classifier in their :dependencies.
   :classifiers [["sources" :sources-jar]]
 
-  :profiles {:dev {:dependencies [[org.bouncycastle/bcpkix-jdk15on]]
+  :profiles {:dev {:dependencies [[org.bouncycastle/bcpkix-jdk18on]]
                    :resource-paths ["test-resources"]}
 
              ;; per https://github.com/technomancy/leiningen/issues/1907
              ;; the provided profile is necessary for lein jar / lein install
-             :provided {:dependencies [[org.bouncycastle/bcpkix-jdk15on]]
+             :provided {:dependencies [[org.bouncycastle/bcpkix-jdk18on]]
                         :resource-paths ["test-resources"]}
 
              :fips {:dependencies [[org.bouncycastle/bctls-fips]
