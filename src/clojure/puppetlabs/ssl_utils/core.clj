@@ -103,15 +103,22 @@
 (def ValidX500Name
   (schema/pred valid-x500-name?))
 
-(def  SSLExtension
+(def SSLAttribute
+  {:oid schema/Str
+   :value Object})
+
+(def SSLAttributeList
+  [SSLAttribute])
+
+(def SSLExtension
   "A map containing all the fields required to define an extension. This is not
    the actual SSL Extension itself but the required oid, critical boolean, and
    value for the Extension. Use the optional :options to to modify how the
    extension is created in ExtensionsUtils."
-  {:oid schema/Str
+  (assoc SSLAttribute
    :critical schema/Bool
-   :value Object
-   (schema/optional-key :options) Object})
+   (schema/optional-key :options) Object))
+
 
 (def SSLExtensionList
   [SSLExtension])
@@ -384,7 +391,7 @@
   "Create a list of extensions to be added to the CA certificate."
   ([issuer-public-key :- (schema/pred public-key?)
     ca-public-key :- (schema/pred public-key?)]
-   [(authority-key-identifier
+   [(authority-key-identifier-options
      issuer-public-key false)
     (basic-constraints-for-ca)
     (key-usage
@@ -395,7 +402,7 @@
   ([ca-name :- (schema/pred valid-x500-name?)
     ca-serial :- (schema/pred number?)
     ca-public-key :- (schema/pred public-key?)]
-   [(authority-key-identifier
+   [(authority-key-identifier-options
      ca-name ca-serial false)
     (basic-constraints-for-ca)
     (key-usage
@@ -506,12 +513,20 @@
 
   See `sign-certificate-request`, `obj->pem!`, and `pem->csr` to sign & read/write CSRs."
   ([keypair subject-dn]
-   (generate-certificate-request keypair subject-dn []))
+   (generate-certificate-request keypair subject-dn [] []))
   ([keypair :- KeyPair
     subject-dn :- ValidX500Name
     extensions :- SSLExtensionList]
+   (generate-certificate-request keypair subject-dn extensions []))
+  ([keypair :- KeyPair
+    subject-dn :- ValidX500Name
+    extensions :- SSLExtensionList
+    attributes :- SSLAttributeList]
    (SSLUtils/generateCertificateRequest
-     keypair subject-dn (javaize extensions))))
+     keypair
+     subject-dn
+     (javaize extensions)
+     (javaize attributes))))
 
 (schema/defn ^:always-validate sign-certificate :- X509Certificate
   "Given a subject, certificate authority information and other certificate info,

@@ -117,7 +117,7 @@
    (let [validity (cert-validity-dates (* 5 60 60 24 365))
          extensions (if ca?
                       (ssl-utils/create-ca-extensions
-                        (:x509-name host-keys)
+                        (:x500-name host-keys)
                         serial
                         (:public-key host-keys))
                       (get options :extensions []))]
@@ -162,7 +162,7 @@
     serial :- schema/Int
     options :- SSLOptions
     ca? :- schema/Bool]
-   (let [cert-keys (gen-keys certname options) ]
+   (let [cert-keys (gen-keys certname options)]
      (assoc cert-keys :cert (gen-cert* cert-keys cert-keys serial options ca?)))))
 
 (schema/defn ^:always-validate gen-crl :- X509CRL

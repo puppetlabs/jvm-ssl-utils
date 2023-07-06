@@ -1,19 +1,21 @@
 (ns puppetlabs.ssl-utils.core-test
-  (:import java.util.Arrays
-           (java.io ByteArrayOutputStream StringReader)
-           (java.security KeyStore)
-           (javax.security.auth.x500 X500Principal)
-           (javax.net.ssl SSLContext)
-           (org.joda.time DateTimeUtils)
-           (clojure.lang ExceptionInfo)
-           (java.security.cert CertPathValidatorException)
-           (com.puppetlabs.ssl_utils SSLUtils))
-  (:require [clojure.test :refer :all]
-            [clojure.java.io :refer [resource reader]]
+  (:require [clojure.java.io :refer [reader]]
+            [clojure.test :refer :all]
             [puppetlabs.ssl-utils.core :refer :all]
             [puppetlabs.ssl-utils.simple :as simple]
             [puppetlabs.ssl-utils.testutils :refer :all]
-            [schema.core :as schema]))
+            [schema.core :as schema])
+  (:import (clojure.lang ExceptionInfo)
+           (com.puppetlabs.ssl_utils SSLUtils)
+           (java.io ByteArrayOutputStream StringReader)
+           (java.security KeyStore)
+           (java.security.cert CertPathValidatorException)
+           java.util.Arrays
+           (javax.net.ssl SSLContext)
+           (javax.security.auth.x500 X500Principal)
+           (org.bouncycastle.asn1 ASN1Primitive DERUTF8String)
+           (org.bouncycastle.asn1.pkcs Attribute)
+           (org.joda.time DateTimeUtils)))
 
 (def key-id-type-2-byte-length 8)
 
@@ -837,92 +839,92 @@
     (is (false? (private-key? "foo")))
     (is (false? (private-key? nil)))))
 
-(let [subject  (cn "subject")
-      issuer   (cn "issuer")
-      key-pair (generate-key-pair 512)
-      csr      (generate-certificate-request key-pair subject)
-      cert     (sign-certificate issuer (get-private-key (generate-key-pair 512))
-                                 42 (generate-not-before-date)
-                                 (generate-not-after-date) subject
-                                 (get-public-key (generate-key-pair 512)))
-      crl-kp   (generate-key-pair 512)
-      crl      (generate-crl (X500Principal. issuer)
-                             (get-private-key crl-kp)
-                             (get-public-key crl-kp))]
+(deftest key-tests
+  (let [subject  (cn "subject")
+        issuer   (cn "issuer")
+        key-pair (generate-key-pair 512)
+        csr      (generate-certificate-request key-pair subject)
+        cert     (sign-certificate issuer (get-private-key (generate-key-pair 512))
+                                   42 (generate-not-before-date)
+                                   (generate-not-after-date) subject
+                                   (get-public-key (generate-key-pair 512)))
+        crl-kp   (generate-key-pair 512)
+        crl      (generate-crl (X500Principal. issuer)
+                               (get-private-key crl-kp)
+                               (get-public-key crl-kp))
+        pub-key (get-public-key csr)]
+    (testing "getting-public-key"
+      (is (= pub-key (get-public-key key-pair))))
 
-  (deftest getting-public-key
-    (let [pub-key (get-public-key csr)]
-      (is (= pub-key (get-public-key key-pair)))))
+    (testing "valid-x500-name?"
+      (is (= "CN=common name" (dn [:cn "common name"])))
+      (is (= "CN=cn,O=org" (dn [:cn "cn" :o "org"])))
+      (is (thrown? ExceptionInfo (dn [])))
+      (is (thrown? ExceptionInfo (dn [:cn :cn "cn"])))
+      (is (true?  (valid-x500-name? subject)))
+      (is (false? (valid-x500-name? "subject")))
+      (is (false? (valid-x500-name? nil))))
 
-  (deftest valid-x500-name?-test
-    (is (= "CN=common name" (dn [:cn "common name"])))
-    (is (= "CN=cn,O=org" (dn [:cn "cn" :o "org"])))
-    (is (thrown? ExceptionInfo (dn [])))
-    (is (thrown? ExceptionInfo (dn [:cn :cn "cn"])))
-    (is (true?  (valid-x500-name? subject)))
-    (is (false? (valid-x500-name? "subject")))
-    (is (false? (valid-x500-name? nil))))
+    (testing "certificate-request?"
+      (is (true? (certificate-request? csr)))
+      (is (false? (certificate-request? (str csr))))
+      (is (false? (certificate-request? "foo")))
+      (is (false? (certificate-request? nil))))
 
-  (deftest certificate-request?-test
-    (is (true? (certificate-request? csr)))
-    (is (false? (certificate-request? (str csr))))
-    (is (false? (certificate-request? "foo")))
-    (is (false? (certificate-request? nil))))
+    (testing "certificate?"
+      (is (true? (certificate? cert)))
+      (is (false? (certificate? (str cert))))
+      (is (false? (certificate? csr)))
+      (is (false? (certificate? "foo")))
+      (is (false? (certificate? nil))))
 
-  (deftest certificate?-test
-    (is (true? (certificate? cert)))
-    (is (false? (certificate? (str cert))))
-    (is (false? (certificate? csr)))
-    (is (false? (certificate? "foo")))
-    (is (false? (certificate? nil))))
+    (testing "certificate-list?"
+      (is (true? (certificate-list? [cert])))
+      (is (false? (certificate-list? cert)))
+      (is (false? (certificate-list? "foo")))
+      (is (false? (certificate-list? nil))))
 
-  (deftest certificate-list?-test
-    (is (true? (certificate-list? [cert])))
-    (is (false? (certificate-list? cert)))
-    (is (false? (certificate-list? "foo")))
-    (is (false? (certificate-list? nil))))
+    (testing "certificate-revocation-list?"
+      (is (true? (certificate-revocation-list? crl)))
+      (is (false? (certificate-revocation-list? (str crl))))
+      (is (false? (certificate-revocation-list? "foo")))
+      (is (false? (certificate-revocation-list? nil))))
 
-  (deftest certificate-revocation-list?-test
-    (is (true? (certificate-revocation-list? crl)))
-    (is (false? (certificate-revocation-list? (str crl))))
-    (is (false? (certificate-revocation-list? "foo")))
-    (is (false? (certificate-revocation-list? nil))))
+    (testing "has-subject?"
+      (testing "certificate signing request"
+        (is (true? (has-subject? csr subject)))
+        (is (true? (has-subject? csr (str subject))))
+        (is (true? (has-subject? csr "CN=subject")))
+        (is (true? (has-subject? csr (cn "subject"))))
+        (is (false? (has-subject? csr "subject"))))
 
-  (deftest has-subject?-test
-    (testing "certificate signing request"
-      (is (true? (has-subject? csr subject)))
-      (is (true? (has-subject? csr (str subject))))
-      (is (true? (has-subject? csr "CN=subject")))
-      (is (true? (has-subject? csr (cn "subject"))))
-      (is (false? (has-subject? csr "subject"))))
+      (testing "certificate"
+        (is (true? (has-subject? cert subject)))
+        (is (true? (has-subject? cert (str subject))))
+        (is (true? (has-subject? cert "CN=subject")))
+        (is (true? (has-subject? cert (cn "subject"))))
+        (is (false? (has-subject? cert "subject")))))
 
-    (testing "certificate"
-      (is (true? (has-subject? cert subject)))
-      (is (true? (has-subject? cert (str subject))))
-      (is (true? (has-subject? cert "CN=subject")))
-      (is (true? (has-subject? cert (cn "subject"))))
-      (is (false? (has-subject? cert "subject")))))
+    (testing "issued-by?"
+      (testing "certificate"
+        (is (true? (issued-by? cert issuer)))
+        (is (true? (issued-by? cert (str issuer))))
+        (is (true? (issued-by? cert "CN=issuer")))
+        (is (true? (issued-by? cert (cn "issuer"))))
+        (is (false? (issued-by? cert "issuer"))))
 
-  (deftest issued-by?-test
-    (testing "certificate"
-      (is (true? (issued-by? cert issuer)))
-      (is (true? (issued-by? cert (str issuer))))
-      (is (true? (issued-by? cert "CN=issuer")))
-      (is (true? (issued-by? cert (cn "issuer"))))
-      (is (false? (issued-by? cert "issuer"))))
+      (testing "certificate revocation list"
+        (is (true? (issued-by? crl issuer)))
+        (is (true? (issued-by? crl (str issuer))))
+        (is (true? (issued-by? crl "CN=issuer")))
+        (is (true? (issued-by? crl (cn "issuer"))))
+        (is (false? (issued-by? crl "issuer")))))
 
-    (testing "certificate revocation list"
-      (is (true? (issued-by? crl issuer)))
-      (is (true? (issued-by? crl (str issuer))))
-      (is (true? (issued-by? crl "CN=issuer")))
-      (is (true? (issued-by? crl (cn "issuer"))))
-      (is (false? (issued-by? crl "issuer")))))
-
-  (deftest x500-name->CN-test
-    (testing "get proper CN from DN when CN available"
-      (is (= "subject" (x500-name->CN subject))))
-    (testing "get empty string for CN when no CN in DN"
-      (is (= "" (x500-name->CN (dn [:l "Nowheresville"])))))))
+    (testing "x500-name->CN"
+      (testing "get proper CN from DN when CN available"
+        (is (= "subject" (x500-name->CN subject))))
+      (testing "get empty string for CN when no CN in DN"
+        (is (= "" (x500-name->CN (dn [:l "Nowheresville"]))))))))
 
 (deftest extensions
   (testing "Found all extensions from a certificate on disk."
@@ -1009,6 +1011,23 @@
                           "1.2.3.4")))
     (is (not (subtree-of? "1.2.3"
                           "1.2.34")))))
+
+(deftest csr-attributes-test
+  (let [csr (generate-certificate-request (generate-key-pair 512)
+                                          (cn "subject")
+                                          []
+                                          [{:oid "1.3.6.1.4.1.34380.1.3.2" :value true}])]
+    (testing "attribute is present"
+      (let [attributes (.getAttributes csr)]
+        (is (= 1 (count attributes)))
+        (let [attribute ^Attribute (first attributes)]
+          (is (= "1.3.6.1.4.1.34380.1.3.2" (.getId (.getAttrType attribute))))
+          (is (= "true"
+                 ;manually extract the value out of the attribute until we have functions to do it.
+                 (.getString ^DERUTF8String (ASN1Primitive/fromByteArray
+                                              (.getOctets
+                                                (first
+                                                  (.getAttributeValues attribute))))))))))))
 
 (deftest signature-valid?-test
   (is (signature-valid?

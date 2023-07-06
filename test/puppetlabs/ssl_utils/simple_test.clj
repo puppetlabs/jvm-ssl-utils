@@ -13,7 +13,7 @@
 
 (deftest basic-ca-cert-crl-test
   (testing "Can generate a valid CA cert, cert, and CRL through simple API"
-    (let [ca-cert (simple/gen-self-signed-cert "ca" 1)
+    (let [ca-cert (simple/gen-self-signed-cert "ca" 1 {} true)
           cert (simple/gen-cert "foo.localdomain" ca-cert 2)
           crl (simple/gen-crl ca-cert)
           read-ca-cert (roundtrip-pem ssl-utils/cert->pem! ssl-utils/pem->cert (:cert ca-cert))
