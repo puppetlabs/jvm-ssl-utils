@@ -1,0 +1,4 @@
+{:linters {:refer-all {:exclude [clojure.test slingshot.test
+                                 puppetlabs.ssl-utils.core
+                                 puppetlabs.ssl-utils.testutils]}}
+ :output {:linter-name true}}

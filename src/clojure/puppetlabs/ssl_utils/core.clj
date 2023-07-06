@@ -302,7 +302,7 @@
   {:oid      authority-key-identifier-oid
    :critical (boolean critical)
    :value    {:public-key    public-key
-              :serial-number (if (number? serial) (biginteger serial))
+              :serial-number (when (number? serial) (biginteger serial))
               :issuer-dn     issuer-dn
               :cert          cert}})
 

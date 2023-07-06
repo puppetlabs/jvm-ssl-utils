@@ -9,7 +9,7 @@
            (org.bouncycastle.asn1.x509 SubjectPublicKeyInfo)
            (com.puppetlabs.ssl_utils SSLUtils))
   (:require [clojure.test :refer :all]
-            [clojure.java.io :refer [resource reader]]
+            [clojure.java.io :refer [resource]]
             [me.raynes.fs :as fs]
             [puppetlabs.ssl-utils.core :refer :all]))
 
@@ -230,7 +230,7 @@
 
 (defn generate-cert-chain-with-revoked-cert
   [number-of-certs]
-  (if (< number-of-certs 2)
+  (when (< number-of-certs 2)
     (throw (Exception. (format "Can't perform revocations on a %d-cert chain."
                                number-of-certs))))
   (let [root-key-pair (generate-key-pair 2048)

@@ -8,7 +8,7 @@
 (deftest general-names
   (testing "InetAddress.toString() returns proper string form."
     (let [addr (InetAddress/getByAddress (byte-array [192 168 2 1]))]
-      (= "/192.168.2.1" (.toString addr))))
+      (is (= "/192.168.2.1" (.toString addr)))))
 
   (testing "Can encode and decode all General Names types"
     (let [gns {:rfc822-name ["foo@bar.com"]
