@@ -68,8 +68,13 @@
                            :jar-exclusions ^:replace []
                            :source-paths ^:replace ["src/clojure" "src/java"]}}
 
-  :plugins [[lein-parent "0.3.7"]
-            [puppetlabs/i18n "0.8.0"]]
+  :plugins [[lein-parent "0.3.9"]
+            [puppetlabs/i18n "0.9.2"]
+            [jonase/eastwood "1.2.2" :exclusions [org.clojure/clojure]]]
+
+  :eastwood {:exclude-linters [:no-ns-form-found :reflection]
+             :continue-on-exception true}
+
   :lein-release {:scm         :git
                  :deploy-via  :lein-deploy}
   :deploy-repositories [["releases" ~(deploy-info "https://clojars.org/repo")]

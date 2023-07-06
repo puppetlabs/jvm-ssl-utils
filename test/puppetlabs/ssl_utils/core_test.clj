@@ -317,7 +317,7 @@
         (is (= actual-ext expected-ext))))
 
     (testing "signing for CA basic constraints with a path constraint"
-      (let [max-path-len (Integer. 9)
+      (let [max-path-len (Integer/valueOf 9)
             sign-exts    [(basic-constraints-for-ca max-path-len)]
             expected-ext {:oid      "2.5.29.19"
                           :critical true
@@ -440,11 +440,11 @@
         not-before (generate-not-before-date)
         not-after (generate-not-after-date)
         extensions [(create-truncated-authority-key-identifier public-key)]
-        ca (sign-certificate
-              issuer-name private-key
-              1 not-before not-after
-              issuer-name public-key
-              (create-ca-extensions issuer-name 1 public-key))
+        _ca (sign-certificate
+               issuer-name private-key
+               1 not-before not-after
+               issuer-name public-key
+               (create-ca-extensions issuer-name 1 public-key))
         crl (generate-crl (X500Principal. issuer-name) private-key public-key
                           not-before not-after (biginteger 0) extensions)
         cert (sign-certificate issuer-name private-key 2 not-before not-after
