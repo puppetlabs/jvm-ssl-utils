@@ -5,6 +5,8 @@ import org.apache.commons.codec.binary.Hex;
 
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.DERNull;
+import org.bouncycastle.asn1.DEROctetString;
+import org.bouncycastle.asn1.DERUTF8String;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.pkcs.RSAPublicKey;
@@ -183,13 +185,14 @@ public class SSLUtils {
      * @param keyPair The subject's public and private keys.
      * @param subjectDN The subject's CN.
      * @param extensions Extensions to add to this cert request.
+     * @param attributes to add to this cert request (converted to strings)
      * @return A request to certify the provided subject
      * @throws IOException
      * @throws OperatorCreationException
      * @see #generateKeyPair
      */
     public static PKCS10CertificationRequest generateCertificateRequest(KeyPair keyPair, String subjectDN,
-        List<Map<String, Object>> extensions)
+        List<Map<String, Object>> extensions, List<Map<String, Object>> attributes)
         throws IOException, OperatorCreationException, CertificateEncodingException
     {
         // TODO: the puppet code sets a property "version=0" on the request object
@@ -200,6 +203,16 @@ public class SSLUtils {
         if ((extensions != null) && (extensions.size() > 0)) {
             Extensions parsedExts = ExtensionsUtils.getExtensionsObjFromMap(extensions);
             requestBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest, parsedExts);
+        }
+
+        if ((attributes != null) && (attributes.size() > 0)) {
+            for (Map<String, Object> attributeMap : attributes) {
+                String oidString = (String)attributeMap.get("oid");
+                String value = attributeMap.get("value").toString();
+                ASN1ObjectIdentifier oid = new ASN1ObjectIdentifier(oidString);
+                requestBuilder.addAttribute(oid, new DEROctetString(
+                        new DERUTF8String(value)));
+            }
         }
 
         return requestBuilder.build(

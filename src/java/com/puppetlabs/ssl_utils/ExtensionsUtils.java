@@ -12,7 +12,6 @@ import org.bouncycastle.asn1.ASN1TaggedObject;
 import org.bouncycastle.asn1.DERBitString;
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
-import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.asn1.DERUTF8String;
 import org.bouncycastle.asn1.misc.MiscObjectIdentifiers;
 import org.bouncycastle.asn1.oiw.OIWObjectIdentifiers;
@@ -41,7 +40,6 @@ import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -578,8 +576,8 @@ public class ExtensionsUtils {
             return CRLNumber.getInstance(data);
         } else {
             try {
-                // If the oid is unknown, attempt to parse it as a UTF8 String
-                return DERUTF8String.getInstance(data);
+                // If the oid is unknown, use the base primitive conversion
+                return ASN1Primitive.fromByteArray(data);
             } catch (Exception e) {
                 // This is required to maintain backwards compatibility with
                 // the erroneous method that Puppet previously used to sign
@@ -748,7 +746,7 @@ public class ExtensionsUtils {
                 .get(new AlgorithmIdentifier(OIWObjectIdentifiers.idSHA1));
 
         X509ExtensionUtils utils = new JcaX509ExtensionUtils(digCalc);
-        if (truncate == true) {
+        if (truncate) {
             return utils.createTruncatedSubjectKeyIdentifier(pubKeyInfo);
         }
         return utils.createSubjectKeyIdentifier(pubKeyInfo);
@@ -769,7 +767,7 @@ public class ExtensionsUtils {
             SubjectPublicKeyInfo.getInstance(pubKey.getEncoded());
 
         JcaX509ExtensionUtils utils = extensionUtils();
-        if (truncateKey == true) {
+        if (truncateKey) {
             byte[] shortKey = utils.createTruncatedSubjectKeyIdentifier(
                                       authPubKeyInfo).getKeyIdentifier();
             return new AuthorityKeyIdentifier(shortKey);

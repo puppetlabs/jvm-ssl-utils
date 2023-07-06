@@ -60,6 +60,7 @@
                                        ["-Djava.security.properties==jdk8-fips-security"]
                                        (throw unsupported-ex))
                                    11 ["-Djava.security.properties==jdk11-fips-security"]
+                                   17 ["-Djava.security.properties==jdk17-fips-security"]
                                    (throw unsupported-ex)))
                     :resource-paths ["test-resources"]}
 
