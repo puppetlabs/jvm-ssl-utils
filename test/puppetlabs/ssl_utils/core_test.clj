@@ -1013,21 +1013,59 @@
                           "1.2.34")))))
 
 (deftest csr-attributes-test
-  (let [csr (generate-certificate-request (generate-key-pair 512)
-                                          (cn "subject")
-                                          []
-                                          [{:oid "1.3.6.1.4.1.34380.1.3.2" :value true}])]
-    (testing "attribute is present"
-      (let [attributes (.getAttributes csr)]
-        (is (= 1 (count attributes)))
-        (let [attribute ^Attribute (first attributes)]
-          (is (= "1.3.6.1.4.1.34380.1.3.2" (.getId (.getAttrType attribute))))
-          (is (= "true"
-                 ;manually extract the value out of the attribute until we have functions to do it.
-                 (.getString ^DERUTF8String (ASN1Primitive/fromByteArray
-                                              (.getOctets
-                                                (first
-                                                  (.getAttributeValues attribute))))))))))))
+  (testing "one attribute"
+    (let [csr (generate-certificate-request (generate-key-pair 512)
+                                            (cn "subject")
+                                            []
+                                            [{:oid "1.3.6.1.4.1.34380.1.3.2" :value true}])]
+      (testing "attribute is present"
+        (let [attributes (.getAttributes csr)]
+          (is (= 1 (count attributes)))
+          (let [attribute ^Attribute (first attributes)]
+            (is (= "1.3.6.1.4.1.34380.1.3.2" (.getId (.getAttrType attribute))))
+            (is (= "true"
+                   ;manually extract the value out of the attribute until we have functions to do it.
+                   (.getString ^DERUTF8String (ASN1Primitive/fromByteArray
+                                                (.getOctets
+                                                  (first
+                                                    (.getAttributeValues attribute))))))))))
+      (testing "getAttributesList returns expected content"
+        (let [attributes (get-attributes csr)]
+          (is (= [{:oid  "1.3.6.1.4.1.34380.1.3.2" :values ["true"]}]
+                 attributes))))))
+  (testing "more than one attribute"
+    (let [csr (generate-certificate-request (generate-key-pair 512)
+                                            (cn "subject")
+                                            []
+                                            [{:oid "1.3.6.1.4.1.34380.1.3.2" :value true}
+                                             {:oid "1.3.6.1.4.1.34380.1.3.2" :value "herman"}
+                                             {:oid "1.3.6.1.4.1.34380.1.3.2" :value 5}
+                                             {:oid "1.3.6.1.4.1.34380.1.3.3" :value "one"}
+                                             {:oid "1.3.6.1.4.1.34380.1.3.3" :value "two"}])
+          convert-value-to-set (fn [entry] (update entry :values #(set %)))]
+      (testing "getAttributeList returns expected content"
+        (let [attributes (get-attributes csr)]
+          (is (= #{{:oid "1.3.6.1.4.1.34380.1.3.2" :values #{"true" "herman" "5"}}
+                   {:oid "1.3.6.1.4.1.34380.1.3.3" :values #{"one" "two"}}}
+                 (set (map convert-value-to-set attributes))))))))
+  (testing "multiples with extensions too"
+    (let [csr (generate-certificate-request (generate-key-pair 512)
+                                            (cn "subject")
+                                            [(subject-dns-alt-names ["moe" "curly" "larry"] false)]
+                                            [{:oid "1.3.6.1.4.1.34380.1.3.2" :value true}
+                                             {:oid "1.3.6.1.4.1.34380.1.3.2" :value "herman"}
+                                             {:oid "1.3.6.1.4.1.34380.1.3.2" :value 5}
+                                             {:oid "1.3.6.1.4.1.34380.1.3.3" :value "one"}
+                                             {:oid "1.3.6.1.4.1.34380.1.3.3" :value "two"}])
+          convert-value-to-set (fn [entry] (update entry :values #(set %)))]
+      (testing "getAttributeList returns expected content"
+        (let [attributes (get-attributes csr)]
+          (is (= #{{:oid "1.3.6.1.4.1.34380.1.3.2" :values #{"true" "herman" "5"}}
+                   {:oid "1.3.6.1.4.1.34380.1.3.3" :values #{"one" "two"}}
+                   ;; attributes only convert simple strings currently, and DNS alt-names is a structure
+                   ;; this demonstrates that the mapping doesn't work for this case (which is ok).
+                   {:oid "1.2.840.113549.1.9.14", :values #{[48 30 48 28 6 3 85 29 17 4 21 48 19 -126 3 109 111 101 -126 5 99 117 114 108 121 -126 5 108 97 114 114 121]}}}
+                 (set (map convert-value-to-set attributes)))))))))
 
 (deftest signature-valid?-test
   (is (signature-valid?

@@ -62,7 +62,14 @@ import java.util.Set;
  * Utilities for working with X509 extensions.
  */
 public class ExtensionsUtils {
+    public static class AttributeDescriptor {
+        public String oid;
+        public ArrayList<Object> values;
 
+        AttributeDescriptor(){
+            this.values = new ArrayList<Object>();
+        }
+    }
     /**
      * CRLNumber OID 2.5.29.20
      */
@@ -183,6 +190,21 @@ public class ExtensionsUtils {
         } else{
             return null;
         }
+    }
+
+    /**
+     * Given a bouncy Castle Certification Request, extract the attributes from that
+     * request
+     * @param csr - Bouncy Castle certification request
+     * @return an array of attributes in the CSR
+     */
+    public static AttributeDescriptor[] getAttributesList(PKCS10CertificationRequest csr) throws IOException {
+        Attribute[] attr = csr.getAttributes();
+        AttributeDescriptor[] result = new AttributeDescriptor[(attr.length)];
+        for (int i = 0; i < attr.length; i++){
+            result[i] = makeAttributeDescriptor(attr[i]);
+        }
+        return result;
     }
 
     /**
@@ -534,6 +556,15 @@ public class ExtensionsUtils {
         }
     }
 
+    private static AttributeDescriptor makeAttributeDescriptor(Attribute attr) throws IOException {
+        AttributeDescriptor result = new AttributeDescriptor();
+        result.oid = attr.getAttrType().getId();
+        for (ASN1Encodable attributeValue : attr.getAttributeValues()) {
+            result.values.add(asn1ObjToObj(attributeValue));
+        }
+        return result;
+    }
+
     /**
      * Convert a chunk of binary data into the Bouncy Castle ASN1 data structure
      * which represents the data it contains accord to its OID. I've searched
@@ -627,15 +658,14 @@ public class ExtensionsUtils {
             return bitString.getString();
         } else if (asn1Prim instanceof ASN1TaggedObject) {
             ASN1TaggedObject taggedObj = (ASN1TaggedObject)asn1Prim;
-            return asn1ObjToObj(taggedObj.getObject());
+            return asn1ObjToObj(taggedObj.toASN1Primitive());
         } else if (asn1Prim instanceof ASN1Sequence) {
             return asn1SeqToList((ASN1Sequence) asn1Prim);
         } else if (asn1Prim instanceof ASN1String) {
             ASN1String str = (ASN1String)asn1Prim;
             return str.getString();
         } else if (asn1Prim instanceof ASN1OctetString) {
-            ASN1OctetString str = (ASN1OctetString) asn1Prim;
-            return new String(str.getOctets(), "UTF-8");
+            return ASN1Primitive.fromByteArray(((ASN1OctetString) asn1Prim).getOctets()).toString();
         } else if (asn1Prim instanceof X500Name) {
             X500Name name = (X500Name) asn1Prim;
             return name.toString();
