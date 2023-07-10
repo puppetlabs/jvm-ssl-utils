@@ -5,7 +5,7 @@
            (javax.security.auth.x500 X500Principal)
            (org.bouncycastle.asn1.x500 X500Name)
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
-           (com.puppetlabs.ssl_utils SSLUtils
+           (com.puppetlabs.ssl_utils ExtensionsUtils$AttributeDescriptor SSLUtils
                                      ExtensionsUtils)
            (java.util Map List Date Set)
            (org.bouncycastle.asn1.x500.style BCStyle)
@@ -107,8 +107,16 @@
   {:oid schema/Str
    :value Object})
 
+
 (def SSLAttributeList
   [SSLAttribute])
+
+(def SSLMultiValueAttribute
+  {:oid schema/Str
+   :values [Object]})
+
+(def SSLMultiValueAttributeList
+  [SSLMultiValueAttribute])
 
 (def SSLExtension
   "A map containing all the fields required to define an extension. This is not
@@ -236,9 +244,23 @@
   `value`    : The value of the extensions
   `critical` : True if this is a critical extensions, false if it is not."
   [ext-container :- (schema/cond-pre X509Certificate PKCS10CertificationRequest X509CRL)]
-  (-> (or (ExtensionsUtils/getExtensionList (javaize ext-container))
-          [])
+  (-> (or (ExtensionsUtils/getExtensionList ext-container) [])
       clojureize))
+
+(schema/defn convertToSSLMultiValueAttribute :- SSLMultiValueAttribute
+  [attr :- ExtensionsUtils$AttributeDescriptor]
+  {:oid (.oid attr)
+   :values (map clojureize (.values attr))})
+
+(schema/defn ^:always-validate get-attributes :- SSLMultiValueAttributeList
+  "Given a CSR, retrieve a list of maps of all attributes.
+  Each map in the list contains the following keys:
+
+  `oid`      : The OID of the extension
+  `values`   : An array of values for the oid"
+  [csr :- PKCS10CertificationRequest]
+  (->> (or (ExtensionsUtils/getAttributesList csr) [])
+      (map convertToSSLMultiValueAttribute)))
 
 (schema/defn ^:always-validate get-extension :- SSLExtension
   "Given a X509 certificate object, CRL, CSR, or a list of extensions
@@ -248,6 +270,7 @@
    oid :- schema/Str]
   (-> (ExtensionsUtils/getExtension (javaize ext-container) oid)
       clojureize))
+
 
 (schema/defn ^:always-validate get-extension-value :- schema/Any
   "Given a X509 certificate object, CRL, CSR or a list of extensions returned by

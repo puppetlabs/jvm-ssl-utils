@@ -3,10 +3,7 @@ package com.puppetlabs.ssl_utils;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.codec.binary.Hex;
 
-import org.bouncycastle.asn1.ASN1ObjectIdentifier;
-import org.bouncycastle.asn1.DERNull;
-import org.bouncycastle.asn1.DEROctetString;
-import org.bouncycastle.asn1.DERUTF8String;
+import org.bouncycastle.asn1.*;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.pkcs.RSAPublicKey;
@@ -206,12 +203,27 @@ public class SSLUtils {
         }
 
         if ((attributes != null) && (attributes.size() > 0)) {
+            HashMap<String, ArrayList<ASN1Encodable>> mappedEntries = new HashMap<String, ArrayList<ASN1Encodable>>();
             for (Map<String, Object> attributeMap : attributes) {
                 String oidString = (String)attributeMap.get("oid");
                 String value = attributeMap.get("value").toString();
-                ASN1ObjectIdentifier oid = new ASN1ObjectIdentifier(oidString);
-                requestBuilder.addAttribute(oid, new DEROctetString(
-                        new DERUTF8String(value)));
+                DEROctetString convertedValue = new DEROctetString(
+                        new DERUTF8String(value));
+                if (mappedEntries.containsKey(oidString)) {
+                    mappedEntries.get(oidString).add(convertedValue);
+                } else {
+                    ArrayList<ASN1Encodable> newValues = new ArrayList<ASN1Encodable>();
+                    newValues.add(convertedValue);
+                    mappedEntries.put(oidString, newValues);
+                }
+
+            }
+            for (Map.Entry<String, ArrayList<ASN1Encodable>> entry: mappedEntries.entrySet()) {
+                ASN1ObjectIdentifier oid = new ASN1ObjectIdentifier(entry.getKey());
+                ArrayList<ASN1Encodable> values = entry.getValue();
+                ASN1Encodable[] convertedValues = new ASN1Encodable[entry.getValue().size()];
+                values.toArray(convertedValues);
+                requestBuilder.addAttribute(oid, convertedValues);
             }
         }
 
