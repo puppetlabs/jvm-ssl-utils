@@ -656,9 +656,6 @@ public class ExtensionsUtils {
         } else if (asn1Prim instanceof DERBitString) {
             DERBitString bitString = (DERBitString)asn1Prim;
             return bitString.getString();
-        } else if (asn1Prim instanceof ASN1TaggedObject) {
-            ASN1TaggedObject taggedObj = (ASN1TaggedObject)asn1Prim;
-            return asn1ObjToObj(taggedObj.toASN1Primitive());
         } else if (asn1Prim instanceof ASN1Sequence) {
             return asn1SeqToList((ASN1Sequence) asn1Prim);
         } else if (asn1Prim instanceof ASN1String) {
