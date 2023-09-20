@@ -1,5 +1,9 @@
 ## [unreleased]
 
+# [3.5.2]
+* remove infinite recursion from ASN1 conversion.
+* update clj-parent to 5.6.1 which includes bouncy castle 1.74
+
 # [3.5.1]
 * add support for creating csrs with Attributes
 * remove use of deprecated routines in ExtensionUtils 
