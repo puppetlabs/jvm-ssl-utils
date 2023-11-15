@@ -143,7 +143,7 @@ See [LICENSE](LICENSE) file.
 
 ## Support
 
-Please log tickets and issues at our [JIRA tracker](http://tickets.puppetlabs.com).
+Please log issues in the GitHub issue tracker.
 
 We use semantic version numbers for our releases, and recommend that users stay
 as up-to-date as possible by upgrading to patch releases and minor releases as
