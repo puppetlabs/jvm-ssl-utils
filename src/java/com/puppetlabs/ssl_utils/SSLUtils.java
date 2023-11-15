@@ -107,6 +107,8 @@ public class SSLUtils {
     public static final String BOUNCYCASTLE_JSSE_PROVIDER = "BCJSSE";
     public static final String TLS_PROTOCOL = "TLS";
 
+    private static int crlLifetimeSeconds = 5 * 365 * 24 * 60 * 60;  // default to 5 years
+
     public static boolean isFIPS() {
         try {
             return getProviderClass().getCanonicalName().equals(FIPS_PROVIDER_CLASS);
@@ -358,7 +360,7 @@ public class SSLUtils {
     {
         DateTime now = DateTime.now();
         Date thisUpdate = now.toDate();
-        Date nextUpdate = now.plusYears(5).toDate();
+        Date nextUpdate = now.plusSeconds(crlLifetimeSeconds).toDate();
         return generateCRL(issuer, issuerPrivateKey, issuerPublicKey,
                            thisUpdate, nextUpdate, BigInteger.ZERO, null);
     }
@@ -1517,5 +1519,21 @@ public class SSLUtils {
     private static String getFingerprint(byte[] bytes, String digestAlgorithm) {
         MessageDigest digest = DigestUtils.getDigest(digestAlgorithm);
         return Hex.encodeHexString(digest.digest(bytes));
+    }
+
+    /***
+     * Get the number of seconds between when a CRL is generated and when it will expire.
+     * @return
+     */
+    public static int getCrlLifetimeSeconds() {
+        return crlLifetimeSeconds;
+    }
+
+    /***
+     * set the number of seconds after the generation time for a CRL before it will expire.
+     * @param seconds
+     */
+    public static void setCrlLifetimeSeconds(int seconds) {
+        crlLifetimeSeconds = seconds;
     }
 }
