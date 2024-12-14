@@ -44,15 +44,16 @@
              :provided {:dependencies [[org.bouncycastle/bcpkix-jdk18on]]
                         :resource-paths ["test-resources"]}
 
-             :fips {:dependencies [[org.bouncycastle/bctls-fips]
-                                   [org.bouncycastle/bcpkix-fips]
-                                   [org.bouncycastle/bc-fips]]
+             :fips {:dependencies [[org.bouncycastle/bctls-fips "2.0.19" :exclusions [org.bouncycastle/bcutil-fips]]
+                                   [org.bouncycastle/bcpkix-fips "2.0.7" :exclusions [org.bouncycastle/bcutil-fips]]
+                                   [org.bouncycastle/bcutil-fips "2.0.3"]
+                                   [org.bouncycastle/bc-fips "2.0.0"]]
                     ;; this only ensures that we run with the proper profiles
                     ;; during testing. This JVM opt will be set in the puppet module
                     ;; that sets up the JVM classpaths during installation.
                     :jvm-opts ~(let [version (System/getProperty "java.specification.version")
                                      [major minor _] (clojure.string/split version #"\.")
-                                     unsupported-ex (ex-info "Unsupported major Java version. Expects 8 or 11."
+                                     unsupported-ex (ex-info "Unsupported major Java version. Expects 8, 11, or 17."
                                                       {:major major
                                                        :minor minor})]
                                  (condp = (java.lang.Integer/parseInt major)
