@@ -10,7 +10,8 @@
            (java.util Map List Date Set)
            (org.bouncycastle.asn1.x500.style BCStyle)
            (org.bouncycastle.openssl.jcajce JcaPEMWriter)
-           (java.io InputStream File Reader BufferedReader Writer OutputStream BufferedWriter)
+           (java.io InputStream File Reader BufferedReader Writer OutputStream BufferedWriter
+                    StringReader StringWriter)
            (java.net URI URL Socket))
   (:require [clojure.tools.logging :as log]
             [clojure.walk :as walk]
@@ -842,6 +843,107 @@
    pem :- Writerable]
   (with-open [w (writer pem)]
     (SSLUtils/writeToPEM key w)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; PEM Write Helper — CSR
+
+(schema/defn ^:always-validate csr->pem!
+  "Encodes a certificate signing request to PEM format, and writes it to a file
+   (or other stream).  Arguments:
+
+   `csr`: the `PKCS10CertificationRequest` to encode and write
+   `pem`: the file path to write the PEM output to
+          (or some other object supported by clojure's `writer`)"
+  [csr :- PKCS10CertificationRequest
+   pem :- Writerable]
+  (obj->pem! csr pem))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; PEM String Helpers — String-to-Object (Read)
+
+(schema/defn ^:always-validate pem-str->cert :- X509Certificate
+  "Parses a PEM-encoded string and returns an `X509Certificate`.
+   Throws if the string is empty or does not contain a valid certificate PEM."
+  [pem-str :- schema/Str]
+  (pem->cert (StringReader. pem-str)))
+
+(schema/defn ^:always-validate pem-str->certs :- [X509Certificate]
+  "Parses a PEM-encoded string (possibly a bundle) and returns a seq of
+   `X509Certificate` instances."
+  [pem-str :- schema/Str]
+  (pem->certs (StringReader. pem-str)))
+
+(schema/defn ^:always-validate pem-str->crl :- X509CRL
+  "Parses a PEM-encoded string and returns an `X509CRL`.
+   Throws if the string is empty or does not contain a valid CRL PEM."
+  [pem-str :- schema/Str]
+  (pem->crl (StringReader. pem-str)))
+
+(schema/defn ^:always-validate pem-str->crls :- [X509CRL]
+  "Parses a PEM-encoded string (possibly a bundle) and returns a seq of
+   `X509CRL` instances."
+  [pem-str :- schema/Str]
+  (pem->crls (StringReader. pem-str)))
+
+(schema/defn ^:always-validate pem-str->csr :- PKCS10CertificationRequest
+  "Parses a PEM-encoded string and returns a `PKCS10CertificationRequest`.
+   Throws if the string is empty or does not contain a valid CSR PEM."
+  [pem-str :- schema/Str]
+  (pem->csr (StringReader. pem-str)))
+
+(schema/defn ^:always-validate pem-str->private-key :- PrivateKey
+  "Parses a PEM-encoded string and returns a `PrivateKey`.
+   Throws if the string is empty, does not contain a valid key PEM, or
+   contains multiple keys."
+  [pem-str :- schema/Str]
+  (pem->private-key (StringReader. pem-str)))
+
+(schema/defn ^:always-validate pem-str->public-key :- PublicKey
+  "Parses a PEM-encoded string and returns a `PublicKey`.
+   Throws if the string is empty, does not contain a valid key PEM, or
+   contains multiple keys."
+  [pem-str :- schema/Str]
+  (pem->public-key (StringReader. pem-str)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; PEM String Helpers — Object-to-String (Write)
+
+(schema/defn ^:always-validate cert->pem-str :- schema/Str
+  "Encodes an `X509Certificate` to a PEM-formatted string."
+  [cert :- X509Certificate]
+  (let [sw (StringWriter.)]
+    (cert->pem! cert sw)
+    (.toString sw)))
+
+(schema/defn ^:always-validate crl->pem-str :- schema/Str
+  "Encodes an `X509CRL` to a PEM-formatted string."
+  [crl :- X509CRL]
+  (let [sw (StringWriter.)]
+    (crl->pem! crl sw)
+    (.toString sw)))
+
+(schema/defn ^:always-validate crls->pem-str :- schema/Str
+  "Encodes a seq of `X509CRL` instances to a PEM-formatted bundle string."
+  [crls :- [X509CRL]]
+  (let [sw (StringWriter.)]
+    (objs->pem! crls sw)
+    (.toString sw)))
+
+(schema/defn ^:always-validate csr->pem-str :- schema/Str
+  "Encodes a `PKCS10CertificationRequest` to a PEM-formatted string."
+  [csr :- PKCS10CertificationRequest]
+  (let [sw (StringWriter.)]
+    (csr->pem! csr sw)
+    (.toString sw)))
+
+(schema/defn ^:always-validate key->pem-str :- schema/Str
+  "Encodes a `Key` (public or private) to a PEM-formatted string."
+  [key :- Key]
+  (let [sw (StringWriter.)]
+    (key->pem! key sw)
+    (.toString sw)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (schema/defn ^:always-validate assoc-cert! :- KeyStore
   "Add a certificate to a keystore.  Arguments:

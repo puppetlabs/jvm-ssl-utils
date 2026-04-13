@@ -7,7 +7,7 @@
             [schema.core :as schema])
   (:import (clojure.lang ExceptionInfo)
            (com.puppetlabs.ssl_utils SSLUtils)
-           (java.io ByteArrayOutputStream StringReader)
+           (java.io ByteArrayOutputStream StringReader StringWriter)
            (java.security KeyStore)
            (java.security.cert CertPathValidatorException)
            java.util.Arrays
@@ -1142,3 +1142,208 @@
 
     (is (schema/validate Writerable (str->bytes "someotherstring"))
         "A byte array satisfies Writerable")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; PEM String Helpers (Tickets 2.1 & 2.2)
+
+(deftest pem-str-certificate-round-trip-test
+  (testing "cert->pem-str produces valid PEM with correct header"
+    (let [subject    (cn "test-cert")
+          key-pair   (generate-key-pair 512)
+          cert       (sign-certificate subject
+                                       (get-private-key key-pair)
+                                       42
+                                       (generate-not-before-date)
+                                       (generate-not-after-date)
+                                       subject
+                                       (get-public-key key-pair))
+          pem-str    (cert->pem-str cert)]
+      (is (string? pem-str))
+      (is (.contains pem-str "-----BEGIN CERTIFICATE-----"))
+      (is (.contains pem-str "-----END CERTIFICATE-----"))))
+
+  (testing "round-trip: cert -> pem-str -> pem-str->cert preserves subject and serial"
+    (let [subject    (cn "round-trip-cert")
+          key-pair   (generate-key-pair 512)
+          cert       (sign-certificate subject
+                                       (get-private-key key-pair)
+                                       99
+                                       (generate-not-before-date)
+                                       (generate-not-after-date)
+                                       subject
+                                       (get-public-key key-pair))
+          pem-str    (cert->pem-str cert)
+          parsed     (pem-str->cert pem-str)]
+      (is (certificate? parsed))
+      (is (has-subject? parsed subject))
+      (is (= (get-serial cert) (get-serial parsed)))
+      (is (= cert parsed))))
+
+  (testing "pem-str->cert from fixture file round-trips"
+    (let [cert    (pem->cert (open-ssl-file "certs/ca.pem"))
+          pem-str (cert->pem-str cert)
+          parsed  (pem-str->cert pem-str)]
+      (is (= cert parsed)))))
+
+(deftest pem-str-certs-bundle-test
+  (testing "pem-str->certs parses multi-certificate PEM bundle"
+    (let [key-pair-1 (generate-key-pair 512)
+          key-pair-2 (generate-key-pair 512)
+          cert-1     (sign-certificate (cn "cert-1")
+                                       (get-private-key key-pair-1)
+                                       1
+                                       (generate-not-before-date)
+                                       (generate-not-after-date)
+                                       (cn "cert-1")
+                                       (get-public-key key-pair-1))
+          cert-2     (sign-certificate (cn "cert-2")
+                                       (get-private-key key-pair-2)
+                                       2
+                                       (generate-not-before-date)
+                                       (generate-not-after-date)
+                                       (cn "cert-2")
+                                       (get-public-key key-pair-2))
+          bundle-str (str (cert->pem-str cert-1) (cert->pem-str cert-2))
+          parsed     (pem-str->certs bundle-str)]
+      (is (= 2 (count parsed)))
+      (is (= cert-1 (first parsed)))
+      (is (= cert-2 (second parsed))))))
+
+(deftest pem-str-crl-round-trip-test
+  (testing "crl->pem-str produces valid PEM with correct header"
+    (let [key-pair (generate-key-pair 512)
+          crl      (generate-crl (X500Principal. (cn "crl-test"))
+                                 (get-private-key key-pair)
+                                 (get-public-key key-pair))
+          pem-str  (crl->pem-str crl)]
+      (is (string? pem-str))
+      (is (.contains pem-str "-----BEGIN X509 CRL-----"))
+      (is (.contains pem-str "-----END X509 CRL-----"))))
+
+  (testing "round-trip: crl -> pem-str -> pem-str->crl preserves issuer"
+    (let [issuer   (X500Principal. (cn "crl-issuer"))
+          key-pair (generate-key-pair 512)
+          crl      (generate-crl issuer
+                                 (get-private-key key-pair)
+                                 (get-public-key key-pair))
+          pem-str  (crl->pem-str crl)
+          parsed   (pem-str->crl pem-str)]
+      (is (instance? java.security.cert.X509CRL parsed))
+      (is (= (.getIssuerX500Principal crl)
+             (.getIssuerX500Principal parsed)))
+      (is (= crl parsed)))))
+
+(deftest pem-str-crls-bundle-round-trip-test
+  (testing "crls->pem-str round-trips through pem-str->crls"
+    (let [key-pair-1 (generate-key-pair 512)
+          key-pair-2 (generate-key-pair 512)
+          crl-1      (generate-crl (X500Principal. (cn "crl-1"))
+                                   (get-private-key key-pair-1)
+                                   (get-public-key key-pair-1))
+          crl-2      (generate-crl (X500Principal. (cn "crl-2"))
+                                   (get-private-key key-pair-2)
+                                   (get-public-key key-pair-2))
+          bundle-str (crls->pem-str [crl-1 crl-2])
+          parsed     (pem-str->crls bundle-str)]
+      (is (= 2 (count parsed)))
+      (is (= crl-1 (first parsed)))
+      (is (= crl-2 (second parsed))))))
+
+(deftest pem-str-csr-round-trip-test
+  (testing "csr->pem-str produces valid PEM with correct header"
+    (let [subject (cn "csr-test")
+          csr     (generate-certificate-request (generate-key-pair 512) subject)
+          pem-str (csr->pem-str csr)]
+      (is (string? pem-str))
+      (is (.contains pem-str "-----BEGIN CERTIFICATE REQUEST-----"))
+      (is (.contains pem-str "-----END CERTIFICATE REQUEST-----"))))
+
+  (testing "round-trip: csr -> pem-str -> pem-str->csr preserves subject"
+    (let [subject (cn "csr-round-trip")
+          csr     (generate-certificate-request (generate-key-pair 512) subject)
+          pem-str (csr->pem-str csr)
+          parsed  (pem-str->csr pem-str)]
+      (is (certificate-request? parsed))
+      (is (has-subject? parsed subject))
+      (is (= csr parsed)))))
+
+(deftest pem-str-private-key-round-trip-test
+  (testing "key->pem-str produces valid PEM for private key"
+    (let [key-pair (generate-key-pair 512)
+          priv-key (get-private-key key-pair)
+          pem-str  (key->pem-str priv-key)]
+      (is (string? pem-str))
+      (is (.contains pem-str "-----BEGIN RSA PRIVATE KEY-----"))
+      (is (.contains pem-str "-----END RSA PRIVATE KEY-----"))))
+
+  (testing "round-trip: private key -> pem-str -> pem-str->private-key"
+    (let [key-pair (generate-key-pair 512)
+          priv-key (get-private-key key-pair)
+          pem-str  (key->pem-str priv-key)
+          parsed   (pem-str->private-key pem-str)]
+      (is (private-key? parsed))
+      (is (= priv-key parsed)))))
+
+(deftest pem-str-public-key-round-trip-test
+  (testing "key->pem-str produces valid PEM for public key"
+    (let [key-pair (generate-key-pair 512)
+          pub-key  (get-public-key key-pair)
+          pem-str  (key->pem-str pub-key)]
+      (is (string? pem-str))
+      (is (.contains pem-str "-----BEGIN PUBLIC KEY-----"))
+      (is (.contains pem-str "-----END PUBLIC KEY-----"))))
+
+  (testing "round-trip: public key -> pem-str -> pem-str->public-key"
+    (let [key-pair (generate-key-pair 512)
+          pub-key  (get-public-key key-pair)
+          pem-str  (key->pem-str pub-key)
+          parsed   (pem-str->public-key pem-str)]
+      (is (public-key? parsed))
+      (is (= pub-key parsed)))))
+
+(deftest pem-str-csr-pem!-test
+  (testing "csr->pem! writes CSR to stream and round-trips via pem->csr"
+    (let [subject (cn "csr-pem-bang")
+          csr     (generate-certificate-request (generate-key-pair 512) subject)
+          pem     (write-to-pem-stream csr csr->pem!)
+          parsed  (pem->csr pem)]
+      (is (certificate-request? parsed))
+      (is (has-subject? parsed subject))
+      (is (= csr parsed)))))
+
+(deftest pem-str-edge-cases-test
+  (testing "empty string throws for pem-str->cert"
+    (is (thrown? Exception (pem-str->cert ""))))
+
+  (testing "empty string throws for pem-str->crl"
+    (is (thrown? Exception (pem-str->crl ""))))
+
+  (testing "empty string throws for pem-str->csr"
+    (is (thrown? Exception (pem-str->csr ""))))
+
+  (testing "empty string throws for pem-str->private-key"
+    (is (thrown? Exception (pem-str->private-key ""))))
+
+  (testing "empty string throws for pem-str->public-key"
+    (is (thrown? Exception (pem-str->public-key ""))))
+
+  (testing "malformed PEM throws for pem-str->cert"
+    (is (thrown? Exception (pem-str->cert "not a pem string"))))
+
+  (testing "malformed PEM throws for pem-str->crl"
+    (is (thrown? Exception (pem-str->crl "not a pem string"))))
+
+  (testing "malformed PEM throws for pem-str->csr"
+    (is (thrown? Exception (pem-str->csr "not a pem string"))))
+
+  (testing "malformed PEM throws for pem-str->private-key"
+    (is (thrown? Exception (pem-str->private-key "not a pem string"))))
+
+  (testing "malformed PEM throws for pem-str->public-key"
+    (is (thrown? Exception (pem-str->public-key "not a pem string"))))
+
+  (testing "pem-str->certs returns empty seq for empty string"
+    (is (empty? (pem-str->certs ""))))
+
+  (testing "pem-str->crls returns empty seq for empty string"
+    (is (empty? (pem-str->crls "")))))
