@@ -1347,3 +1347,241 @@
 
   (testing "pem-str->crls returns empty seq for empty string"
     (is (empty? (pem-str->crls "")))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; PKCS#8 Encrypted Private Key Helpers (Ticket 2.3)
+
+(deftest pkcs8-rsa-key-round-trip-test
+  (testing "RSA key round-trip: encrypt -> decrypt -> recovered key matches original"
+    (let [key-pair    (generate-key-pair 2048)
+          priv-key    (get-private-key key-pair)
+          passphrase  "test-passphrase-for-pkcs8"
+          encrypted   (private-key->pkcs8-pem-str priv-key passphrase)
+          recovered   (pkcs8-pem-str->private-key encrypted passphrase)]
+      (is (private-key? recovered))
+      (is (= priv-key recovered))
+      (is (Arrays/equals (.getEncoded priv-key) (.getEncoded recovered)))))
+
+  (testing "PEM header is -----BEGIN ENCRYPTED PRIVATE KEY-----"
+    (let [key-pair   (generate-key-pair 2048)
+          priv-key   (get-private-key key-pair)
+          encrypted  (private-key->pkcs8-pem-str priv-key "header-test")]
+      (is (.contains encrypted "-----BEGIN ENCRYPTED PRIVATE KEY-----"))
+      (is (.contains encrypted "-----END ENCRYPTED PRIVATE KEY-----")))))
+
+(deftest pkcs8-ec-key-round-trip-test
+  (testing "EC key round-trip: encrypt -> decrypt -> recovered key matches original"
+    (let [ec-key     (pem->private-key (open-ssl-file "private_keys/eckey.pem"))
+          passphrase "ec-test-passphrase"
+          encrypted  (private-key->pkcs8-pem-str ec-key passphrase)
+          recovered  (pkcs8-pem-str->private-key encrypted passphrase)]
+      (is (private-key? recovered))
+      (is (= (.getAlgorithm ec-key) (.getAlgorithm recovered)))
+      (is (Arrays/equals (.getEncoded ec-key) (.getEncoded recovered))))))
+
+(deftest pkcs8-wrong-passphrase-test
+  (testing "wrong passphrase throws a clear error"
+    (let [key-pair   (generate-key-pair 2048)
+          priv-key   (get-private-key key-pair)
+          encrypted  (private-key->pkcs8-pem-str priv-key "correct-passphrase")]
+      (is (thrown-with-msg? Exception #"(?i)wrong passphrase|corrupted|decrypt"
+            (pkcs8-pem-str->private-key encrypted "wrong-passphrase"))))))
+
+(deftest pkcs8-empty-passphrase-test
+  (testing "empty passphrase is rejected on encrypt"
+    (let [key-pair (generate-key-pair 2048)
+          priv-key (get-private-key key-pair)]
+      (is (thrown-with-msg? IllegalArgumentException #"(?i)passphrase.*empty|empty.*passphrase"
+            (private-key->pkcs8-pem-str priv-key "")))))
+
+  (testing "empty passphrase is rejected on decrypt"
+    (let [key-pair  (generate-key-pair 2048)
+          priv-key  (get-private-key key-pair)
+          encrypted (private-key->pkcs8-pem-str priv-key "valid-pass")]
+      (is (thrown-with-msg? IllegalArgumentException #"(?i)passphrase.*empty|empty.*passphrase"
+            (pkcs8-pem-str->private-key encrypted ""))))))
+
+(deftest pkcs8-various-passphrase-lengths-test
+  (testing "short passphrase works"
+    (let [key-pair  (generate-key-pair 2048)
+          priv-key  (get-private-key key-pair)
+          encrypted (private-key->pkcs8-pem-str priv-key "ab")
+          recovered (pkcs8-pem-str->private-key encrypted "ab")]
+      (is (= priv-key recovered))))
+
+  (testing "long passphrase works"
+    (let [key-pair    (generate-key-pair 2048)
+          priv-key    (get-private-key key-pair)
+          long-pass   (apply str (repeat 200 "abcdefgh"))
+          encrypted   (private-key->pkcs8-pem-str priv-key long-pass)
+          recovered   (pkcs8-pem-str->private-key encrypted long-pass)]
+      (is (= priv-key recovered))))
+
+  (testing "special characters in passphrase work"
+    (let [key-pair    (generate-key-pair 2048)
+          priv-key    (get-private-key key-pair)
+          special     "p@$$w0rd!#%^&*()_+-=[]{}|;':\",./<>?"
+          encrypted   (private-key->pkcs8-pem-str priv-key special)
+          recovered   (pkcs8-pem-str->private-key encrypted special)]
+      (is (= priv-key recovered)))))
+
+(deftest pkcs8-decrypted-key-not-in-exceptions-test
+  (testing "decrypted key material does not appear in exception messages"
+    (let [key-pair  (generate-key-pair 2048)
+          priv-key  (get-private-key key-pair)
+          encrypted (private-key->pkcs8-pem-str priv-key "correct")
+          ;; Get the encoded key as a string to search for in error messages
+          key-bytes (java.util.Base64/getEncoder)
+          key-b64   (.encodeToString key-bytes (.getEncoded priv-key))]
+      (try
+        (pkcs8-pem-str->private-key encrypted "wrong-passphrase")
+        (catch Exception e
+          (is (not (.contains (str e) key-b64))
+              "Encoded key should not appear in exception message")
+          (is (not (.contains (str (.getMessage e)) key-b64))
+              "Encoded key should not appear in exception message"))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; ContentSigner and Signing-Function Variants (Ticket 2.4)
+
+(deftest sign-certificate-with-signer-test
+  (testing "sign-certificate-with-signer with lambda wrapping private key produces valid cert"
+    (let [subject    (cn "signer-test")
+          key-pair   (generate-key-pair 2048)
+          priv-key   (get-private-key key-pair)
+          pub-key    (get-public-key key-pair)
+          ;; Create signer-fn that wraps the private key
+          signer-fn  (fn [data algorithm]
+                       (let [signer (org.bouncycastle.operator.jcajce.JcaContentSignerBuilder. algorithm)]
+                         (let [cs (.build signer priv-key)
+                               os (.getOutputStream cs)]
+                           (.write os ^bytes data)
+                           (.close os)
+                           (.getSignature cs))))
+          serial     42
+          not-before (generate-not-before-date)
+          not-after  (generate-not-after-date)
+          cert       (sign-certificate-with-signer subject serial not-before not-after
+                                                    subject pub-key [] signer-fn)]
+      (is (certificate? cert))
+      (is (has-subject? cert subject))
+      (is (= (biginteger 42) (get-serial cert)))
+      ;; Verify the signature is valid using the public key
+      (.verify cert pub-key)))
+
+  (testing "convenience wrapper sign-certificate produces identical results"
+    (let [subject    (cn "convenience-test")
+          key-pair   (generate-key-pair 2048)
+          priv-key   (get-private-key key-pair)
+          pub-key    (get-public-key key-pair)
+          serial     99
+          not-before (generate-not-before-date)
+          not-after  (generate-not-after-date)
+          ;; Sign with existing convenience method
+          cert-conv  (sign-certificate subject priv-key serial not-before not-after
+                                       subject pub-key)
+          ;; Sign with signer-fn that wraps the same private key
+          signer-fn  (fn [data algorithm]
+                       (let [cs (.build (org.bouncycastle.operator.jcajce.JcaContentSignerBuilder. algorithm) priv-key)
+                             os (.getOutputStream cs)]
+                         (.write os ^bytes data)
+                         (.close os)
+                         (.getSignature cs)))
+          cert-signer (sign-certificate-with-signer subject serial not-before not-after
+                                                     subject pub-key [] signer-fn)]
+      ;; Both certs should have same subject, serial, and be signature-verifiable
+      (is (has-subject? cert-conv subject))
+      (is (has-subject? cert-signer subject))
+      (is (= (get-serial cert-conv) (get-serial cert-signer)))
+      (.verify cert-conv pub-key)
+      (.verify cert-signer pub-key))))
+
+(deftest sign-certificate-with-signer-garbage-bytes-test
+  (testing "signer returning garbage bytes produces cert that fails signature verification"
+    (let [subject    (cn "garbage-signer-test")
+          key-pair   (generate-key-pair 2048)
+          pub-key    (get-public-key key-pair)
+          ;; Signer that returns garbage
+          garbage-fn (fn [data algorithm]
+                       (byte-array (repeat 256 (byte 42))))
+          serial     1
+          not-before (generate-not-before-date)
+          not-after  (generate-not-after-date)
+          cert       (sign-certificate-with-signer subject serial not-before not-after
+                                                    subject pub-key [] garbage-fn)]
+      (is (certificate? cert))
+      ;; Verification should fail because the signature is garbage
+      (is (thrown? java.security.SignatureException
+            (.verify cert pub-key))))))
+
+(deftest generate-crl-with-signer-test
+  (testing "generate-crl-with-signer with lambda wrapping private key produces valid CRL"
+    (let [key-pair    (generate-key-pair 2048)
+          priv-key    (get-private-key key-pair)
+          pub-key     (get-public-key key-pair)
+          issuer      (X500Principal. (cn "crl-signer-test"))
+          signer-fn   (fn [data algorithm]
+                        (let [cs (.build (org.bouncycastle.operator.jcajce.JcaContentSignerBuilder. algorithm) priv-key)
+                              os (.getOutputStream cs)]
+                          (.write os ^bytes data)
+                          (.close os)
+                          (.getSignature cs)))
+          crl         (generate-crl-with-signer issuer pub-key signer-fn)]
+      (is (instance? java.security.cert.X509CRL crl))
+      (is (= issuer (.getIssuerX500Principal crl)))
+      ;; Verify the CRL signature
+      (.verify crl pub-key)))
+
+  (testing "full-arity generate-crl-with-signer works"
+    (let [key-pair    (generate-key-pair 2048)
+          priv-key    (get-private-key key-pair)
+          pub-key     (get-public-key key-pair)
+          issuer      (X500Principal. (cn "crl-signer-full"))
+          signer-fn   (fn [data algorithm]
+                        (let [cs (.build (org.bouncycastle.operator.jcajce.JcaContentSignerBuilder. algorithm) priv-key)
+                              os (.getOutputStream cs)]
+                          (.write os ^bytes data)
+                          (.close os)
+                          (.getSignature cs)))
+          now         (org.joda.time.DateTime/now)
+          crl         (generate-crl-with-signer issuer pub-key signer-fn
+                                                 (.toDate now)
+                                                 (.toDate (.plusYears now 5))
+                                                 java.math.BigInteger/ONE
+                                                 [])]
+      (is (instance? java.security.cert.X509CRL crl))
+      (.verify crl pub-key))))
+
+(deftest generate-crl-with-signer-garbage-bytes-test
+  (testing "signer returning garbage bytes produces CRL that fails signature verification"
+    (let [key-pair    (generate-key-pair 2048)
+          pub-key     (get-public-key key-pair)
+          issuer      (X500Principal. (cn "crl-garbage-test"))
+          garbage-fn  (fn [data algorithm]
+                        (byte-array (repeat 256 (byte 42))))
+          crl         (generate-crl-with-signer issuer pub-key garbage-fn)]
+      (is (instance? java.security.cert.X509CRL crl))
+      (is (thrown? java.security.SignatureException
+            (.verify crl pub-key))))))
+
+(deftest existing-sign-certificate-unchanged-test
+  (testing "existing sign-certificate still works as before"
+    (let [subject    (cn "unchanged-test")
+          key-pair   (generate-key-pair 2048)
+          priv-key   (get-private-key key-pair)
+          pub-key    (get-public-key key-pair)
+          cert       (sign-certificate subject priv-key 1 (generate-not-before-date)
+                                       (generate-not-after-date) subject pub-key)]
+      (is (certificate? cert))
+      (is (has-subject? cert subject))
+      (.verify cert pub-key))))
+
+(deftest existing-generate-crl-unchanged-test
+  (testing "existing generate-crl still works as before"
+    (let [key-pair   (generate-key-pair 2048)
+          priv-key   (get-private-key key-pair)
+          pub-key    (get-public-key key-pair)
+          issuer     (X500Principal. (cn "unchanged-crl"))
+          crl        (generate-crl issuer priv-key pub-key)]
+      (is (instance? java.security.cert.X509CRL crl))
+      (.verify crl pub-key))))

@@ -7,6 +7,7 @@
            (org.bouncycastle.pkcs PKCS10CertificationRequest)
            (com.puppetlabs.ssl_utils ExtensionsUtils$AttributeDescriptor SSLUtils
                                      ExtensionsUtils)
+           (java.math BigInteger)
            (java.util Map List Date Set)
            (org.bouncycastle.asn1.x500.style BCStyle)
            (org.bouncycastle.openssl.jcajce JcaPEMWriter)
@@ -942,6 +943,110 @@
   (let [sw (StringWriter.)]
     (key->pem! key sw)
     (.toString sw)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; PKCS#8 Encrypted Private Key Helpers (Ticket 2.3)
+
+(schema/defn ^:always-validate private-key->pkcs8-pem-str :- schema/Str
+  "Encrypts a `PrivateKey` to a PKCS#8 PEM string using PBES2/AES-256-CBC/PBKDF2-HMAC-SHA256.
+   The output header is `-----BEGIN ENCRYPTED PRIVATE KEY-----`.
+
+   Arguments:
+
+   `key`:        the `PrivateKey` to encrypt
+   `passphrase`: the passphrase to encrypt with; must not be nil or empty"
+  [key :- PrivateKey
+   passphrase :- schema/Str]
+  (SSLUtils/privateKeyToPKCS8PemString key passphrase))
+
+(schema/defn ^:always-validate pkcs8-pem-str->private-key :- PrivateKey
+  "Decrypts a PKCS#8 encrypted PEM string back to a `PrivateKey`.
+   Throws a clear error on wrong passphrase; rejects empty passphrase.
+
+   Arguments:
+
+   `pem`:        the PKCS#8 encrypted PEM string
+   `passphrase`: the passphrase to decrypt with; must not be nil or empty"
+  [pem :- schema/Str
+   passphrase :- schema/Str]
+  (SSLUtils/pkcs8PemStringToPrivateKey pem passphrase))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; ContentSigner and Signing-Function Variants (Ticket 2.4)
+
+(schema/defn ^:always-validate sign-certificate-with-signer :- X509Certificate
+  "Signs a certificate using a callback signer function instead of a `PrivateKey`.
+   The `signer-fn` is `(fn [^bytes data ^String algorithm] -> ^bytes signature)`.
+
+   This is the primary signing interface for the CA State Externalization work,
+   where the CA core never holds a `PrivateKey` directly.
+
+   Arguments:
+
+   `issuer-dn`:       a string containing the issuer's DN
+   `serial`:          an arbitrary serial number integer
+   `not-before`:      the certificate's 'not before' date
+   `not-after`:       the certificate's 'not after' date
+   `subject-dn`:      the subject's DN
+   `subject-pub-key`: the subject's public key
+   `extensions`:      a list of X509 extensions (may be empty)
+   `signer-fn`:       `(fn [bytes algorithm] -> signature-bytes)`"
+  ([issuer-dn serial not-before not-after subject-dn subject-pub-key signer-fn]
+   (sign-certificate-with-signer issuer-dn serial not-before not-after
+                                  subject-dn subject-pub-key [] signer-fn))
+  ([issuer-dn :- ValidX500Name
+    serial :- schema/Int
+    not-before :- Date
+    not-after :- Date
+    subject-dn :- ValidX500Name
+    subject-pub-key :- PublicKey
+    extensions :- SSLExtensionList
+    signer-fn]
+   (let [content-signer (SSLUtils/createCallbackContentSigner
+                          "SHA256withRSA"
+                          (reify java.util.function.BiFunction
+                            (apply [_ data algorithm]
+                              (signer-fn data algorithm))))]
+     (SSLUtils/signCertificate
+       issuer-dn (biginteger serial) not-before not-after
+       subject-dn subject-pub-key (javaize extensions) content-signer))))
+
+(schema/defn ^:always-validate generate-crl-with-signer :- X509CRL
+  "Generates a CRL using a callback signer function instead of a `PrivateKey`.
+   The `signer-fn` is `(fn [^bytes data ^String algorithm] -> ^bytes signature)`.
+
+   Arguments:
+
+   `issuer`:            the issuer's `X500Principal`
+   `issuer-public-key`: the issuer's `PublicKey` (needed for AKI extension)
+   `signer-fn`:         `(fn [bytes algorithm] -> signature-bytes)`
+   `this-update`:       date for when this CRL is created
+   `next-update`:       when to fetch the CRL next
+   `crl-number`:        number for CRL sequencing
+   `extensions`:        any extensions to sign onto the CRL"
+  ([issuer :- X500Principal
+    issuer-public-key :- PublicKey
+    signer-fn]
+   (let [now (org.joda.time.DateTime/now)]
+     (generate-crl-with-signer issuer issuer-public-key signer-fn
+                                (.toDate now)
+                                (.toDate (.plusYears now 5))
+                                BigInteger/ZERO nil)))
+  ([issuer :- X500Principal
+    issuer-public-key :- PublicKey
+    signer-fn
+    this-update :- Date
+    next-update :- Date
+    crl-number :- BigInteger
+    extensions :- (schema/maybe SSLExtensionList)]
+   (let [content-signer (SSLUtils/createCallbackContentSigner
+                          "SHA256withRSA"
+                          (reify java.util.function.BiFunction
+                            (apply [_ data algorithm]
+                              (signer-fn data algorithm))))]
+     (SSLUtils/generateCRL issuer issuer-public-key content-signer
+                           this-update next-update crl-number
+                           (javaize extensions)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

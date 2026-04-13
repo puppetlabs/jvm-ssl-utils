@@ -29,6 +29,9 @@ import org.bouncycastle.cert.jcajce.JcaX509CRLHolder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v2CRLBuilder;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
+import org.bouncycastle.openssl.jcajce.JcaPKCS8Generator;
+import org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8EncryptorBuilder;
+import org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMException;
@@ -36,10 +39,13 @@ import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 import org.bouncycastle.operator.*;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.operator.jcajce.JcaContentVerifierProviderBuilder;
+import org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.PKCS10CertificationRequestBuilder;
 import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
+import org.bouncycastle.pkcs.jcajce.JcePKCSPBEInputDecryptorProviderBuilder;
+import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.joda.time.DateTime;
 
 import javax.net.ssl.CertPathTrustManagerParameters;
@@ -48,8 +54,12 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.SSLContext;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.Reader;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.io.Writer;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -91,6 +101,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.BiFunction;
 
 public class SSLUtils {
     /**
@@ -1535,5 +1546,288 @@ public class SSLUtils {
      */
     public static void setCrlLifetimeSeconds(int seconds) {
         crlLifetimeSeconds = seconds;
+    }
+
+    // ========================================================================
+    // PKCS#8 Encrypted Private Key Helpers (Ticket 2.3)
+    // ========================================================================
+
+    /**
+     * Encrypts a PrivateKey to a PKCS#8 PEM string using PBES2, AES-256-CBC,
+     * PBKDF2-HMAC-SHA256 via BouncyCastle's JceOpenSSLPKCS8EncryptorBuilder.
+     * The output header is "-----BEGIN ENCRYPTED PRIVATE KEY-----".
+     *
+     * @param key The private key to encrypt
+     * @param passphrase The passphrase used for encryption; must not be null or empty
+     * @return A PEM-formatted string containing the encrypted private key
+     * @throws IllegalArgumentException if passphrase is null or empty
+     * @throws IOException if PEM writing fails
+     * @throws OperatorCreationException if the encryptor cannot be created
+     */
+    public static String privateKeyToPKCS8PemString(PrivateKey key, String passphrase)
+            throws IOException, OperatorCreationException {
+        if (passphrase == null || passphrase.isEmpty()) {
+            throw new IllegalArgumentException("Passphrase must not be null or empty");
+        }
+
+        JceOpenSSLPKCS8EncryptorBuilder encryptorBuilder =
+                new JceOpenSSLPKCS8EncryptorBuilder(NISTObjectIdentifiers.id_aes256_CBC);
+        encryptorBuilder.setPasssword(passphrase.toCharArray());
+        try {
+            Class<?> providerClass = getProviderClass();
+            Constructor<?> ctor = providerClass.getConstructor();
+            encryptorBuilder.setProvider((Provider) ctor.newInstance());
+        } catch (ClassNotFoundException | NoSuchMethodException |
+                 InstantiationException | IllegalAccessException |
+                 InvocationTargetException ex) {
+            throw new OperatorCreationException("Unable to find suitable BouncyCastle provider", ex);
+        }
+        OutputEncryptor encryptor = encryptorBuilder.build();
+
+        JcaPKCS8Generator generator = new JcaPKCS8Generator(key, encryptor);
+
+        StringWriter sw = new StringWriter();
+        JcaPEMWriter pemWriter = new JcaPEMWriter(sw);
+        pemWriter.writeObject(generator);
+        pemWriter.flush();
+        pemWriter.close();
+        return sw.toString();
+    }
+
+    /**
+     * Decrypts a PKCS#8 encrypted PEM string back to a PrivateKey.
+     * Uses JcePKCSPBEInputDecryptorProviderBuilder for decryption.
+     *
+     * @param pem The PEM-formatted string containing an encrypted private key
+     * @param passphrase The passphrase used for decryption; must not be null or empty
+     * @return The decrypted PrivateKey
+     * @throws IllegalArgumentException if passphrase is null or empty, or PEM is invalid
+     * @throws IOException if PEM parsing fails
+     * @throws PKCSException if decryption fails (e.g., wrong passphrase)
+     */
+    public static PrivateKey pkcs8PemStringToPrivateKey(String pem, String passphrase)
+            throws IOException, PKCSException {
+        if (passphrase == null || passphrase.isEmpty()) {
+            throw new IllegalArgumentException("Passphrase must not be null or empty");
+        }
+
+        PEMParser parser = new PEMParser(new StringReader(pem));
+        Object parsed = parser.readObject();
+        parser.close();
+
+        if (!(parsed instanceof PKCS8EncryptedPrivateKeyInfo)) {
+            throw new IllegalArgumentException(
+                    "The PEM string does not contain a PKCS#8 encrypted private key");
+        }
+
+        PKCS8EncryptedPrivateKeyInfo encryptedInfo = (PKCS8EncryptedPrivateKeyInfo) parsed;
+
+        try {
+            JcePKCSPBEInputDecryptorProviderBuilder decryptorBuilder =
+                    new JcePKCSPBEInputDecryptorProviderBuilder();
+            try {
+                Class<?> providerClass = getProviderClass();
+                Constructor<?> ctor = providerClass.getConstructor();
+                decryptorBuilder.setProvider((Provider) ctor.newInstance());
+            } catch (ClassNotFoundException | NoSuchMethodException |
+                     InstantiationException | IllegalAccessException |
+                     InvocationTargetException ex) {
+                // Fall through to default provider
+            }
+            InputDecryptorProvider decryptorProvider =
+                    decryptorBuilder.build(passphrase.toCharArray());
+            PrivateKeyInfo keyInfo = encryptedInfo.decryptPrivateKeyInfo(decryptorProvider);
+            return new JcaPEMKeyConverter().getPrivateKey(keyInfo);
+        } catch (PKCSException e) {
+            throw new PKCSException("Failed to decrypt PKCS#8 private key — wrong passphrase or corrupted data", e);
+        }
+    }
+
+    // ========================================================================
+    // ContentSigner and Signing Delegation (Ticket 2.4)
+    // ========================================================================
+
+    /**
+     * Creates a ContentSigner that delegates to a callback function.
+     * This enables signing without holding a PrivateKey directly — the
+     * callback can proxy to a remote signer (e.g., HSM or DatabaseStorageService).
+     *
+     * @param algorithm The signature algorithm identifier (e.g., "SHA256withRSA")
+     * @param signingFn A BiFunction that takes (byte[] dataToSign, String algorithm)
+     *                  and returns the raw signature bytes
+     * @return A ContentSigner that delegates to the provided callback
+     */
+    public static ContentSigner createCallbackContentSigner(
+            String algorithm,
+            BiFunction<byte[], String, byte[]> signingFn) {
+
+        AlgorithmIdentifier algId =
+                new DefaultSignatureAlgorithmIdentifierFinder().find(algorithm);
+
+        return new ContentSigner() {
+            private final ByteArrayOutputStream stream = new ByteArrayOutputStream();
+
+            @Override
+            public AlgorithmIdentifier getAlgorithmIdentifier() {
+                return algId;
+            }
+
+            @Override
+            public OutputStream getOutputStream() {
+                return stream;
+            }
+
+            @Override
+            public byte[] getSignature() {
+                byte[] data = stream.toByteArray();
+                return signingFn.apply(data, algorithm);
+            }
+        };
+    }
+
+    /**
+     * Signs a certificate from a CSR using an externally-provided ContentSigner.
+     * This overload accepts a PKCS10CertificationRequest (CSR) as the source
+     * of the subject DN and public key, per the CA State Externalization spec.
+     *
+     * @param csr The certificate signing request containing subject info and public key
+     * @param issuer The issuer's X500Name
+     * @param serial Serial number for the new certificate
+     * @param notBefore Start of validity period
+     * @param notAfter End of validity period
+     * @param extensions Optional list of extension maps (may be null)
+     * @param signer The ContentSigner to use for signing
+     * @return The signed X509Certificate
+     * @throws IOException
+     * @throws CertificateException
+     */
+    public static X509Certificate signCertificate(
+            PKCS10CertificationRequest csr,
+            X500Name issuer,
+            BigInteger serial,
+            Date notBefore, Date notAfter,
+            List<Map<String, Object>> extensions,
+            ContentSigner signer)
+            throws IOException, OperatorCreationException, CertificateException {
+
+        X509v3CertificateBuilder certBuilder = new X509v3CertificateBuilder(
+                issuer,
+                serial,
+                notBefore,
+                notAfter,
+                csr.getSubject(),
+                csr.getSubjectPublicKeyInfo());
+
+        Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
+
+        if (bcExtensions != null) {
+            for (ASN1ObjectIdentifier oid : bcExtensions.getNonCriticalExtensionOIDs()) {
+                certBuilder.addExtension(oid, false, bcExtensions.getExtension(oid).getParsedValue());
+            }
+
+            for (ASN1ObjectIdentifier oid : bcExtensions.getCriticalExtensionOIDs()) {
+                certBuilder.addExtension(oid, true, bcExtensions.getExtension(oid).getParsedValue());
+            }
+        }
+
+        JcaX509CertificateConverter converter = new JcaX509CertificateConverter();
+        return converter.getCertificate(certBuilder.build(signer));
+    }
+
+    /**
+     * Signs a certificate using the DN-based approach with an externally-provided ContentSigner.
+     * This is the signer-based equivalent of the existing signCertificate that takes a PrivateKey.
+     *
+     * @param issuerDn Issuer's distinguished name string
+     * @param serial Serial number for the certificate
+     * @param notBefore Start of validity period
+     * @param notAfter End of validity period
+     * @param subjectDn Subject's distinguished name string
+     * @param subjectPublicKey Subject's public key
+     * @param extensions Optional list of extension maps
+     * @param signer The ContentSigner to use for signing
+     * @return The signed X509Certificate
+     * @throws IOException
+     * @throws CertificateException
+     */
+    public static X509Certificate signCertificate(
+            String issuerDn,
+            BigInteger serial,
+            Date notBefore, Date notAfter,
+            String subjectDn,
+            PublicKey subjectPublicKey,
+            List<Map<String, Object>> extensions,
+            ContentSigner signer)
+            throws IOException, OperatorCreationException, CertificateException {
+
+        X509v3CertificateBuilder certBuilder = new X509v3CertificateBuilder(
+                new X500Name(BCStyle.INSTANCE, issuerDn),
+                serial,
+                notBefore,
+                notAfter,
+                new X500Name(BCStyle.INSTANCE, subjectDn),
+                SubjectPublicKeyInfo.getInstance(subjectPublicKey.getEncoded()));
+
+        Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
+
+        if (bcExtensions != null) {
+            for (ASN1ObjectIdentifier oid : bcExtensions.getNonCriticalExtensionOIDs()) {
+                certBuilder.addExtension(oid, false, bcExtensions.getExtension(oid).getParsedValue());
+            }
+
+            for (ASN1ObjectIdentifier oid : bcExtensions.getCriticalExtensionOIDs()) {
+                certBuilder.addExtension(oid, true, bcExtensions.getExtension(oid).getParsedValue());
+            }
+        }
+
+        JcaX509CertificateConverter converter = new JcaX509CertificateConverter();
+        return converter.getCertificate(certBuilder.build(signer));
+    }
+
+    /**
+     * Generates a CRL using an externally-provided ContentSigner.
+     * This is the signer-based equivalent of the existing generateCRL methods.
+     *
+     * @param issuer The certificate authority's identifier
+     * @param issuerPublicKey The certificate authority's public key (for AKI extension)
+     * @param signer The ContentSigner to use for signing the CRL
+     * @param thisUpdate Date for when this CRL becomes valid
+     * @param nextUpdate Date by which an updated CRL is expected
+     * @param crlNumber The CRL number
+     * @param extensions Optional list of extensions
+     * @return A new signed certificate revocation list
+     * @throws CRLException
+     * @throws IOException
+     * @throws NoSuchAlgorithmException
+     * @throws CertificateEncodingException
+     */
+    public static X509CRL generateCRL(
+            X500Principal issuer,
+            PublicKey issuerPublicKey,
+            ContentSigner signer,
+            Date thisUpdate,
+            Date nextUpdate,
+            BigInteger crlNumber,
+            List<Map<String, Object>> extensions)
+            throws CRLException, IOException, OperatorCreationException, NoSuchAlgorithmException, CertificateEncodingException {
+
+        X509v2CRLBuilder builder = new JcaX509v2CRLBuilder(issuer, thisUpdate);
+        builder.setNextUpdate(nextUpdate);
+        builder.addExtension(Extension.cRLNumber, false, new CRLNumber(crlNumber));
+        Extensions bcExtensions = ExtensionsUtils.getExtensionsObjFromMap(extensions);
+        if (bcExtensions != null) {
+            for (ASN1ObjectIdentifier oid : bcExtensions.getNonCriticalExtensionOIDs()) {
+                builder.addExtension(oid, false, bcExtensions.getExtension(oid).getParsedValue());
+            }
+
+            for (ASN1ObjectIdentifier oid : bcExtensions.getCriticalExtensionOIDs()) {
+                builder.addExtension(oid, true, bcExtensions.getExtension(oid).getParsedValue());
+            }
+        }
+        if (builder.hasExtension(Extension.authorityKeyIdentifier) == false) {
+            builder.addExtension(Extension.authorityKeyIdentifier, false,
+                    new JcaX509ExtensionUtils().createAuthorityKeyIdentifier(issuerPublicKey));
+        }
+        return new JcaX509CRLConverter().getCRL(builder.build(signer));
     }
 }
